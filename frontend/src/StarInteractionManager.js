@@ -128,8 +128,7 @@ export class StarInteractionManager {
       // Emit star hover event
       eventBus.emit(STAR_EVENTS.HOVER, {
         star: star,
-        position: star.mesh.position,
-        screenPosition: this.getStarScreenPosition(star)
+        position: star.mesh.position
       });
     }
     
@@ -153,24 +152,7 @@ export class StarInteractionManager {
     this.hoveredStar = null;
   }
 
-  /**
-   * Get star's screen position
-   * @param {Object} star - Star object
-   * @returns {Object} Screen coordinates {x, y}
-   */
-  getStarScreenPosition(star) {
-    if (!star || !star.mesh) {
-      return { x: 0, y: 0 };
-    }
 
-    const position = star.mesh.position.clone();
-    position.project(this.camera);
-    
-    return {
-      x: (position.x + 1) * window.innerWidth / 2,
-      y: (-position.y + 1) * window.innerHeight / 2
-    };
-  }
 
   /**
    * Update star list
