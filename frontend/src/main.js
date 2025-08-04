@@ -4,6 +4,8 @@ import { MapGenerator } from './MapGenerator.js';
 import { PlayerManager } from './PlayerManager.js';
 import { PlayerSetupUI } from './PlayerSetupUI.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { DEV_MODE, autoStartDevMode, logDevModeStatus, setupDevModeEventListeners } from './devScenarios.js';
+import { eventBus } from './eventBus.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -91,6 +93,8 @@ function animate() {
   // Render star labels if map generator exists
   if (mapGenerator) {
     mapGenerator.renderLabels();
+    // Update star interaction manager
+    mapGenerator.updateStarInteraction(0.016); // Approximate delta time
   }
 }
 
@@ -103,6 +107,7 @@ window.addEventListener('resize', () => {
   // Update label renderer size
   if (mapGenerator) {
     mapGenerator.onWindowResize();
+    mapGenerator.onStarInteractionResize();
   }
 });
 
@@ -135,17 +140,41 @@ document.addEventListener('DOMContentLoaded', () => {
     loadingElement.style.display = 'none';
   }
   
+  // Log development mode status
+  logDevModeStatus();
+  
   // Initialize UI Controller and Map Generator
   uiController = new UIController();
   mapGenerator = new MapGenerator(scene, camera);
   playerManager = new PlayerManager();
   
-  // Show the map controls on load
-  uiController.showPanel();
-  
   // Start animation
   animate();
+  
+  // Set up event listeners for game flow
+  setupGameEventListeners();
+  
+  // Handle development mode vs normal flow
+  if (DEV_MODE) {
+    // Set up dev mode event listeners
+    setupDevModeEventListeners(playerManager);
+    
+    // Skip setup screens and auto-start development scenario
+    autoStartDevMode(generateMap);
+  } else {
+    // Show the map controls on load for normal flow
+    uiController.showPanel();
+  }
 });
+
+// Set up event listeners for game flow
+function setupGameEventListeners() {
+  // Listen for game start event
+  eventBus.on('game:start', (players) => {
+    console.log('🎮 Game started with players:', players);
+    onGameStart(players);
+  });
+}
 
 // Map generation function
 function generateMap(config) {
@@ -164,14 +193,22 @@ function generateMap(config) {
   // Clear any existing players
   playerManager.clearPlayers();
   
-  // Show player setup screen
+  // Emit map ready event
   const mapModel = mapGenerator.getCurrentModel();
-  if (playerSetupUI) {
-    playerSetupUI.destroy();
-  }
+  eventBus.emit('map:ready', mapModel);
   
-  playerSetupUI = new PlayerSetupUI(playerManager, mapModel, onGameStart);
-  playerSetupUI.show();
+  // Show player setup screen (only in non-dev mode)
+  if (!DEV_MODE) {
+    if (playerSetupUI) {
+      playerSetupUI.destroy();
+    }
+    
+    playerSetupUI = new PlayerSetupUI(playerManager, mapModel, (players) => {
+      // Emit players ready event
+      eventBus.emit('players:ready', players);
+    });
+    playerSetupUI.show();
+  }
 }
 
 // Game start function
@@ -184,6 +221,9 @@ function onGameStart(players) {
 
 // Make generateMap available globally for the UIController
 window.generateMap = generateMap;
+
+// Make mapGenerator available globally for development scenarios
+window.mapGenerator = mapGenerator;
 
 // Export for potential use in other modules
 export { scene, camera, renderer, cube, generateMap }; 

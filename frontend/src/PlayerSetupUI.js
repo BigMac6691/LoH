@@ -1,3 +1,5 @@
+import { DEV_MODE } from './devScenarios.js';
+
 /**
  * PlayerSetupUI - Handles the player setup interface
  */
@@ -492,6 +494,12 @@ export class PlayerSetupUI {
    * Show the player setup UI
    */
   show() {
+    // Suppress UI in dev mode
+    if (DEV_MODE) {
+      console.log('🔧 DEV MODE: Suppressing player setup UI');
+      return;
+    }
+    
     this.element.style.display = 'block';
     this.updateDisplay();
     this.nameInput.focus();

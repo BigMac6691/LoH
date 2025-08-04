@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { MapModel } from '../../shared/MapModel.js';
+import { StarInteractionManager } from './StarInteractionManager.js';
 
 // Constants for rendering
 const DEBUG_SHOW_SECTOR_BORDERS = true; // Set to false to hide sector borders
@@ -22,6 +23,7 @@ export class MapGenerator {
     this.labelRenderer = null;
     this.starLabels = [];
     this.mapSize = 0; // Track map size for label visibility calculations
+    this.starInteractionManager = null;
   }
 
   /**
@@ -51,6 +53,9 @@ export class MapGenerator {
     // Render the model
     this.renderMap(this.currentModel);
     
+    // Initialize star interaction manager
+    this.initializeStarInteraction();
+    
     // Position camera to fit the entire map
     this.positionCameraToFitMap();
     
@@ -61,6 +66,12 @@ export class MapGenerator {
    * Clear all existing map objects
    */
   clearMap() {
+    // Clean up star interaction manager
+    if (this.starInteractionManager) {
+      this.starInteractionManager.dispose();
+      this.starInteractionManager = null;
+    }
+    
     // Remove stars
     this.stars.forEach(star => {
       // Clean up glow mesh if it exists
@@ -587,6 +598,37 @@ export class MapGenerator {
   onWindowResize() {
     if (this.labelRenderer) {
       this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    }
+  }
+
+  /**
+   * Initialize star interaction manager
+   */
+  initializeStarInteraction() {
+    // Create star interaction manager
+    this.starInteractionManager = new StarInteractionManager(
+      this.scene,
+      this.camera,
+      this.stars
+    );
+  }
+
+  /**
+   * Update star interaction manager
+   * @param {number} deltaTime - Time since last update
+   */
+  updateStarInteraction(deltaTime) {
+    if (this.starInteractionManager) {
+      this.starInteractionManager.update(deltaTime);
+    }
+  }
+
+  /**
+   * Handle window resize for star interaction
+   */
+  onStarInteractionResize() {
+    if (this.starInteractionManager) {
+      this.starInteractionManager.onWindowResize();
     }
   }
 

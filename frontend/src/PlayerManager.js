@@ -29,9 +29,10 @@ export class PlayerManager {
    * @param {string} name - Player name
    * @param {string} color - Player color (hex)
    * @param {Object} mapModel - Map model data
+   * @param {boolean} ai - Whether player is AI controlled (optional)
    * @returns {Object|null} Player object or null if validation fails
    */
-  addPlayer(name, color, mapModel) {
+  addPlayer(name, color, mapModel, ai = false) {
     // Validate player name
     if (!this.isValidPlayerName(name)) {
       return { success: false, error: 'Invalid player name' };
@@ -65,7 +66,8 @@ export class PlayerManager {
       color: color,
       sector: sector,
       star: null,
-      score: 0
+      score: 0,
+      ai: ai
     };
 
     // Assign player to a random star in their sector

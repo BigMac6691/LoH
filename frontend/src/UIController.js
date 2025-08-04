@@ -1,17 +1,107 @@
 import { DualSlider } from './DualSlider.js';
+import { DEV_MODE } from './devScenarios.js';
 
 /**
  * UIController - Handles UI interactions for map generation
  */
 export class UIController {
   constructor() {
-    this.panel = document.getElementById('mapGenPanel');
-    this.mapSizeInput = document.getElementById('mapSize');
-    this.mapSizeValue = document.getElementById('mapSizeValue');
-    this.starDensitySliderContainer = document.getElementById('starDensitySlider');
-    this.seedInput = document.getElementById('seed');
-    this.generateBtn = document.getElementById('generateBtn');
+    this.panel = null;
+    this.mapSizeInput = null;
+    this.mapSizeValue = null;
+    this.starDensitySliderContainer = null;
+    this.seedInput = null;
+    this.generateBtn = null;
+    this.starDensitySlider = null;
     
+    this.init();
+  }
+
+  /**
+   * Initialize the UI controller
+   */
+  init() {
+    // Don't create panel automatically - only when showPanel() is called
+    this.initializeEventListeners();
+  }
+
+  /**
+   * Create the map generation panel dynamically
+   */
+  createPanel() {
+    // Create main panel container
+    this.panel = document.createElement('div');
+    this.panel.id = 'mapGenPanel';
+    this.panel.className = 'ui-panel';
+    this.panel.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      border: 2px solid #00ff88;
+      border-radius: 15px;
+      padding: 30px;
+      color: white;
+      z-index: 1000;
+      min-width: 400px;
+      max-width: 500px;
+      backdrop-filter: blur(10px);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    `;
+
+    // Create header
+    const header = document.createElement('h2');
+    header.textContent = 'Generate Map';
+    header.style.cssText = `
+      margin: 0 0 25px 0;
+      text-align: center;
+      color: #00ff88;
+      font-size: 28px;
+    `;
+
+    // Create map size form group
+    const mapSizeGroup = this.createFormGroup('Map Size (2-9)', 'mapSize');
+    this.mapSizeInput = mapSizeGroup.input;
+    this.mapSizeValue = mapSizeGroup.value;
+
+    // Create star density form group
+    const starDensityGroup = this.createFormGroup('Star Density Range (0-9)', 'starDensitySlider');
+    this.starDensitySliderContainer = starDensityGroup.container;
+
+    // Create seed form group
+    const seedGroup = this.createFormGroup('Seed', 'seed', 'number');
+    this.seedInput = seedGroup.input;
+    this.seedInput.value = '12345';
+
+    // Create generate button
+    this.generateBtn = document.createElement('button');
+    this.generateBtn.className = 'generate-btn';
+    this.generateBtn.textContent = 'Generate Map';
+    this.generateBtn.style.cssText = `
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(45deg, #00ff88, #00cc6a);
+      border: none;
+      border-radius: 5px;
+      color: #000;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-top: 20px;
+    `;
+
+    // Assemble the panel
+    this.panel.appendChild(header);
+    this.panel.appendChild(mapSizeGroup.element);
+    this.panel.appendChild(starDensityGroup.element);
+    this.panel.appendChild(seedGroup.element);
+    this.panel.appendChild(this.generateBtn);
+
+    // Add to document
+    document.body.appendChild(this.panel);
+
     // Initialize the dual slider for star density
     this.starDensitySlider = new DualSlider(this.starDensitySliderContainer, {
       min: 0,
@@ -25,14 +115,131 @@ export class UIController {
         console.log('Star density changed:', values);
       }
     });
-    
-    this.initializeEventListeners();
+
+    // Set up event listeners for the panel
+    this.setupPanelEventListeners();
+  }
+
+  /**
+   * Create a form group with label and input
+   * @param {string} labelText - Label text
+   * @param {string} inputId - Input ID
+   * @param {string} inputType - Input type (default: 'range')
+   * @returns {Object} Form group elements
+   */
+  createFormGroup(labelText, inputId, inputType = 'range') {
+    const group = document.createElement('div');
+    group.className = 'form-group';
+    group.style.cssText = `
+      margin-bottom: 20px;
+    `;
+
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    label.style.cssText = `
+      display: block;
+      margin-bottom: 8px;
+      color: #ccc;
+      font-size: 14px;
+    `;
+
+    if (inputType === 'range') {
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.id = inputId;
+      input.min = inputId === 'mapSize' ? '2' : '0';
+      input.max = '9';
+      input.value = inputId === 'mapSize' ? '5' : '2';
+      input.style.cssText = `
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: #333;
+        outline: none;
+        cursor: pointer;
+      `;
+
+      const valueSpan = document.createElement('span');
+      valueSpan.className = 'range-value';
+      valueSpan.id = inputId === 'mapSize' ? 'mapSizeValue' : null;
+      valueSpan.textContent = input.value;
+      valueSpan.style.cssText = `
+        display: inline-block;
+        margin-left: 10px;
+        color: #00ff88;
+        font-weight: bold;
+      `;
+
+      group.appendChild(label);
+      group.appendChild(input);
+      group.appendChild(valueSpan);
+
+      return {
+        element: group,
+        input: input,
+        value: valueSpan,
+        container: null
+      };
+    } else if (inputType === 'number') {
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.id = inputId;
+      input.placeholder = 'Enter seed number';
+      input.style.cssText = `
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #333;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 16px;
+        box-sizing: border-box;
+      `;
+
+      group.appendChild(label);
+      group.appendChild(input);
+
+      return {
+        element: group,
+        input: input,
+        value: null,
+        container: null
+      };
+    } else if (inputId === 'starDensitySlider') {
+      const container = document.createElement('div');
+      container.id = inputId;
+      container.style.cssText = `
+        margin-top: 10px;
+      `;
+
+      group.appendChild(label);
+      group.appendChild(container);
+
+      return {
+        element: group,
+        input: null,
+        value: null,
+        container: container
+      };
+    }
   }
 
   /**
    * Initialize all event listeners for the UI
    */
   initializeEventListeners() {
+    // Event listeners will be set up when the panel is created
+    // This method is called during initialization but elements don't exist yet
+  }
+
+  /**
+   * Set up event listeners for the panel elements
+   */
+  setupPanelEventListeners() {
+    if (!this.mapSizeInput || !this.generateBtn || !this.seedInput) {
+      return;
+    }
+
     // Map size range slider
     this.mapSizeInput.addEventListener('input', (e) => {
       this.mapSizeValue.textContent = e.target.value;
@@ -161,14 +368,27 @@ export class UIController {
    * Hide the UI panel
    */
   hidePanel() {
-    this.panel.classList.add('hidden');
+    if (this.panel) {
+      this.panel.style.display = 'none';
+    }
   }
 
   /**
    * Show the UI panel
    */
   showPanel() {
-    this.panel.classList.remove('hidden');
+    // Suppress panel in dev mode
+    if (DEV_MODE) {
+      console.log('🔧 DEV MODE: Suppressing map generation panel');
+      return;
+    }
+    
+    // Create panel if it doesn't exist
+    if (!this.panel) {
+      this.createPanel();
+    }
+    
+    this.panel.style.display = 'block';
   }
 
   /**
