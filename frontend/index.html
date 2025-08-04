@@ -140,6 +140,35 @@
     .hidden {
       display: none !important;
     }
+
+    /* Dual Slider specific styles */
+    .dual-slider {
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+
+    /* Star Label styles */
+    .star-label {
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+
+    .dual-slider-handle:hover {
+      transform: scale(1.1) !important;
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+    }
+
+    .dual-slider-track:hover {
+      background: #444;
+    }
+
+    .dual-slider-label {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      text-shadow: 0 0 5px rgba(0, 255, 136, 0.5);
+    }
   </style>
 </head>
 <body>
@@ -156,13 +185,8 @@
     </div>
     
     <div class="form-group">
-      <label for="minStarDensity">Min Star Density (0-9)</label>
-      <input type="number" id="minStarDensity" min="0" max="9" value="2" placeholder="Min density">
-    </div>
-    
-    <div class="form-group">
-      <label for="maxStarDensity">Max Star Density (0-9)</label>
-      <input type="number" id="maxStarDensity" min="0" max="9" value="7" placeholder="Max density">
+      <label>Star Density Range (0-9)</label>
+      <div id="starDensitySlider"></div>
     </div>
     
     <div class="form-group">

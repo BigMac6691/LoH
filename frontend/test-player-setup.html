@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Player Setup Test</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a2e;
+      color: white;
+      padding: 20px;
+    }
+    
+    .test-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: rgba(0, 0, 0, 0.9);
+      border: 2px solid #00ff88;
+      border-radius: 10px;
+      padding: 30px;
+    }
+    
+    .test-section {
+      margin-bottom: 30px;
+    }
+    
+    .test-section h3 {
+      color: #00ff88;
+      margin-bottom: 15px;
+    }
+    
+    .controls {
+      margin-top: 20px;
+    }
+    
+    .controls button {
+      background: #00ff88;
+      color: #000;
+      border: none;
+      padding: 10px 15px;
+      margin-right: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    
+    .controls button:hover {
+      background: #00cc6a;
+    }
+    
+    .player-list {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 15px;
+    }
+    
+    .player-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 5px;
+      border-left: 4px solid #00ff88;
+    }
+    
+    .color-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid white;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1>Player Setup System Test</h1>
+    
+    <div class="test-section">
+      <h3>Test Player Manager</h3>
+      <p>This test demonstrates the PlayerManager functionality with a mock map model.</p>
+      
+      <div class="controls">
+        <button onclick="testAddPlayer()">Add Test Player</button>
+        <button onclick="testColorValidation()">Test Color Validation</button>
+        <button onclick="testNameValidation()">Test Name Validation</button>
+        <button onclick="clearPlayers()">Clear All Players</button>
+      </div>
+      
+      <div class="player-list" id="playerList">
+        <div style="color: #666; text-align: center; padding: 20px; font-style: italic;">
+          No players added yet
+        </div>
+      </div>
+    </div>
+    
+    <div class="test-section">
+      <h3>Test Results</h3>
+      <div id="testResults" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 5px; font-family: monospace; white-space: pre-wrap;"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { PlayerManager } from './src/PlayerManager.js';
+    
+    // Create a mock map model for testing
+    const mockMapModel = {
+      sectors: [
+        [
+          { row: 0, col: 0, stars: [{ id: 1, owner: null }, { id: 2, owner: null }] },
+          { row: 0, col: 1, stars: [{ id: 3, owner: null }] }
+        ],
+        [
+          { row: 1, col: 0, stars: [{ id: 4, owner: null }, { id: 5, owner: null }, { id: 6, owner: null }] },
+          { row: 1, col: 1, stars: [{ id: 7, owner: null }] }
+        ]
+      ]
+    };
+    
+    const playerManager = new PlayerManager();
+    
+    // Test functions
+    window.testAddPlayer = () => {
+      const testNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve'];
+      const testColors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'];
+      
+      const randomName = testNames[Math.floor(Math.random() * testNames.length)];
+      const randomColor = testColors[Math.floor(Math.random() * testColors.length)];
+      
+      const result = playerManager.addPlayer(randomName, randomColor, mockMapModel);
+      
+      if (result.success) {
+        logTest(`✅ Added player: ${result.player.name} (${result.player.color})`);
+        updatePlayerList();
+      } else {
+        logTest(`❌ Failed to add player: ${result.error}`);
+      }
+    };
+    
+    window.testColorValidation = () => {
+      logTest('Testing color validation...');
+      
+      // Test valid colors
+      const validColors = ['#FF6B6B', '#4ECDC4', '#45B7D1'];
+      validColors.forEach(color => {
+        const isValid = playerManager.isValidPlayerColor(color);
+        logTest(`${isValid ? '✅' : '❌'} ${color}: ${isValid ? 'Valid' : 'Invalid'}`);
+      });
+      
+      // Test invalid colors
+      const invalidColors = ['red', '#GGGGGG', '#123', 'not-a-color'];
+      invalidColors.forEach(color => {
+        const isValid = playerManager.isValidPlayerColor(color);
+        logTest(`${isValid ? '❌' : '✅'} ${color}: ${isValid ? 'Valid' : 'Invalid'}`);
+      });
+    };
+    
+    window.testNameValidation = () => {
+      logTest('Testing name validation...');
+      
+      // Test valid names
+      const validNames = ['Alice', 'Bob123', 'Charlie Smith', 'Diana-Jones'];
+      validNames.forEach(name => {
+        const isValid = playerManager.isValidPlayerName(name);
+        logTest(`${isValid ? '✅' : '❌'} "${name}": ${isValid ? 'Valid' : 'Invalid'}`);
+      });
+      
+      // Test invalid names
+      const invalidNames = ['A', '', 'This name is way too long for validation', 'Invalid@Name'];
+      invalidNames.forEach(name => {
+        const isValid = playerManager.isValidPlayerName(name);
+        logTest(`${isValid ? '❌' : '✅'} "${name}": ${isValid ? 'Valid' : 'Invalid'}`);
+      });
+    };
+    
+    window.clearPlayers = () => {
+      playerManager.clearPlayers();
+      logTest('🧹 Cleared all players');
+      updatePlayerList();
+    };
+    
+    function updatePlayerList() {
+      const playerList = document.getElementById('playerList');
+      const players = playerManager.getPlayers();
+      
+      if (players.length === 0) {
+        playerList.innerHTML = '<div style="color: #666; text-align: center; padding: 20px; font-style: italic;">No players added yet</div>';
+        return;
+      }
+      
+      playerList.innerHTML = '';
+      players.forEach(player => {
+        const playerItem = document.createElement('div');
+        playerItem.className = 'player-item';
+        playerItem.style.borderLeftColor = player.color;
+        
+        const colorDot = document.createElement('div');
+        colorDot.className = 'color-dot';
+        colorDot.style.background = player.color;
+        
+        const playerInfo = document.createElement('div');
+        playerInfo.style.display = 'flex';
+        playerInfo.style.alignItems = 'center';
+        playerInfo.appendChild(colorDot);
+        
+        const playerName = document.createElement('span');
+        playerName.textContent = player.name;
+        playerName.style.fontWeight = 'bold';
+        playerName.style.marginRight = '10px';
+        
+        const sectorInfo = document.createElement('span');
+        sectorInfo.textContent = `Sector (${player.sector.row + 1}, ${player.sector.col + 1})`;
+        sectorInfo.style.color = '#ccc';
+        sectorInfo.style.fontSize = '12px';
+        
+        playerInfo.appendChild(playerName);
+        playerInfo.appendChild(sectorInfo);
+        
+        const removeButton = document.createElement('button');
+        removeButton.textContent = '×';
+        removeButton.style.cssText = `
+          background: #ff6b6b;
+          border: none;
+          border-radius: 50%;
+          width: 24px;
+          height: 24px;
+          color: white;
+          font-size: 16px;
+          font-weight: bold;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        `;
+        
+        removeButton.addEventListener('click', () => {
+          playerManager.removePlayer(player.id);
+          updatePlayerList();
+          logTest(`🗑️ Removed player: ${player.name}`);
+        });
+        
+        playerItem.appendChild(playerInfo);
+        playerItem.appendChild(removeButton);
+        playerList.appendChild(playerItem);
+      });
+    }
+    
+    function logTest(message) {
+      const results = document.getElementById('testResults');
+      const timestamp = new Date().toLocaleTimeString();
+      results.textContent += `[${timestamp}] ${message}\n`;
+      results.scrollTop = results.scrollHeight;
+    }
+    
+    // Initialize
+    logTest('🚀 Player Setup System Test initialized');
+    logTest(`Available colors: ${playerManager.getAvailableColors().length}`);
+  </script>
+</body>
+</html> 

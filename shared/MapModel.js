@@ -1,4 +1,5 @@
 import SeededRandom from './SeededRandom.js';
+import { Star } from './Star.js';
 
 /**
  * MapModel - Generates pure data structures for space maps
@@ -11,6 +12,7 @@ export class MapModel {
    */
   constructor(seed) {
     this.seededRandom = new SeededRandom(seed);
+    this.nextStarId = 0;
   }
 
   /**
@@ -110,10 +112,8 @@ export class MapModel {
    * @returns {Array} Array of star objects for this sector
    */
   generateSectorStars(sector, config) {
-    // Determine number of stars based on density range
-    const maxStars = Math.floor(config.maxStarDensity * 1.5);
-    const minStars = Math.floor(config.minStarDensity * 0.5);
-    const numStars = this.seededRandom.nextInt(minStars, maxStars);
+    // Determine number of stars based on density range (use exact values)
+    const numStars = this.seededRandom.nextInt(config.minStarDensity, config.maxStarDensity);
     
     const margin = sector.width * 0.05; // 5% margin from edges
     const availableWidth = sector.width - (2 * margin);
@@ -144,12 +144,20 @@ export class MapModel {
         }
         
         if (!tooClose) {
-          const star = {
-            id: placedStars.length,
+          // Generate a random resource value for this star
+          const resourceValue = this.seededRandom.nextInt(0, 100);
+          
+          const star = new Star({
+            id: this.nextStarId++,
             x, y, z,
             sector: sector,
-            connected: false
-          };
+            resourceValue: resourceValue,
+            color: '#CCCCCC', // Default light gray color
+            hasEconomy: false // No economy initially
+          });
+          
+          // Generate a unique name for this star
+          star.generateName(this.seededRandom);
           
           placedStars.push(star);
           starPlaced = true;
@@ -201,29 +209,35 @@ export class MapModel {
     connected.push(unconnected.shift());
     connected[0].connected = true;
     
-    // Connect each star to nearest unconnected neighbor
+    // Connect each unconnected star to the closest connected star
     while (unconnected.length > 0) {
-      const lastConnected = connected[connected.length - 1];
-      let nearestIndex = 0;
+      let nearestUnconnectedIndex = 0;
+      let nearestConnectedStar = null;
       let nearestDistance = Infinity;
       
-      // Find nearest unconnected star
+      // Find the unconnected star with shortest distance to any connected star
       for (let i = 0; i < unconnected.length; i++) {
-        const distance = this.getDistance(lastConnected, unconnected[i]);
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearestIndex = i;
+        const unconnectedStar = unconnected[i];
+        
+        // Check distance to each connected star
+        for (const connectedStar of connected) {
+          const distance = this.getDistance(connectedStar, unconnectedStar);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestUnconnectedIndex = i;
+            nearestConnectedStar = connectedStar;
+          }
         }
       }
       
-      // Connect to nearest star
-      const nearestStar = unconnected.splice(nearestIndex, 1)[0];
+      // Connect the nearest unconnected star to its closest connected star
+      const nearestStar = unconnected.splice(nearestUnconnectedIndex, 1)[0];
       connected.push(nearestStar);
       nearestStar.connected = true;
       
       // Create wormhole
       wormholes.push({
-        star1: lastConnected,
+        star1: nearestConnectedStar,
         star2: nearestStar,
         distance: nearestDistance
       });
@@ -305,6 +319,11 @@ export class MapModel {
    * @returns {number} Distance
    */
   getDistance(star1, star2) {
+    // Use Star class method if available, otherwise fall back to manual calculation
+    if (star1.getDistanceTo && typeof star1.getDistanceTo === 'function') {
+      return star1.getDistanceTo(star2);
+    }
+    
     return Math.sqrt(
       Math.pow(star1.x - star2.x, 2) + 
       Math.pow(star1.y - star2.y, 2) + 

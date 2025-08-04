@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DualSlider Test</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a2e;
+      color: white;
+      padding: 20px;
+    }
+    
+    .test-container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: rgba(0, 0, 0, 0.9);
+      border: 2px solid #00ff88;
+      border-radius: 10px;
+      padding: 30px;
+    }
+    
+    .test-section {
+      margin-bottom: 30px;
+    }
+    
+    .test-section h3 {
+      color: #00ff88;
+      margin-bottom: 15px;
+    }
+    
+    .value-display {
+      background: rgba(0, 255, 136, 0.1);
+      border: 1px solid #00ff88;
+      border-radius: 5px;
+      padding: 10px;
+      margin-top: 10px;
+      font-family: monospace;
+    }
+    
+    .controls {
+      margin-top: 20px;
+    }
+    
+    .controls button {
+      background: #00ff88;
+      color: #000;
+      border: none;
+      padding: 10px 15px;
+      margin-right: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    
+    .controls button:hover {
+      background: #00cc6a;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1>DualSlider Component Test</h1>
+    
+    <div class="test-section">
+      <h3>Star Density Range (0-9)</h3>
+      <div id="starDensitySlider"></div>
+      <div class="value-display" id="starDensityValues">
+        Min: 2, Max: 7
+      </div>
+    </div>
+    
+    <div class="test-section">
+      <h3>Custom Range (10-100)</h3>
+      <div id="customSlider"></div>
+      <div class="value-display" id="customValues">
+        Min: 25, Max: 75
+      </div>
+    </div>
+    
+    <div class="controls">
+      <button onclick="resetSliders()">Reset to Defaults</button>
+      <button onclick="setRandomValues()">Set Random Values</button>
+      <button onclick="setMinMax()">Set Min=1, Max=8</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { DualSlider } from './src/DualSlider.js';
+    
+    // Initialize star density slider
+    const starDensitySlider = new DualSlider(
+      document.getElementById('starDensitySlider'),
+      {
+        min: 0,
+        max: 9,
+        minValue: 2,
+        maxValue: 7,
+        width: 400,
+        height: 60,
+        onChange: (values) => {
+          document.getElementById('starDensityValues').textContent = 
+            `Min: ${values.min}, Max: ${values.max}`;
+        }
+      }
+    );
+    
+    // Initialize custom slider
+    const customSlider = new DualSlider(
+      document.getElementById('customSlider'),
+      {
+        min: 10,
+        max: 100,
+        minValue: 25,
+        maxValue: 75,
+        width: 400,
+        height: 60,
+        onChange: (values) => {
+          document.getElementById('customValues').textContent = 
+            `Min: ${values.min}, Max: ${values.max}`;
+        }
+      }
+    );
+    
+    // Global functions for testing
+    window.resetSliders = () => {
+      starDensitySlider.setValues(2, 7);
+      customSlider.setValues(25, 75);
+    };
+    
+    window.setRandomValues = () => {
+      const min1 = Math.floor(Math.random() * 5);
+      const max1 = min1 + Math.floor(Math.random() * (9 - min1)) + 1;
+      starDensitySlider.setValues(min1, max1);
+      
+      const min2 = 10 + Math.floor(Math.random() * 40);
+      const max2 = min2 + Math.floor(Math.random() * (100 - min2)) + 10;
+      customSlider.setValues(min2, max2);
+    };
+    
+    window.setMinMax = () => {
+      starDensitySlider.setValues(1, 8);
+    };
+  </script>
+</body>
+</html> 

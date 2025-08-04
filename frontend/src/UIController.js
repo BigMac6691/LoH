@@ -1,3 +1,5 @@
+import { DualSlider } from './DualSlider.js';
+
 /**
  * UIController - Handles UI interactions for map generation
  */
@@ -6,10 +8,23 @@ export class UIController {
     this.panel = document.getElementById('mapGenPanel');
     this.mapSizeInput = document.getElementById('mapSize');
     this.mapSizeValue = document.getElementById('mapSizeValue');
-    this.minStarDensityInput = document.getElementById('minStarDensity');
-    this.maxStarDensityInput = document.getElementById('maxStarDensity');
+    this.starDensitySliderContainer = document.getElementById('starDensitySlider');
     this.seedInput = document.getElementById('seed');
     this.generateBtn = document.getElementById('generateBtn');
+    
+    // Initialize the dual slider for star density
+    this.starDensitySlider = new DualSlider(this.starDensitySliderContainer, {
+      min: 0,
+      max: 9,
+      minValue: 2,
+      maxValue: 7,
+      width: 280,
+      height: 60,
+      onChange: (values) => {
+        // Optional: handle real-time changes if needed
+        console.log('Star density changed:', values);
+      }
+    });
     
     this.initializeEventListeners();
   }
@@ -53,10 +68,11 @@ export class UIController {
    * @returns {Object} Configuration object
    */
   getConfig() {
+    const starDensityValues = this.starDensitySlider.getValues();
     return {
       mapSize: parseInt(this.mapSizeInput.value),
-      minStarDensity: parseInt(this.minStarDensityInput.value),
-      maxStarDensity: parseInt(this.maxStarDensityInput.value),
+      minStarDensity: starDensityValues.min,
+      maxStarDensity: starDensityValues.max,
       seed: parseInt(this.seedInput.value) || 0
     };
   }
@@ -73,21 +89,14 @@ export class UIController {
       return false;
     }
 
-    // Validate min star density
+    // Validate star density values (dual slider handles constraints automatically)
     if (config.minStarDensity < 0 || config.minStarDensity > 9) {
       this.showError('Min star density must be between 0 and 9');
       return false;
     }
 
-    // Validate max star density
     if (config.maxStarDensity < 0 || config.maxStarDensity > 9) {
       this.showError('Max star density must be between 0 and 9');
-      return false;
-    }
-
-    // Validate star density range
-    if (config.minStarDensity > config.maxStarDensity) {
-      this.showError('Min star density must be less than or equal to max star density');
       return false;
     }
 
@@ -184,8 +193,7 @@ export class UIController {
   resetForm() {
     this.mapSizeInput.value = 5;
     this.mapSizeValue.textContent = '5';
-    this.minStarDensityInput.value = 2;
-    this.maxStarDensityInput.value = 7;
+    this.starDensitySlider.setValues(2, 7);
     this.seedInput.value = 12345;
   }
 
@@ -198,11 +206,11 @@ export class UIController {
       this.mapSizeInput.value = config.mapSize;
       this.mapSizeValue.textContent = config.mapSize;
     }
-    if (config.minStarDensity !== undefined) {
-      this.minStarDensityInput.value = config.minStarDensity;
-    }
-    if (config.maxStarDensity !== undefined) {
-      this.maxStarDensityInput.value = config.maxStarDensity;
+    if (config.minStarDensity !== undefined || config.maxStarDensity !== undefined) {
+      const currentValues = this.starDensitySlider.getValues();
+      const min = config.minStarDensity !== undefined ? config.minStarDensity : currentValues.min;
+      const max = config.maxStarDensity !== undefined ? config.maxStarDensity : currentValues.max;
+      this.starDensitySlider.setValues(min, max);
     }
     if (config.seed !== undefined) {
       this.seedInput.value = config.seed;

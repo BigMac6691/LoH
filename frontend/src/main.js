@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { UIController } from './UIController.js';
 import { MapGenerator } from './MapGenerator.js';
+import { PlayerManager } from './PlayerManager.js';
+import { PlayerSetupUI } from './PlayerSetupUI.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 // Scene setup
@@ -41,9 +43,10 @@ const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
 directionalLight.position.set(5, 5, 5);
 scene.add(directionalLight);
 
-scene.add(new THREE.AxesHelper(5));
-scene.add(new THREE.GridHelper(20, 20));
+// Initialize OrbitControls
 const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
 
 // Add some additional cubes for visual interest
 const cubeGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
@@ -70,6 +73,9 @@ for (let i = 0; i < 5; i++) {
 function animate() {
   requestAnimationFrame(animate);
   
+  // Update OrbitControls
+  controls.update();
+  
   // Rotate the main cube
   cube.rotation.x += 0.01;
   cube.rotation.y += 0.01;
@@ -81,6 +87,11 @@ function animate() {
   });
 
   renderer.render(scene, camera);
+  
+  // Render star labels if map generator exists
+  if (mapGenerator) {
+    mapGenerator.renderLabels();
+  }
 }
 
 // Handle window resize
@@ -88,11 +99,18 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  
+  // Update label renderer size
+  if (mapGenerator) {
+    mapGenerator.onWindowResize();
+  }
 });
 
 // Initialize UI Controller and Map Generator
 let uiController;
 let mapGenerator;
+let playerManager;
+let playerSetupUI;
 
 // Function to remove demo objects when generating map
 function removeDemoObjects() {
@@ -119,7 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize UI Controller and Map Generator
   uiController = new UIController();
-  mapGenerator = new MapGenerator(scene);
+  mapGenerator = new MapGenerator(scene, camera);
+  playerManager = new PlayerManager();
   
   // Show the map controls on load
   uiController.showPanel();
@@ -142,8 +161,25 @@ function generateMap(config) {
   const stats = mapGenerator.getStats();
   console.log('Map statistics:', stats);
   
-  // Show success message with stats
-  alert(`Map generated successfully!\n\nMap Size: ${config.mapSize}x${config.mapSize}\nMin Star Density: ${config.minStarDensity}\nMax Star Density: ${config.maxStarDensity}\nSeed: ${config.seed}\n\nStars: ${stats.stars}\nWormholes: ${stats.wormholes}\nAverage stars per sector: ${stats.averageStarsPerSector.toFixed(1)}`);
+  // Clear any existing players
+  playerManager.clearPlayers();
+  
+  // Show player setup screen
+  const mapModel = mapGenerator.getCurrentModel();
+  if (playerSetupUI) {
+    playerSetupUI.destroy();
+  }
+  
+  playerSetupUI = new PlayerSetupUI(playerManager, mapModel, onGameStart);
+  playerSetupUI.show();
+}
+
+// Game start function
+function onGameStart(players) {
+  console.log('Game started with players:', players);
+  
+  // Update star colors to reflect player ownership
+  mapGenerator.updateStarColors(players);
 }
 
 // Make generateMap available globally for the UIController
