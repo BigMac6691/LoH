@@ -2,35 +2,48 @@ import * as THREE from 'three';
 import { eventBus, STAR_EVENTS } from './eventBus.js';
 
 /**
- * RadialMenu - Displays a radial context menu for star interactions using Three.js meshes
+ * RadialMenu - Displays a radial context menu for star interactions using 2D canvas
  */
 export class RadialMenu {
   constructor(scene, camera) {
     this.scene = scene;
     this.camera = camera;
-    this.menuGroup = null;
     this.currentStar = null;
     this.isVisible = false;
     
-    // Menu configuration
-    this.menuRadius = 10; // World space radius - increased for visibility
-    this.iconSize = 5; // World space size - increased for visibility
+    // Menu configuration (in pixels)
+    this.menuRadius = 60; // Pixel radius
+    this.iconSize = 40; // Pixel size
     this.animationDuration = 200; // ms
-    this.hoverRadius = 12; // World space hover radius - increased for visibility
+    this.hoverRadius = 80; // Pixel hover radius
     
-    // Raycasting for icon interaction
-    this.raycaster = new THREE.Raycaster();
-    this.mouse = new THREE.Vector2();
+    // Canvas setup
+    this.canvas = document.createElement('canvas');
+    this.context = this.canvas.getContext('2d');
+    this.canvas.style.position = 'absolute';
+    this.canvas.style.top = '0px';
+    this.canvas.style.left = '0px';
+    this.canvas.style.pointerEvents = 'none';
+    this.canvas.style.zIndex = '1000';
+    this.canvas.width = window.innerWidth;
+    this.canvas.height = window.innerHeight;
+    document.body.appendChild(this.canvas);
+    
+    console.log('🎯 RadialMenu: Canvas created with size:', this.canvas.width, 'x', this.canvas.height);
     
     // Icon tracking
     this.icons = [];
     this.hoveredIcon = null;
     
-    // Hover boundary circle
-    this.hoverCircle = null;
+    // Mouse tracking
+    this.mouse = { x: 0, y: 0 };
+    this.menuScreenPosition = { x: 0, y: 0 };
     
     // Set up event listeners
     this.setupEventListeners();
+    
+    // Start rendering
+    this.render();
   }
 
   /**
@@ -46,6 +59,9 @@ export class RadialMenu {
     
     // Add click detection for icons
     document.addEventListener('click', this.onClick.bind(this));
+    
+    // Handle window resize
+    window.addEventListener('resize', this.onWindowResize.bind(this));
   }
 
   /**
@@ -53,14 +69,10 @@ export class RadialMenu {
    * @param {MouseEvent} event - Mouse event
    */
   onMouseMove(event) {
-    // Calculate mouse position in normalized device coordinates
-    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    this.mouse.x = event.clientX;
+    this.mouse.y = event.clientY;
     
-    // Update raycaster
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    
-    // Check for icon intersections
+    // Check for icon hover
     this.checkIconHover();
     
     // Check if we should hide the menu when mouse leaves hover area
@@ -70,25 +82,31 @@ export class RadialMenu {
   }
 
   /**
-   * Check for icon hover using raycasting
+   * Check for icon hover
    */
   checkIconHover() {
-    if (!this.isVisible || !this.menuGroup) return;
+    if (!this.isVisible) return;
     
-    // Get all icon meshes
-    const iconMeshes = this.icons.map(icon => icon.mesh);
-    const intersects = this.raycaster.intersectObjects(iconMeshes, true);
+    let hoveredIcon = null;
     
-    if (intersects.length > 0) {
-      const intersectedMesh = intersects[0].object;
-      const icon = this.icons.find(icon => icon.mesh === intersectedMesh);
+    // Check each icon for hover
+    this.icons.forEach(icon => {
+      const distance = Math.sqrt(
+        Math.pow(this.mouse.x - icon.screenX, 2) + 
+        Math.pow(this.mouse.y - icon.screenY, 2)
+      );
       
-      if (icon && icon !== this.hoveredIcon) {
-        this.onIconHover(icon);
+      if (distance <= this.iconSize / 2) {
+        hoveredIcon = icon;
       }
-    } else {
+    });
+    
+    if (hoveredIcon !== this.hoveredIcon) {
       if (this.hoveredIcon) {
         this.onIconUnhover();
+      }
+      if (hoveredIcon) {
+        this.onIconHover(hoveredIcon);
       }
     }
   }
@@ -99,31 +117,14 @@ export class RadialMenu {
    */
   onIconHover(icon) {
     this.hoveredIcon = icon;
-    
-    // Scale up the icon
-    icon.mesh.scale.setScalar(1.2);
-    
-    // Change material color
-    if (icon.material) {
-      icon.material.color.setHex(0x00ff88);
-    }
+    console.log('🎯 RadialMenu: Hovering over icon:', icon.symbol);
   }
 
   /**
    * Handle icon unhover
    */
   onIconUnhover() {
-    if (this.hoveredIcon) {
-      // Scale down the icon
-      this.hoveredIcon.mesh.scale.setScalar(1.0);
-      
-      // Reset material color
-      if (this.hoveredIcon.material) {
-        this.hoveredIcon.material.color.setHex(0xffffff);
-      }
-      
-      this.hoveredIcon = null;
-    }
+    this.hoveredIcon = null;
   }
 
   /**
@@ -131,23 +132,14 @@ export class RadialMenu {
    * @returns {boolean} True if mouse is in hover area
    */
   isMouseInHoverArea() {
-    if (!this.menuGroup) return false;
+    if (!this.isVisible) return false;
     
-    // Get mouse position in world space at menu depth
-    const menuPosition = this.menuGroup.position;
-    const distance = menuPosition.distanceTo(this.camera.position);
-    
-    // Create a ray from camera through mouse
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    const mouseWorldPosition = new THREE.Vector3();
-    mouseWorldPosition.copy(this.camera.position).add(
-      this.raycaster.ray.direction.clone().multiplyScalar(distance)
+    const distance = Math.sqrt(
+      Math.pow(this.mouse.x - this.menuScreenPosition.x, 2) + 
+      Math.pow(this.mouse.y - this.menuScreenPosition.y, 2)
     );
     
-    // Calculate distance from mouse to menu center
-    const distanceToMenu = mouseWorldPosition.distanceTo(menuPosition);
-    
-    return distanceToMenu <= this.hoverRadius;
+    return distance <= this.hoverRadius;
   }
 
   /**
@@ -174,27 +166,20 @@ export class RadialMenu {
    * @param {MouseEvent} event - Mouse event
    */
   onClick(event) {
-    if (!this.isVisible || !this.menuGroup) return;
+    if (!this.isVisible) return;
     
-    // Calculate mouse position in normalized device coordinates
-    this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    
-    // Update raycaster
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    
-    // Check for icon intersections
-    const iconMeshes = this.icons.map(icon => icon.mesh);
-    const intersects = this.raycaster.intersectObjects(iconMeshes, true);
-    
-    if (intersects.length > 0) {
-      const intersectedMesh = intersects[0].object;
-      const icon = this.icons.find(icon => icon.mesh === intersectedMesh);
+    this.icons.forEach(icon => {
+      const distance = Math.sqrt(
+        Math.pow(event.clientX - icon.screenX, 2) + 
+        Math.pow(event.clientY - icon.screenY, 2)
+      );
       
-      if (icon && icon.onClick) {
-        icon.onClick();
+      if (distance <= this.iconSize / 2) {
+        if (icon.onClick) {
+          icon.onClick();
+        }
       }
-    }
+    });
   }
 
   /**
@@ -213,233 +198,64 @@ export class RadialMenu {
 
     console.log('🎯 RadialMenu: Creating menu at position:', position);
 
-    // Create menu group
-    this.menuGroup = new THREE.Group();
-    this.scene.add(this.menuGroup);
-    
-    console.log('🎯 RadialMenu: Added menu group to scene. Scene children count:', this.scene.children.length);
-
-    // Create hover boundary circle
-    this.createHoverCircle();
+    // Project 3D position to screen coordinates
+    this.updateMenuPosition(position);
 
     // Create industry icon
     const industryIcon = this.createIcon('🏭', 'Industry', 0, () => {
       const starName = star.getName ? star.getName() : `Star ${star.id}`;
       console.log(`${starName} - industry`);
     });
-    
-    // Create a simple colored sphere as alternative icon
-    const sphereGeometry = new THREE.SphereGeometry(2, 16, 16);
-    const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
-    const sphereIcon = new THREE.Mesh(sphereGeometry, sphereMaterial);
-    sphereIcon.position.set(0, 0, 2); // Between test sphere and hover circle
-    this.menuGroup.add(sphereIcon);
-    console.log('🎯 RadialMenu: Added green sphere as alternative icon');
-    
-    // Create a simple test sphere to verify positioning
-    const testGeometry = new THREE.SphereGeometry(2, 16, 16);
-    const testMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    const testSphere = new THREE.Mesh(testGeometry, testMaterial);
-    testSphere.position.set(0, 0, 8); // Above the menu
-    this.menuGroup.add(testSphere);
-    console.log('🎯 RadialMenu: Added test sphere for debugging');
 
-    // Position the menu group at the star's position
-    this.menuGroup.position.copy(position);
-    this.menuGroup.add(industryIcon.mesh);
+    this.icons = [industryIcon];
 
-    console.log('🎯 RadialMenu: Menu group created with icon at:', this.menuGroup.position);
-
-    // Orient menu to face camera
-    this.updateMenuOrientation();
-
-    // Animate the menu appearance
-    this.animateIn();
+    console.log('🎯 RadialMenu: Menu created with icon at screen position:', this.menuScreenPosition);
   }
 
   /**
-   * Create hover boundary circle
+   * Update menu position based on 3D star position
+   * @param {THREE.Vector3} position - 3D position
    */
-  createHoverCircle() {
-    // Create circle geometry with thicker ring
-    const circleGeometry = new THREE.RingGeometry(this.hoverRadius - 1, this.hoverRadius + 1, 32);
+  updateMenuPosition(position) {
+    // Clone the position to avoid modifying the original
+    const worldPosition = position.clone();
     
-    // Create material for the circle with higher opacity
-    const circleMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00ff88,
-      transparent: true,
-      opacity: 0.8,
-      side: THREE.DoubleSide
-    });
+    // Project 3D position to screen coordinates
+    worldPosition.project(this.camera);
     
-    // Create mesh
-    this.hoverCircle = new THREE.Mesh(circleGeometry, circleMaterial);
-    this.hoverCircle.rotation.x = -Math.PI / 2; // Rotate to be horizontal
-    this.hoverCircle.position.z = -0.5; // Slightly below the icons
-    
-    console.log('🎯 RadialMenu: Created hover circle with radius:', this.hoverRadius);
-    this.menuGroup.add(this.hoverCircle);
+    // Convert to screen coordinates
+    this.menuScreenPosition.x = (worldPosition.x + 1) * window.innerWidth / 2;
+    this.menuScreenPosition.y = (-worldPosition.y + 1) * window.innerHeight / 2;
   }
 
   /**
-   * Create a menu icon using Three.js mesh
+   * Create a menu icon
    * @param {string} symbol - Icon symbol/emoji
    * @param {string} tooltip - Tooltip text
    * @param {number} angle - Angle in radians
    * @param {Function} onClick - Click handler
-   * @returns {Object} Icon object with mesh and metadata
+   * @returns {Object} Icon object
    */
   createIcon(symbol, tooltip, angle, onClick) {
-    // Create a plane geometry for the icon
-    const geometry = new THREE.PlaneGeometry(this.iconSize, this.iconSize);
-    
-    // Create a canvas to render the emoji
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    canvas.width = 128;
-    canvas.height = 128;
-    
-    // Set up canvas with better contrast
-    context.fillStyle = 'rgba(0, 0, 0, 0.9)';
-    context.fillRect(0, 0, 128, 128);
-    
-    // Draw border
-    context.strokeStyle = '#00ff88';
-    context.lineWidth = 8;
-    context.strokeRect(4, 4, 120, 120);
-    
-    // Draw emoji with larger font
-    context.font = '80px Arial';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(symbol, 64, 64);
-    
-    // Create texture from canvas
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-    
-    // Create material
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      alphaTest: 0.1,
-      side: THREE.DoubleSide
-    });
-    
-    // Create mesh
-    const mesh = new THREE.Mesh(geometry, material);
-    
-    // Position the icon around the circle
+    // Calculate icon position around the circle
     const radius = this.menuRadius;
-    mesh.position.set(
-      Math.cos(angle) * radius,
-      Math.sin(angle) * radius,
-      1 // Higher above the hover circle for visibility
-    );
+    const screenX = this.menuScreenPosition.x + Math.cos(angle) * radius;
+    const screenY = this.menuScreenPosition.y + Math.sin(angle) * radius;
     
-    console.log('🎯 RadialMenu: Created icon at position:', mesh.position);
-    
-    // Store icon data
     const icon = {
-      mesh: mesh,
-      material: material,
-      geometry: geometry,
-      texture: texture,
       symbol: symbol,
       tooltip: tooltip,
+      angle: angle,
       onClick: onClick,
-      angle: angle
+      screenX: screenX,
+      screenY: screenY,
+      size: this.iconSize,
+      isHovered: false
     };
     
-    // Add click handler
-    mesh.userData = { icon: icon };
-    
-    this.icons.push(icon);
+    console.log('🎯 RadialMenu: Created icon at screen position:', { x: screenX, y: screenY });
     
     return icon;
-  }
-
-  /**
-   * Update menu orientation to face camera
-   */
-  updateMenuOrientation() {
-    if (!this.menuGroup) return;
-    
-    // Make menu group face camera directly
-    this.menuGroup.lookAt(this.camera.position);
-    
-    console.log('🎯 RadialMenu: Updated menu orientation, menu group position:', this.menuGroup.position);
-  }
-
-  /**
-   * Animate the menu appearance
-   */
-  animateIn() {
-    if (!this.menuGroup) return;
-
-    this.icons.forEach((icon, index) => {
-      const delay = index * 50; // Stagger the animations
-      
-      // Start with scale 0
-      icon.mesh.scale.setScalar(0);
-      
-      setTimeout(() => {
-        // Animate to scale 1
-        const startScale = 0;
-        const endScale = 1;
-        const duration = 200;
-        const startTime = Date.now();
-        
-        const animate = () => {
-          const elapsed = Date.now() - startTime;
-          const progress = Math.min(elapsed / duration, 1);
-          
-          // Easing function
-          const easeOutBack = 1 + 2.70158 * Math.pow(progress - 1, 3) + 1.70158 * Math.pow(progress - 1, 2);
-          const scale = startScale + (endScale - startScale) * easeOutBack;
-          
-          icon.mesh.scale.setScalar(scale);
-          
-          if (progress < 1) {
-            requestAnimationFrame(animate);
-          }
-        };
-        
-        animate();
-      }, delay);
-    });
-  }
-
-  /**
-   * Animate the menu disappearance
-   */
-  animateOut() {
-    if (!this.menuGroup) return;
-
-    this.icons.forEach((icon) => {
-      // Animate to scale 0
-      const startScale = 1;
-      const endScale = 0;
-      const duration = 150;
-      const startTime = Date.now();
-      
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        // Easing function
-        const easeInBack = progress * progress * (2.70158 * progress - 1.70158);
-        const scale = startScale + (endScale - startScale) * easeInBack;
-        
-        icon.mesh.scale.setScalar(scale);
-        
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        }
-      };
-      
-      animate();
-    });
   }
 
   /**
@@ -448,27 +264,113 @@ export class RadialMenu {
   hide() {
     if (!this.isVisible) return;
 
-    this.animateOut();
+    this.isVisible = false;
+    this.currentStar = null;
+    this.icons = [];
+    this.hoveredIcon = null;
     
-    // Remove from scene after animation
-    setTimeout(() => {
-      if (this.menuGroup) {
-        this.scene.remove(this.menuGroup);
-        this.menuGroup = null;
-      }
-      
-      // Clean up icons
-      this.icons.forEach(icon => {
-        if (icon.geometry) icon.geometry.dispose();
-        if (icon.material) icon.material.dispose();
-        if (icon.texture) icon.texture.dispose();
-      });
-      this.icons = [];
-      
-      this.isVisible = false;
-      this.currentStar = null;
-      this.hoveredIcon = null;
-    }, this.animationDuration);
+    console.log('🎯 RadialMenu: Menu hidden');
+  }
+
+  /**
+   * Render the menu to canvas
+   */
+  render() {
+    // Clear canvas
+    this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Debug: Draw a test circle to verify rendering is working
+    this.context.save();
+    this.context.beginPath();
+    this.context.arc(100, 100, 20, 0, Math.PI * 2);
+    this.context.fillStyle = 'red';
+    this.context.fill();
+    this.context.restore();
+    
+    if (!this.isVisible || !this.currentStar) {
+      requestAnimationFrame(() => this.render());
+      return;
+    }
+    
+    // Update menu position based on current star position
+    this.updateMenuPosition(this.currentStar.mesh.position);
+    
+    // Update icon positions
+    this.icons.forEach(icon => {
+      const radius = this.menuRadius;
+      icon.screenX = this.menuScreenPosition.x + Math.cos(icon.angle) * radius;
+      icon.screenY = this.menuScreenPosition.y + Math.sin(icon.angle) * radius;
+    });
+    
+    // Draw hover boundary circle
+    this.drawHoverCircle();
+    
+    // Draw icons
+    this.icons.forEach(icon => {
+      this.drawIcon(icon);
+    });
+    
+    console.log('🎯 RadialMenu: Rendered menu at screen position:', this.menuScreenPosition);
+    
+    requestAnimationFrame(() => this.render());
+  }
+
+  /**
+   * Draw hover boundary circle
+   */
+  drawHoverCircle() {
+    this.context.save();
+    
+    // Draw circle
+    this.context.beginPath();
+    this.context.arc(this.menuScreenPosition.x, this.menuScreenPosition.y, this.hoverRadius, 0, Math.PI * 2);
+    this.context.strokeStyle = 'rgba(0, 255, 136, 0.5)';
+    this.context.lineWidth = 2;
+    this.context.stroke();
+    
+    this.context.restore();
+  }
+
+  /**
+   * Draw an icon
+   * @param {Object} icon - Icon object
+   */
+  drawIcon(icon) {
+    this.context.save();
+    
+    const x = icon.screenX;
+    const y = icon.screenY;
+    const size = icon.size;
+    const isHovered = icon === this.hoveredIcon;
+    
+    // Draw background circle
+    this.context.beginPath();
+    this.context.arc(x, y, size / 2, 0, Math.PI * 2);
+    this.context.fillStyle = isHovered ? 'rgba(0, 255, 136, 0.2)' : 'rgba(0, 0, 0, 0.8)';
+    this.context.fill();
+    
+    // Draw border
+    this.context.strokeStyle = '#00ff88';
+    this.context.lineWidth = isHovered ? 3 : 2;
+    this.context.stroke();
+    
+    // Draw emoji
+    this.context.font = `${size * 0.6}px Arial`;
+    this.context.textAlign = 'center';
+    this.context.textBaseline = 'middle';
+    this.context.fillStyle = 'white';
+    this.context.fillText(icon.symbol, x, y);
+    
+    this.context.restore();
+  }
+
+  /**
+   * Handle window resize
+   */
+  onWindowResize() {
+    this.canvas.width = window.innerWidth;
+    this.canvas.height = window.innerHeight;
+    console.log('🎯 RadialMenu: Canvas resized to:', this.canvas.width, 'x', this.canvas.height);
   }
 
   /**
@@ -476,17 +378,7 @@ export class RadialMenu {
    * @param {number} deltaTime - Time since last update
    */
   update(deltaTime) {
-    // Update menu orientation to face camera
-    if (this.isVisible) {
-      this.updateMenuOrientation();
-    }
-  }
-
-  /**
-   * Handle window resize
-   */
-  onWindowResize() {
-    // No specific resize handling needed for mesh-based menu
+    // No additional updates needed - rendering is handled by render loop
   }
 
   /**
@@ -498,7 +390,13 @@ export class RadialMenu {
     eventBus.off(STAR_EVENTS.UNHOVER, this.onStarUnhover.bind(this));
     document.removeEventListener('mousemove', this.onMouseMove.bind(this));
     document.removeEventListener('click', this.onClick.bind(this));
+    window.removeEventListener('resize', this.onWindowResize.bind(this));
     
     this.hide();
+    
+    // Remove canvas from DOM
+    if (this.canvas && this.canvas.parentNode) {
+      this.canvas.parentNode.removeChild(this.canvas);
+    }
   }
 } 
