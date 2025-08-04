@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { MapModel } from '../../shared/MapModel.js';
 import { StarInteractionManager } from './StarInteractionManager.js';
+import { RadialMenu } from './RadialMenu.js';
 
 // Constants for rendering
 const DEBUG_SHOW_SECTOR_BORDERS = true; // Set to false to hide sector borders
@@ -24,6 +25,7 @@ export class MapGenerator {
     this.starLabels = [];
     this.mapSize = 0; // Track map size for label visibility calculations
     this.starInteractionManager = null;
+    this.radialMenu = null;
   }
 
   /**
@@ -53,7 +55,7 @@ export class MapGenerator {
     // Render the model
     this.renderMap(this.currentModel);
     
-    // Initialize star interaction manager
+    // Initialize star interaction system
     this.initializeStarInteraction();
     
     // Position camera to fit the entire map
@@ -63,51 +65,36 @@ export class MapGenerator {
   }
 
   /**
-   * Clear all existing map objects
+   * Clear the current map
    */
   clearMap() {
-    // Clean up star interaction manager
+    // Remove existing objects
+    if (this.currentModel) {
+      this.currentModel.stars.forEach(star => {
+        if (star.mesh) {
+          this.scene.remove(star.mesh);
+        }
+      });
+      
+      this.currentModel.wormholes.forEach(wormhole => {
+        if (wormhole.mesh) {
+          this.scene.remove(wormhole.mesh);
+        }
+      });
+    }
+    
+    // Clear star interaction
     if (this.starInteractionManager) {
       this.starInteractionManager.dispose();
       this.starInteractionManager = null;
     }
     
-    // Remove stars
-    this.stars.forEach(star => {
-      // Clean up glow mesh if it exists
-      if (star.glowMesh) {
-        star.glowMesh.geometry.dispose();
-        star.glowMesh.material.dispose();
-      }
-      
-      this.scene.remove(star.mesh);
-      star.mesh.geometry.dispose();
-      star.mesh.material.dispose();
-    });
+    // Clear radial menu
+    if (this.radialMenu) {
+      this.radialMenu.dispose();
+      this.radialMenu = null;
+    }
     
-    // Remove wormholes
-    this.wormholes.forEach(wormhole => {
-      this.scene.remove(wormhole.mesh);
-      wormhole.mesh.geometry.dispose();
-      wormhole.mesh.material.dispose();
-    });
-    
-    // Remove sector borders
-    this.sectorBorders.forEach(border => {
-      this.scene.remove(border);
-      border.geometry.dispose();
-      border.material.dispose();
-    });
-    
-    // Remove star labels
-    this.starLabels.forEach(label => {
-      this.scene.remove(label);
-    });
-    
-    this.stars = [];
-    this.wormholes = [];
-    this.sectorBorders = [];
-    this.starLabels = [];
     this.currentModel = null;
   }
 
@@ -602,33 +589,50 @@ export class MapGenerator {
   }
 
   /**
-   * Initialize star interaction manager
+   * Initialize star interaction system
    */
   initializeStarInteraction() {
-    // Create star interaction manager
+    if (this.starInteractionManager) {
+      this.starInteractionManager.dispose();
+    }
+    
     this.starInteractionManager = new StarInteractionManager(
-      this.scene,
-      this.camera,
-      this.stars
+      this.scene, 
+      this.camera, 
+      this.currentModel.stars
     );
+    
+    // Create radial menu instance
+    if (this.radialMenu) {
+      this.radialMenu.dispose();
+    }
+    this.radialMenu = new RadialMenu(this.scene, this.camera);
   }
 
   /**
-   * Update star interaction manager
+   * Update star interaction system
    * @param {number} deltaTime - Time since last update
    */
   updateStarInteraction(deltaTime) {
     if (this.starInteractionManager) {
       this.starInteractionManager.update(deltaTime);
     }
+    
+    if (this.radialMenu) {
+      this.radialMenu.update(deltaTime);
+    }
   }
 
   /**
-   * Handle window resize for star interaction
+   * Handle star interaction resize
    */
   onStarInteractionResize() {
     if (this.starInteractionManager) {
       this.starInteractionManager.onWindowResize();
+    }
+    
+    if (this.radialMenu) {
+      this.radialMenu.onWindowResize();
     }
   }
 

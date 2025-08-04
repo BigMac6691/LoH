@@ -105,3 +105,10 @@ export const eventBus = new EventBus();
 
 // Make available globally for debugging
 window.eventBus = eventBus; 
+
+// Add star-related events to the global event bus
+export const STAR_EVENTS = {
+  HOVER: 'star:hover',
+  UNHOVER: 'star:unhover',
+  CLICK: 'star:click'
+}; 

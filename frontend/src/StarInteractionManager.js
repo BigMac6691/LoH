@@ -1,8 +1,8 @@
 import * as THREE from 'three';
+import { eventBus, STAR_EVENTS } from './eventBus.js';
 
 /**
- * StarInteractionManager - Handles star hover detection
- * Simple version that only detects hover over owned stars and logs to console
+ * StarInteractionManager - Handles star hover detection and emits events
  */
 export class StarInteractionManager {
   constructor(scene, camera, stars) {
@@ -17,6 +17,9 @@ export class StarInteractionManager {
     
     // Get canvas element for event listeners
     this.canvas = document.getElementById('gameCanvas');
+    
+    // Hover area configuration
+    this.hoverRadius = 80; // Larger radius for easier menu interaction
     
     // Initialize
     this.initialize();
@@ -36,9 +39,11 @@ export class StarInteractionManager {
   setupEventListeners() {
     // Bind event handlers to this instance
     this.onMouseMove = this.onMouseMove.bind(this);
+    this.onMouseLeave = this.onMouseLeave.bind(this);
     
     // Mouse move for hover detection - only on canvas
     this.canvas.addEventListener('mousemove', this.onMouseMove);
+    this.canvas.addEventListener('mouseleave', this.onMouseLeave);
   }
 
   /**
@@ -65,10 +70,49 @@ export class StarInteractionManager {
         this.onStarHover(star);
       }
     } else {
-      if (this.hoveredStar) {
+      // Check if mouse is still within hover area of current star
+      if (this.hoveredStar && !this.isMouseInHoverArea(event)) {
         this.onStarUnhover();
       }
     }
+  }
+
+  /**
+   * Handle mouse leave from canvas
+   * @param {MouseEvent} event - Mouse event
+   */
+  onMouseLeave(event) {
+    if (this.hoveredStar) {
+      this.onStarUnhover();
+    }
+  }
+
+  /**
+   * Check if mouse is within the hover area of the current star
+   * @param {MouseEvent} event - Mouse event
+   * @returns {boolean} True if mouse is in hover area
+   */
+  isMouseInHoverArea(event) {
+    if (!this.hoveredStar || !this.hoveredStar.mesh) {
+      return false;
+    }
+
+    // Get star's screen position
+    const starPosition = this.hoveredStar.mesh.position.clone();
+    starPosition.project(this.camera);
+    
+    // Convert to screen coordinates
+    const starScreenX = (starPosition.x + 1) * window.innerWidth / 2;
+    const starScreenY = (-starPosition.y + 1) * window.innerHeight / 2;
+    
+    // Calculate distance from mouse to star center
+    const distance = Math.sqrt(
+      Math.pow(event.clientX - starScreenX, 2) + 
+      Math.pow(event.clientY - starScreenY, 2)
+    );
+    
+    // Check if within hover radius
+    return distance <= this.hoverRadius;
   }
 
   /**
@@ -76,10 +120,17 @@ export class StarInteractionManager {
    * @param {Object} star - Star object that was hovered
    */
   onStarHover(star) {
-    // Only log if the star is owned by a player
+    // Only emit event for owned stars
     if (star.isOwned && star.isOwned()) {
       const starName = star.getName ? star.getName() : `Star ${star.id}`;
       console.log(`Hovering over owned star: ${starName}`);
+      
+      // Emit star hover event
+      eventBus.emit(STAR_EVENTS.HOVER, {
+        star: star,
+        position: star.mesh.position,
+        screenPosition: this.getStarScreenPosition(star)
+      });
     }
     
     this.hoveredStar = star;
@@ -92,9 +143,33 @@ export class StarInteractionManager {
     if (this.hoveredStar && this.hoveredStar.isOwned && this.hoveredStar.isOwned()) {
       const starName = this.hoveredStar.getName ? this.hoveredStar.getName() : `Star ${this.hoveredStar.id}`;
       console.log(`No longer hovering over: ${starName}`);
+      
+      // Emit star unhover event
+      eventBus.emit(STAR_EVENTS.UNHOVER, {
+        star: this.hoveredStar
+      });
     }
     
     this.hoveredStar = null;
+  }
+
+  /**
+   * Get star's screen position
+   * @param {Object} star - Star object
+   * @returns {Object} Screen coordinates {x, y}
+   */
+  getStarScreenPosition(star) {
+    if (!star || !star.mesh) {
+      return { x: 0, y: 0 };
+    }
+
+    const position = star.mesh.position.clone();
+    position.project(this.camera);
+    
+    return {
+      x: (position.x + 1) * window.innerWidth / 2,
+      y: (-position.y + 1) * window.innerHeight / 2
+    };
   }
 
   /**
@@ -110,14 +185,14 @@ export class StarInteractionManager {
    * @param {number} deltaTime - Time since last update
    */
   update(deltaTime) {
-    // No update logic needed for simple hover detection
+    // No direct radial menu updates needed
   }
 
   /**
    * Handle window resize
    */
   onWindowResize() {
-    // No resize logic needed for simple hover detection
+    // No direct radial menu resize needed
   }
 
   /**
@@ -127,6 +202,7 @@ export class StarInteractionManager {
     // Remove event listeners
     if (this.canvas) {
       this.canvas.removeEventListener('mousemove', this.onMouseMove);
+      this.canvas.removeEventListener('mouseleave', this.onMouseLeave);
     }
   }
 } 
