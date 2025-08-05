@@ -12,10 +12,10 @@ export class RadialMenu {
     this.isVisible = false;
     
     // Menu configuration (in pixels)
-    this.menuRadius = 60; // Pixel radius
-    this.iconSize = 40; // Pixel size
+    this.menuRadius = 30; // Pixel radius
+    this.iconSize = 30; // Pixel size
     this.animationDuration = 200; // ms
-    this.hoverRadius = 80; // Pixel hover radius
+    this.hoverRadius = 40; // Pixel hover radius
     
     // Canvas setup
     this.canvas = document.createElement('canvas');
@@ -38,6 +38,9 @@ export class RadialMenu {
     // Mouse tracking
     this.mouse = { x: 0, y: 0 };
     this.menuScreenPosition = { x: 0, y: 0 };
+    
+    // Dynamic radius tracking
+    this.dynamicMenuRadius = null;
     
     // Set up event listeners
     this.setupEventListeners();
@@ -139,7 +142,10 @@ export class RadialMenu {
       Math.pow(this.mouse.y - this.menuScreenPosition.y, 2)
     );
     
-    return distance <= this.hoverRadius;
+    // Use dynamic hover radius based on menu radius
+    const hoverRadius = this.dynamicMenuRadius ? this.dynamicMenuRadius + 20 : this.hoverRadius;
+    
+    return distance <= hoverRadius;
   }
 
   /**
@@ -213,6 +219,30 @@ export class RadialMenu {
   }
 
   /**
+   * Calculate the projected radius of a sphere in pixels on screen
+   * @param {THREE.Mesh} mesh - The mesh to calculate projected radius for
+   * @param {THREE.Camera} camera - The camera
+   * @param {HTMLCanvasElement} canvas - The canvas element
+   * @returns {number} Projected radius in pixels
+   */
+  getProjectedRadius(mesh, camera, canvas) {
+    // Get the sphere's radius (assuming it's a sphere geometry)
+    const geometry = mesh.geometry;
+    const boundingSphere = geometry.boundingSphere || geometry.computeBoundingSphere();
+    const radius = boundingSphere.radius;
+    
+    // Get the distance from camera to sphere center
+    const distance = camera.position.distanceTo(mesh.position);
+    
+    // Calculate the projected radius using similar triangles
+    // tan(angle) = radius / distance = projectedRadius / (canvas.height / 2)
+    const fov = camera.fov * (Math.PI / 180); // Convert to radians
+    const projectedRadius = (radius / distance) * (canvas.height / 2) / Math.tan(fov / 2);
+    
+    return Math.max(projectedRadius, 5); // Minimum 5 pixels
+  }
+
+  /**
    * Update menu position based on 3D star position
    * @param {THREE.Vector3} position - 3D position
    */
@@ -226,6 +256,15 @@ export class RadialMenu {
     // Convert to screen coordinates
     this.menuScreenPosition.x = (worldPosition.x + 1) * window.innerWidth / 2;
     this.menuScreenPosition.y = (-worldPosition.y + 1) * window.innerHeight / 2;
+    
+    // Calculate dynamic menu radius based on projected star size
+    if (this.currentStar && this.currentStar.mesh) {
+      const projectedRadius = this.getProjectedRadius(this.currentStar.mesh, this.camera, this.canvas);
+      this.dynamicMenuRadius = projectedRadius + 30; // 30 pixels beyond star edge
+      
+      console.log('🎯 RadialMenu: Projected star radius:', projectedRadius.toFixed(2), 'pixels');
+      console.log('🎯 RadialMenu: Dynamic menu radius:', this.dynamicMenuRadius.toFixed(2), 'pixels');
+    }
   }
 
   /**
@@ -237,8 +276,8 @@ export class RadialMenu {
    * @returns {Object} Icon object
    */
   createIcon(symbol, tooltip, angle, onClick) {
-    // Calculate icon position around the circle
-    const radius = this.menuRadius;
+    // Use dynamic radius if available, otherwise fall back to fixed radius
+    const radius = this.dynamicMenuRadius || this.menuRadius;
     const screenX = this.menuScreenPosition.x + Math.cos(angle) * radius;
     const screenY = this.menuScreenPosition.y + Math.sin(angle) * radius;
     
@@ -268,6 +307,7 @@ export class RadialMenu {
     this.currentStar = null;
     this.icons = [];
     this.hoveredIcon = null;
+    this.dynamicMenuRadius = null;
     
     console.log('🎯 RadialMenu: Menu hidden');
   }
@@ -279,14 +319,6 @@ export class RadialMenu {
     // Clear canvas
     this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
     
-    // Debug: Draw a test circle to verify rendering is working
-    this.context.save();
-    this.context.beginPath();
-    this.context.arc(100, 100, 20, 0, Math.PI * 2);
-    this.context.fillStyle = 'red';
-    this.context.fill();
-    this.context.restore();
-    
     if (!this.isVisible || !this.currentStar) {
       requestAnimationFrame(() => this.render());
       return;
@@ -297,7 +329,7 @@ export class RadialMenu {
     
     // Update icon positions
     this.icons.forEach(icon => {
-      const radius = this.menuRadius;
+      const radius = this.dynamicMenuRadius || this.menuRadius;
       icon.screenX = this.menuScreenPosition.x + Math.cos(icon.angle) * radius;
       icon.screenY = this.menuScreenPosition.y + Math.sin(icon.angle) * radius;
     });
@@ -321,9 +353,12 @@ export class RadialMenu {
   drawHoverCircle() {
     this.context.save();
     
+    // Use dynamic hover radius based on menu radius
+    const hoverRadius = this.dynamicMenuRadius ? this.dynamicMenuRadius + 20 : this.hoverRadius;
+    
     // Draw circle
     this.context.beginPath();
-    this.context.arc(this.menuScreenPosition.x, this.menuScreenPosition.y, this.hoverRadius, 0, Math.PI * 2);
+    this.context.arc(this.menuScreenPosition.x, this.menuScreenPosition.y, hoverRadius, 0, Math.PI * 2);
     this.context.strokeStyle = 'rgba(0, 255, 136, 0.5)';
     this.context.lineWidth = 2;
     this.context.stroke();
