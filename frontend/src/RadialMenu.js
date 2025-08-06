@@ -207,13 +207,25 @@ export class RadialMenu {
     // Project 3D position to screen coordinates
     this.updateMenuPosition(position);
 
-    // Create industry icon
-    const industryIcon = this.createIcon('🏭', 'Industry', 0, () => {
-      const starName = star.getName ? star.getName() : `Star ${star.id}`;
-      console.log(`${starName} - industry`);
-    });
+    // Define icon configurations
+    const iconConfigs = [
+      { symbol: '🏭', tooltip: 'Industry', action: 'industry' },
+      { symbol: '🔬', tooltip: 'Research', action: 'research' }
+    ];
 
-    this.icons = [industryIcon];
+    // Calculate angular spacing for 270° span
+    const totalSpan = 270 * (Math.PI / 180); // Convert to radians
+    const startAngle = 135 * (Math.PI / 180); // Start at 135° (bottom-left)
+    const spacing = totalSpan / (iconConfigs.length + 1);
+
+    // Create icons with calculated positions
+    this.icons = iconConfigs.map((config, index) => {
+      const angle = startAngle + (spacing * (index + 1));
+      return this.createIcon(config.symbol, config.tooltip, angle, () => {
+        const starName = star.getName ? star.getName() : `Star ${star.id}`;
+        console.log(`${starName} - ${config.action}`);
+      });
+    });
 
     console.log('🎯 RadialMenu: Menu created with icon at screen position:', this.menuScreenPosition);
   }
@@ -261,9 +273,6 @@ export class RadialMenu {
     if (this.currentStar && this.currentStar.mesh) {
       const projectedRadius = this.getProjectedRadius(this.currentStar.mesh, this.camera, this.canvas);
       this.dynamicMenuRadius = projectedRadius + 30; // 30 pixels beyond star edge
-      
-      console.log('🎯 RadialMenu: Projected star radius:', projectedRadius.toFixed(2), 'pixels');
-      console.log('🎯 RadialMenu: Dynamic menu radius:', this.dynamicMenuRadius.toFixed(2), 'pixels');
     }
   }
 
@@ -341,8 +350,6 @@ export class RadialMenu {
     this.icons.forEach(icon => {
       this.drawIcon(icon);
     });
-    
-    console.log('🎯 RadialMenu: Rendered menu at screen position:', this.menuScreenPosition);
     
     requestAnimationFrame(() => this.render());
   }
