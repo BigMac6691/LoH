@@ -38,6 +38,12 @@ export class Star {
     // Connection state
     this.connected = false;
     
+    // List of connected stars (for pathfinding)
+    this.connectedStars = [];
+    
+    // List of ships at this star
+    this.ships = [];
+    
     // Optional economy
     this.economy = options.hasEconomy ? new Economy() : null;
   }
@@ -142,6 +148,12 @@ export class Star {
       owner: this.owner,
       color: this.color,
       connected: this.connected,
+      connectedStars: this.connectedStars.map(star => star.id),
+      connectionCount: this.getConnectionCount(),
+      ships: this.ships.map(ship => ship.getSummary ? ship.getSummary() : ship),
+      shipCount: this.getShipCount(),
+      totalShipPower: this.getTotalShipPower(),
+      totalShipDamage: this.getTotalShipDamage(),
       hasEconomy: this.hasEconomy(),
       economy: this.economy ? this.economy.getSummary() : null
     };
@@ -167,6 +179,9 @@ export class Star {
     
     // Copy connection state
     clonedStar.connected = this.connected;
+    
+    // Note: connectedStars list is not cloned as it would create circular references
+    // The connections would need to be re-established after cloning all stars
     
     // Clone economy if it exists
     if (this.economy) {
@@ -224,5 +239,150 @@ export class Star {
    */
   hasName() {
     return this.name !== null && this.name.trim().length > 0;
+  }
+
+  /**
+   * Add a star to the connected stars list
+   * @param {Star} star - Star to connect to
+   */
+  addConnectedStar(star) {
+    if (star && star !== this && !this.connectedStars.includes(star)) {
+      this.connectedStars.push(star);
+    }
+  }
+
+  /**
+   * Remove a star from the connected stars list
+   * @param {Star} star - Star to disconnect from
+   */
+  removeConnectedStar(star) {
+    const index = this.connectedStars.indexOf(star);
+    if (index !== -1) {
+      this.connectedStars.splice(index, 1);
+    }
+  }
+
+  /**
+   * Get all connected stars
+   * @returns {Array} Array of connected Star objects
+   */
+  getConnectedStars() {
+    return [...this.connectedStars]; // Return a copy to prevent external modification
+  }
+
+  /**
+   * Check if this star is connected to another star
+   * @param {Star} star - Star to check connection with
+   * @returns {boolean} True if connected
+   */
+  isConnectedTo(star) {
+    return this.connectedStars.includes(star);
+  }
+
+  /**
+   * Get the number of connected stars
+   * @returns {number} Number of connected stars
+   */
+  getConnectionCount() {
+    return this.connectedStars.length;
+  }
+
+  /**
+   * Clear all connections
+   */
+  clearConnections() {
+    this.connectedStars = [];
+    this.connected = false;
+  }
+
+  /**
+   * Add a ship to this star
+   * @param {Ship} ship - Ship to add
+   */
+  addShip(ship) {
+    if (ship && !this.ships.includes(ship)) {
+      this.ships.push(ship);
+      // Set the ship's location to this star
+      if (ship.setLocation) {
+        ship.setLocation(this);
+      }
+    }
+  }
+
+  /**
+   * Remove a ship from this star
+   * @param {Ship} ship - Ship to remove
+   */
+  removeShip(ship) {
+    const index = this.ships.indexOf(ship);
+    if (index !== -1) {
+      this.ships.splice(index, 1);
+      // Clear the ship's location
+      if (ship.setLocation) {
+        ship.setLocation(null);
+      }
+    }
+  }
+
+  /**
+   * Get all ships at this star
+   * @returns {Array} Array of Ship objects
+   */
+  getShips() {
+    return [...this.ships]; // Return a copy to prevent external modification
+  }
+
+  /**
+   * Get ships belonging to a specific owner
+   * @param {Object} owner - Owner to filter by
+   * @returns {Array} Array of Ship objects belonging to the owner
+   */
+  getShipsByOwner(owner) {
+    return this.ships.filter(ship => ship.owner === owner);
+  }
+
+  /**
+   * Get the number of ships at this star
+   * @returns {number} Number of ships
+   */
+  getShipCount() {
+    return this.ships.length;
+  }
+
+  /**
+   * Get the total power of all ships at this star
+   * @returns {number} Total ship power
+   */
+  getTotalShipPower() {
+    return this.ships.reduce((total, ship) => total + (ship.power || 0), 0);
+  }
+
+  /**
+   * Get the total damage of all ships at this star
+   * @returns {number} Total ship damage
+   */
+  getTotalShipDamage() {
+    return this.ships.reduce((total, ship) => total + (ship.damage || 0), 0);
+  }
+
+  /**
+   * Check if this star has any ships
+   * @returns {boolean} True if star has ships
+   */
+  hasShips() {
+    return this.ships.length > 0;
+  }
+
+  /**
+   * Clear all ships from this star
+   */
+  clearShips() {
+    // Clear location for all ships
+    this.ships.forEach(ship => {
+      if (ship.setLocation) {
+        ship.setLocation(null);
+      }
+    });
+    this.ships = [];
   }
 } 

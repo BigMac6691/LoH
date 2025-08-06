@@ -227,10 +227,11 @@ export class PlayerManager {
     // Set star resource level to 10
     selectedStar.setResourceValue(10);
     
-    // Create an economy with industrial value and tech level of 10
+    // Create an economy with initial values
     selectedStar.createEconomy({
-      industrialValue: 10,
-      techLevel: 10
+      techLevel: 10,
+      capacity: 100,
+      available: 100
     });
     
     // Mark star as owned by this player using Star class method

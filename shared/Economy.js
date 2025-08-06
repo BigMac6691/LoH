@@ -6,12 +6,14 @@ export class Economy {
   /**
    * Create a new Economy instance
    * @param {Object} options - Economy configuration options
-   * @param {number} options.industrialValue - Initial industrial value (default: 0)
    * @param {number} options.techLevel - Initial technology level (default: 0)
    */
   constructor(options = {}) {
-    this.industrialValue = options.industrialValue || 0;
     this.techLevel = options.techLevel || 0;
+    
+    // Economic capacity and availability
+    this.capacity = options.capacity || 100;
+    this.available = options.available || 100;
     
     // Future expansion properties
     this.tradeValue = 0;
@@ -20,17 +22,17 @@ export class Economy {
   }
 
   /**
-   * Invest resources to increase industrial development
+   * Invest resources to increase capacity
    * @param {number} amount - Amount to invest
-   * @returns {number} New industrial value after investment
+   * @returns {number} New capacity after investment
    */
   invest(amount) {
     if (amount <= 0) {
       throw new Error('Investment amount must be positive');
     }
     
-    this.industrialValue += amount;
-    return this.industrialValue;
+    this.capacity += amount;
+    return this.capacity;
   }
 
   /**
@@ -38,7 +40,7 @@ export class Economy {
    * @returns {number} Total economic value
    */
   getTotalValue() {
-    return this.industrialValue + this.techLevel + this.tradeValue + this.infrastructureValue + this.productionCapacity;
+    return this.capacity + this.techLevel + this.tradeValue + this.infrastructureValue + this.productionCapacity;
   }
 
   /**
@@ -47,8 +49,9 @@ export class Economy {
    */
   getSummary() {
     return {
-      industrialValue: this.industrialValue,
       techLevel: this.techLevel,
+      capacity: this.capacity,
+      available: this.available,
       tradeValue: this.tradeValue,
       infrastructureValue: this.infrastructureValue,
       productionCapacity: this.productionCapacity,
@@ -60,8 +63,9 @@ export class Economy {
    * Reset the economy to initial state
    */
   reset() {
-    this.industrialValue = 0;
     this.techLevel = 0;
+    this.capacity = 100;
+    this.available = 100;
     this.tradeValue = 0;
     this.infrastructureValue = 0;
     this.productionCapacity = 0;
@@ -73,8 +77,9 @@ export class Economy {
    */
   clone() {
     return new Economy({
-      industrialValue: this.industrialValue,
-      techLevel: this.techLevel
+      techLevel: this.techLevel,
+      capacity: this.capacity,
+      available: this.available
     });
   }
 } 

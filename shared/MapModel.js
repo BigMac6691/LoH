@@ -241,6 +241,10 @@ export class MapModel {
         star2: nearestStar,
         distance: nearestDistance
       });
+      
+      // Add each star to the other's connected stars list
+      nearestConnectedStar.addConnectedStar(nearestStar);
+      nearestStar.addConnectedStar(nearestConnectedStar);
     }
     
     return wormholes;
@@ -302,6 +306,10 @@ export class MapModel {
     }
     
     if (closestPair) {
+      // Add each star to the other's connected stars list
+      closestPair[0].addConnectedStar(closestPair[1]);
+      closestPair[1].addConnectedStar(closestPair[0]);
+      
       return {
         star1: closestPair[0],
         star2: closestPair[1],

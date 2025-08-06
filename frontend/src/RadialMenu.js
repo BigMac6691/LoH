@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { eventBus, STAR_EVENTS } from './eventBus.js';
+import { IndustryDialog } from './IndustryDialog.js';
+import { MoveDialog } from './MoveDialog.js';
 
 /**
  * RadialMenu - Displays a radial context menu for star interactions using 2D canvas
@@ -42,6 +44,10 @@ export class RadialMenu {
     // Dynamic radius tracking
     this.dynamicMenuRadius = null;
     
+    // Dialogs
+    this.industryDialog = new IndustryDialog();
+    this.moveDialog = new MoveDialog();
+    
     // Set up event listeners
     this.setupEventListeners();
     
@@ -80,7 +86,7 @@ export class RadialMenu {
     
     // Check if we should hide the menu when mouse leaves hover area
     if (this.isVisible && !this.isMouseInHoverArea()) {
-      this.hide();
+    this.hide();
     }
   }
 
@@ -93,7 +99,7 @@ export class RadialMenu {
     let hoveredIcon = null;
     
     // Check each icon for hover
-    this.icons.forEach(icon => {
+      this.icons.forEach(icon => {
       const distance = Math.sqrt(
         Math.pow(this.mouse.x - icon.screenX, 2) + 
         Math.pow(this.mouse.y - icon.screenY, 2)
@@ -210,7 +216,7 @@ export class RadialMenu {
     // Define icon configurations
     const iconConfigs = [
       { symbol: '🏭', tooltip: 'Industry', action: 'industry' },
-      { symbol: '🔬', tooltip: 'Research', action: 'research' }
+      { symbol: '🚀', tooltip: 'Move', action: 'move' }
     ];
 
     // Calculate angular spacing for 270° span
@@ -224,6 +230,13 @@ export class RadialMenu {
       return this.createIcon(config.symbol, config.tooltip, angle, () => {
         const starName = star.getName ? star.getName() : `Star ${star.id}`;
         console.log(`${starName} - ${config.action}`);
+        
+        // Handle specific actions
+        if (config.action === 'industry') {
+          this.industryDialog.show(star);
+        } else if (config.action === 'move') {
+          this.moveDialog.show(star);
+        }
       });
     });
 
@@ -435,6 +448,14 @@ export class RadialMenu {
     window.removeEventListener('resize', this.onWindowResize.bind(this));
     
     this.hide();
+    
+    // Dispose dialogs
+    if (this.industryDialog) {
+      this.industryDialog.dispose();
+    }
+    if (this.moveDialog) {
+      this.moveDialog.dispose();
+    }
     
     // Remove canvas from DOM
     if (this.canvas && this.canvas.parentNode) {
