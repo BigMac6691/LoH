@@ -208,8 +208,6 @@ export class RadialMenu {
     this.currentStar = star;
     this.isVisible = true;
 
-    console.log('🎯 RadialMenu: Creating menu at position:', position);
-
     // Project 3D position to screen coordinates
     this.updateMenuPosition(position);
 
@@ -313,8 +311,6 @@ export class RadialMenu {
       size: this.iconSize,
       isHovered: false
     };
-    
-    console.log('🎯 RadialMenu: Created icon at screen position:', { x: screenX, y: screenY });
     
     return icon;
   }

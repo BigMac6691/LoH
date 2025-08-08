@@ -3,6 +3,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRe
 import { MapModel } from '../../shared/MapModel.js';
 import { StarInteractionManager } from './StarInteractionManager.js';
 import { RadialMenu } from './RadialMenu.js';
+import { createStarLabel3D } from './scene/createStarLabel3D.js';
 
 // Constants for rendering
 const DEBUG_SHOW_SECTOR_BORDERS = true; // Set to false to hide sector borders
@@ -26,6 +27,7 @@ export class MapGenerator {
     this.mapSize = 0; // Track map size for label visibility calculations
     this.starInteractionManager = null;
     this.radialMenu = null;
+    this.font = null; // Will be loaded via AssetManager
   }
 
   /**
@@ -65,14 +67,23 @@ export class MapGenerator {
   }
 
   /**
+   * Set the font for 3D labels
+   * @param {Object} font - Loaded font data from AssetManager
+   */
+  setFont(font) {
+    this.font = font;
+  }
+
+  /**
    * Clear the current map
    */
   clearMap() {
     // Remove existing objects
     if (this.currentModel) {
       this.currentModel.stars.forEach(star => {
-        if (star.mesh) {
-          this.scene.remove(star.mesh);
+        // Remove the entire star group
+        if (star.group) {
+          this.scene.remove(star.group);
         }
       });
       
@@ -163,7 +174,7 @@ export class MapGenerator {
     return { minX, maxX, minY, maxY, minZ, maxZ };
   }
 
-  /**
+    /**
    * Render a map model using Three.js
    * @param {Object} model - Map model data structure
    */
@@ -172,37 +183,40 @@ export class MapGenerator {
     
     // Render stars
     model.stars.forEach(star => {
-             // Make owned stars larger for better visibility
-       const isOwned = star.isOwned && star.isOwned();
-       const finalRadius = isOwned ? starRadius * 1.25 : starRadius;
+      // Create a group to hold all star components
+      const starGroup = new THREE.Group();
+      
+      // Make owned stars larger for better visibility
+      const isOwned = star.isOwned && star.isOwned();
+      const finalRadius = isOwned ? starRadius * 1.25 : starRadius;
       const geometry = new THREE.SphereGeometry(finalRadius, 16, 16);
       
       // Use player color if star is owned, otherwise use light gray
       const starColor = star.color || 0xcccccc;
       
       if (isOwned) {
-                 // Enhanced material for owned stars - brighter and more prominent
-         const material = new THREE.MeshPhongMaterial({ 
-           color: starColor,
-           shininess: 100,
-           emissive: new THREE.Color(starColor).multiplyScalar(0.5), // Brighter glow effect
-           emissiveIntensity: 0.5
-         });
+        // Enhanced material for owned stars - brighter and more prominent
+        const material = new THREE.MeshPhongMaterial({ 
+          color: starColor,
+          shininess: 100,
+          emissive: new THREE.Color(starColor).multiplyScalar(0.5), // Brighter glow effect
+          emissiveIntensity: 0.5
+        });
         
         star.mesh = new THREE.Mesh(geometry, material);
         
-                 // Add a more visible glow effect for owned stars
-         const glowGeometry = new THREE.SphereGeometry(finalRadius * 1.4, 16, 16);
-         const glowMaterial = new THREE.MeshBasicMaterial({
-           color: starColor,
-           transparent: true,
-           opacity: 0.6,
-           side: THREE.BackSide // Render on the back side for better glow effect
-         });
-         const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-         glowMesh.position.set(0, 0, 0); // Ensure it's centered on the star
-         star.mesh.add(glowMesh);
-         star.glowMesh = glowMesh;
+        // Add a more visible glow effect for owned stars
+        const glowGeometry = new THREE.SphereGeometry(finalRadius * 1.4, 16, 16);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+          color: starColor,
+          transparent: true,
+          opacity: 0.6,
+          side: THREE.BackSide // Render on the back side for better glow effect
+        });
+        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+        glowMesh.position.set(0, 0, 0); // Ensure it's centered on the star
+        star.mesh.add(glowMesh);
+        star.glowMesh = glowMesh;
       } else {
         // Standard material for unowned stars
         const material = new THREE.MeshPhongMaterial({ 
@@ -213,15 +227,46 @@ export class MapGenerator {
         star.mesh = new THREE.Mesh(geometry, material);
       }
       
-             star.mesh.position.set(star.x, star.y, star.z);
-       this.scene.add(star.mesh);
-       this.stars.push(star);
-       
-       // Create and add star label
-       const starLabel = this.createStarLabel(star);
-       this.scene.add(starLabel);
-       this.starLabels.push(starLabel);
-     });
+      // Add star mesh to group (centered at origin)
+      starGroup.add(star.mesh);
+      
+      // Create 3D label if font is available
+      if (this.font) {
+        try {
+          const labelMesh = createStarLabel3D(
+            star.getName ? star.getName() : `Star ${star.id}`,
+            finalRadius,
+            this.font
+          );
+          star.labelMesh = labelMesh;
+          starGroup.add(labelMesh);
+        } catch (error) {
+          console.warn('⚠️ Failed to create 3D label, using CSS2D fallback:', error.message);
+        }
+      }
+      
+      // Create fleet icon if star has ships
+      if (star.hasShips && star.hasShips()) {
+        const fleetIcon = this.createFleetIconMesh(finalRadius);
+        star.fleetIcon = fleetIcon;
+        starGroup.add(fleetIcon);
+      }
+      
+      // Position the entire group at the star's world position
+      starGroup.position.set(star.x, star.y, star.z);
+      
+      // Store reference to the group
+      star.group = starGroup;
+      
+      // Add group to scene
+      this.scene.add(starGroup);
+      this.stars.push(star);
+      
+      // Create and add CSS2D label for compatibility
+      const starLabel = this.createStarLabel(star);
+      this.scene.add(starLabel);
+      this.starLabels.push(starLabel);
+    });
     
     // Render wormholes
     model.wormholes.forEach(wormhole => {
@@ -501,6 +546,68 @@ export class MapGenerator {
   }
 
   /**
+   * Create a fleet icon mesh (positioned relative to star group)
+   * @param {number} starRadius - Radius of the star for positioning
+   * @returns {THREE.Mesh} Fleet icon mesh
+   */
+  createFleetIconMesh(starRadius) {
+    // Create a cone geometry for the fleet icon
+    const coneGeometry = new THREE.ConeGeometry(2, 6, 8);
+    
+    // Use a bright color for visibility
+    const iconMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00ff00, // Bright green
+      transparent: true,
+      opacity: 0.9
+    });
+    
+    const icon = new THREE.Mesh(coneGeometry, iconMaterial);
+    
+    // Position icon to the right of the star, at half the star's height
+    const iconOffset = starRadius + 8; // Offset to the right
+    const iconY = starRadius * 0.5; // Half the star's height
+    
+    icon.position.set(iconOffset, iconY, 0);
+    
+    // Rotate the cone so the base is in the x-z plane and the point extends along the y-axis
+    icon.rotation.z = Math.PI / 2;
+    
+    return icon;
+  }
+
+  /**
+   * Update star groups to face the camera
+   */
+  updateStarGroups() {
+    this.stars.forEach(star => {
+      if (star.group) {
+        // Copy camera quaternion to make labels and icons face the camera
+        star.group.quaternion.copy(this.camera.quaternion);
+        
+        // Update fleet icon visibility based on ships
+        if (star.fleetIcon) {
+          const hasShips = star.hasShips && star.hasShips();
+          star.fleetIcon.visible = hasShips;
+          
+          // Remove fleet icon if no ships
+          if (!hasShips) {
+            star.group.remove(star.fleetIcon);
+            star.fleetIcon = null;
+          }
+        } else if (star.hasShips && star.hasShips()) {
+          // Add fleet icon if ships exist but no icon
+          const { starRadius } = this.calculateScalingFactors();
+          const isOwned = star.isOwned && star.isOwned();
+          const finalRadius = isOwned ? starRadius * 1.25 : starRadius;
+          const fleetIcon = this.createFleetIconMesh(finalRadius);
+          star.fleetIcon = fleetIcon;
+          star.group.add(fleetIcon);
+        }
+      }
+    });
+  }
+
+  /**
    * Update label visibility based on camera distance
    */
   updateLabelVisibility() {
@@ -610,7 +717,7 @@ export class MapGenerator {
     this.radialMenu = new RadialMenu(this.scene, this.camera);
   }
 
-  /**
+    /**
    * Update star interaction system
    * @param {number} deltaTime - Time since last update
    */
@@ -622,6 +729,9 @@ export class MapGenerator {
     if (this.radialMenu) {
       this.radialMenu.update(deltaTime);
     }
+    
+    // Update star groups to face camera
+    this.updateStarGroups();
   }
 
   /**
@@ -638,6 +748,35 @@ export class MapGenerator {
   }
 
 
+
+  /**
+   * Add 3D labels to existing stars after font is loaded
+   */
+  add3DLabelsToExistingStars() {
+    if (!this.font || !this.currentModel) return;
+    
+    const { starRadius } = this.calculateScalingFactors();
+    
+    this.stars.forEach(star => {
+      if (star.group && !star.labelMesh) {
+        const isOwned = star.isOwned && star.isOwned();
+        const finalRadius = isOwned ? starRadius * 1.25 : starRadius;
+        
+        try {
+          const labelMesh = createStarLabel3D(
+            star.getName ? star.getName() : `Star ${star.id}`,
+            finalRadius,
+            this.font
+          );
+          star.labelMesh = labelMesh;
+          star.group.add(labelMesh);
+          console.log(`📝 Added 3D label to ${star.getName ? star.getName() : `Star ${star.id}`}`);
+        } catch (error) {
+          console.warn('⚠️ Failed to create 3D label for existing star:', error.message);
+        }
+      }
+    });
+  }
 
   /**
    * Get the current map model

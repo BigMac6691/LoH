@@ -302,9 +302,9 @@ export class Star {
   addShip(ship) {
     if (ship && !this.ships.includes(ship)) {
       this.ships.push(ship);
-      // Set the ship's location to this star
-      if (ship.setLocation) {
-        ship.setLocation(this);
+      // Set the ship's location to this star (but don't call setLocation to avoid circular reference)
+      if (ship.location !== this) {
+        ship.location = this;
       }
     }
   }
@@ -317,9 +317,9 @@ export class Star {
     const index = this.ships.indexOf(ship);
     if (index !== -1) {
       this.ships.splice(index, 1);
-      // Clear the ship's location
-      if (ship.setLocation) {
-        ship.setLocation(null);
+      // Clear the ship's location (but don't call setLocation to avoid circular reference)
+      if (ship.location === this) {
+        ship.location = null;
       }
     }
   }
@@ -377,10 +377,10 @@ export class Star {
    * Clear all ships from this star
    */
   clearShips() {
-    // Clear location for all ships
+    // Clear location for all ships (but don't call setLocation to avoid circular reference)
     this.ships.forEach(ship => {
-      if (ship.setLocation) {
-        ship.setLocation(null);
+      if (ship.location === this) {
+        ship.location = null;
       }
     });
     this.ships = [];

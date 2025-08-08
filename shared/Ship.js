@@ -124,10 +124,8 @@ export class Ship {
     // Set new location
     this.location = star;
     
-    // Add to new location
-    if (star && star.addShip) {
-      star.addShip(this);
-    }
+    // Note: Don't call star.addShip() here to avoid circular reference
+    // The star.addShip() method will handle setting the ship's location
   }
 
   /**

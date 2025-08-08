@@ -1,0 +1,5 @@
+# This file ensures the fonts folder is tracked by git
+# TODO: Add your font JSON files here, such as:
+# - helvetiker.json (default Three.js font)
+# - arial.json (converted from Arial font)
+# - custom.json (your custom font) 

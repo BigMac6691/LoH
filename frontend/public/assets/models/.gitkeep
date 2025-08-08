@@ -1,0 +1,5 @@
+# This file ensures the models folder is tracked by git
+# TODO: Add your GLTF/GLB files here, such as:
+# - scene.gltf (main 3D scene)
+# - ship.gltf (ship models)
+# - ui.gltf (UI elements) 

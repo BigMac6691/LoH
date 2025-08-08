@@ -6,6 +6,7 @@ import { PlayerSetupUI } from './PlayerSetupUI.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DEV_MODE, autoStartDevMode, logDevModeStatus, setupDevModeEventListeners } from './devScenarios.js';
 import { eventBus } from './eventBus.js';
+import { assetManager } from './engine/AssetManager.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -148,6 +149,25 @@ document.addEventListener('DOMContentLoaded', () => {
   mapGenerator = new MapGenerator(scene, camera);
   playerManager = new PlayerManager();
   
+  // Load font for 3D labels (only for non-dev mode, dev mode handles it separately)
+  if (!DEV_MODE) {
+    assetManager.loadFont('fonts/helvetiker_regular.typeface.json')
+      .then(font => {
+        mapGenerator.setFont(font);
+        console.log('📝 Font loaded for 3D labels');
+        
+        // Add 3D labels to existing stars if map exists
+        if (mapGenerator.getCurrentModel()) {
+          console.log('🔄 Adding 3D labels to existing stars...');
+          mapGenerator.add3DLabelsToExistingStars();
+        }
+      })
+      .catch(error => {
+        console.warn('⚠️ Could not load font for 3D labels, using CSS2D labels as fallback:', error.message);
+        // Font loading failed, but the game will still work with CSS2D labels
+      });
+  }
+  
   // Start animation
   animate();
   
@@ -159,8 +179,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set up dev mode event listeners
     setupDevModeEventListeners(playerManager);
     
-    // Skip setup screens and auto-start development scenario
-    autoStartDevMode(generateMap);
+    // In dev mode, wait for font to load before starting
+    assetManager.loadFont('fonts/helvetiker_regular.typeface.json')
+      .then(font => {
+        mapGenerator.setFont(font);
+        console.log('📝 Font loaded for 3D labels');
+        
+        // Now start the development scenario
+        autoStartDevMode(generateMap);
+      })
+      .catch(error => {
+        console.warn('⚠️ Could not load font for 3D labels, starting without 3D labels:', error.message);
+        // Start anyway, but without 3D labels
+        autoStartDevMode(generateMap);
+      });
   } else {
     // Show the map controls on load for normal flow
     uiController.showPanel();
@@ -217,6 +249,9 @@ function onGameStart(players) {
   
   // Update star colors to reflect player ownership
   mapGenerator.updateStarColors(players);
+  
+  // Fleet icons are now handled automatically in updateStarGroups()
+  // No need to manually create them here
 }
 
 // Make generateMap available globally for the UIController
