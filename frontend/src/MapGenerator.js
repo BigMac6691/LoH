@@ -8,7 +8,7 @@ import { RadialMenu } from './RadialMenu.js';
 const DEBUG_SHOW_SECTOR_BORDERS = true; // Set to false to hide sector borders
 const STAR_RADIUS_PERCENT = 0.005; // 4% of canvas size
 const WORMHOLE_RADIUS_PERCENT = 0.1; // 10% of star radius
-const LABEL_VISIBILITY_THRESHOLD = 0.3; // Hide labels when camera distance > 30% of map size
+const LABEL_VISIBILITY_THRESHOLD = 0.7; // Hide labels when camera distance > 30% of map size
 
 /**
  * MapGenerator - Renders space maps using Three.js
@@ -391,23 +391,23 @@ export class MapGenerator {
       }
     });
 
-    // Color stars based on player ownership
-    players.forEach(player => {
-      if (player.star && player.star.mesh && player.star.mesh.material) {
+    // Update colors for ALL owned stars (not just main player stars)
+    this.stars.forEach(star => {
+      if (star.isOwned && star.isOwned() && star.mesh && star.mesh.material) {
         // Convert hex color to Three.js color
-        const color = new THREE.Color(player.color);
+        const color = new THREE.Color(star.color);
         
         // Update material properties for owned stars
-        player.star.mesh.material.color.copy(color);
-        player.star.mesh.material.shininess = 100;
-        player.star.mesh.material.emissive = color.clone().multiplyScalar(0.5);
-        player.star.mesh.material.emissiveIntensity = 0.5;
+        star.mesh.material.color.copy(color);
+        star.mesh.material.shininess = 100;
+        star.mesh.material.emissive = color.clone().multiplyScalar(0.5);
+        star.mesh.material.emissiveIntensity = 0.5;
         
         // Make owned stars larger (25% larger)
-        player.star.mesh.scale.set(1.25, 1.25, 1.25);
+        star.mesh.scale.set(1.25, 1.25, 1.25);
         
         // Add glow effect if it doesn't exist
-        if (!player.star.glowMesh) {
+        if (!star.glowMesh) {
           const glowGeometry = new THREE.SphereGeometry(1.4, 16, 16);
           const glowMaterial = new THREE.MeshBasicMaterial({
             color: color,
@@ -417,12 +417,12 @@ export class MapGenerator {
           });
           const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
           glowMesh.position.set(0, 0, 0);
-          player.star.mesh.add(glowMesh);
-          player.star.glowMesh = glowMesh;
+          star.mesh.add(glowMesh);
+          star.glowMesh = glowMesh;
         } else {
           // Update existing glow mesh color and properties
-          player.star.glowMesh.material.color.copy(color);
-          player.star.glowMesh.material.opacity = 0.6;
+          star.glowMesh.material.color.copy(color);
+          star.glowMesh.material.opacity = 0.6;
         }
       }
     });
@@ -555,23 +555,24 @@ export class MapGenerator {
         label.element.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
         label.element.style.borderColor = 'rgba(255, 255, 255, 0.3)';
         label.element.style.color = 'white';
+        label.element.style.fontWeight = 'normal';
       }
     });
     
-    // Update labels for owned stars
-    players.forEach(player => {
-      if (player.star) {
+    // Update labels for ALL owned stars (not just main player stars)
+    this.stars.forEach(star => {
+      if (star.isOwned && star.isOwned()) {
         // Find the label for this star
         const starLabel = this.starLabels.find(label => {
           const labelText = label.element.textContent;
-          const starName = player.star.getName ? player.star.getName() : `Star ${player.star.id}`;
+          const starName = star.getName ? star.getName() : `Star ${star.id}`;
           return labelText === starName;
         });
         
         if (starLabel && starLabel.element) {
-          // Update label with player color
-          starLabel.element.style.backgroundColor = player.color + 'CC'; // Add transparency
-          starLabel.element.style.borderColor = player.color;
+          // Update label with owner color
+          starLabel.element.style.backgroundColor = star.color + 'CC'; // Add transparency
+          starLabel.element.style.borderColor = star.color;
           starLabel.element.style.color = 'white';
           starLabel.element.style.fontWeight = 'bold';
         }

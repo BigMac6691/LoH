@@ -296,8 +296,11 @@ export class MoveDialog {
       const starName = star.getName ? star.getName() : `Star ${star.id}`;
       const starNameElement = document.createElement('span');
       starNameElement.textContent = starName;
+      
+      // Use star's color (owner's color) or light gray if unowned
+      const starColor = star.color || '#CCCCCC';
       starNameElement.style.cssText = `
-        color: #ccc;
+        color: ${starColor};
         font-weight: bold;
       `;
 
@@ -305,9 +308,8 @@ export class MoveDialog {
       const ownerElement = document.createElement('span');
       if (star.owner) {
         ownerElement.textContent = `(${star.owner.name || 'Owned'})`;
-        ownerElement.style.color = star.color || '#888';
       }
-      ownerElement.style.cssText += `
+      ownerElement.style.cssText = `
         font-size: 12px;
         color: #888;
       `;
@@ -317,7 +319,9 @@ export class MoveDialog {
 
       // Hover effects
       starItem.addEventListener('mouseenter', () => {
-        starItem.style.background = '#444';
+        if (this.selectedDestination !== star) {
+          starItem.style.background = '#444';
+        }
       });
 
       starItem.addEventListener('mouseleave', () => {
@@ -345,14 +349,31 @@ export class MoveDialog {
       previousSelected.classList.remove('selected');
       previousSelected.style.background = 'transparent';
       previousSelected.style.border = 'none';
+      
+      // Restore original star name color
+      const starNameElement = previousSelected.querySelector('span:first-child');
+      if (starNameElement) {
+        const originalStar = this.currentStar.getConnectedStars().find(s => 
+          (s.getName ? s.getName() : `Star ${s.id}`) === starNameElement.textContent
+        );
+        if (originalStar) {
+          const starColor = originalStar.color || '#CCCCCC';
+          starNameElement.style.color = starColor;
+        }
+      }
     }
 
     // Select new destination
     this.selectedDestination = star;
     element.classList.add('selected');
     element.style.background = '#00ff88';
-    element.style.color = '#000';
     element.style.border = '1px solid #00ff88';
+    
+    // Change star name to black for better contrast on green background
+    const starNameElement = element.querySelector('span:first-child');
+    if (starNameElement) {
+      starNameElement.style.color = '#000';
+    }
 
     // Update move button
     this.updateMoveButton();

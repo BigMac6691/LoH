@@ -81,6 +81,14 @@ export function setupDevModeEventListeners(playerManager) {
   eventBus.once('map:ready', (mapModel) => {
     console.log('🔧 DEV MODE: Map ready, generating test players...');
     const players = generateDevScenario(playerManager, mapModel);
+
+    // make sure there is a connection between the two players
+    players[0].star.getConnectedStars()[0].assignOwner(players[1]);
+    
+    // Update star colors after ownership change
+    if (window.mapGenerator) {
+      window.mapGenerator.updateStarColors(players);
+    }
     
     // Emit players ready event
     eventBus.emit('players:ready', players);
