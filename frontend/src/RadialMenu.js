@@ -31,7 +31,7 @@ export class RadialMenu {
     this.canvas.height = window.innerHeight;
     document.body.appendChild(this.canvas);
     
-    console.log('🎯 RadialMenu: Canvas created with size:', this.canvas.width, 'x', this.canvas.height);
+
     
     // Icon tracking
     this.icons = [];
@@ -43,6 +43,8 @@ export class RadialMenu {
     
     // Dynamic radius tracking
     this.dynamicMenuRadius = null;
+    this.currentWorldPosition = null;
+    this.lastHoverState = false;
     
     // Dialogs
     this.industryDialog = new IndustryDialog();
@@ -86,7 +88,8 @@ export class RadialMenu {
     
     // Check if we should hide the menu when mouse leaves hover area
     if (this.isVisible && !this.isMouseInHoverArea()) {
-    this.hide();
+
+      this.hide();
     }
   }
 
@@ -126,7 +129,7 @@ export class RadialMenu {
    */
   onIconHover(icon) {
     this.hoveredIcon = icon;
-    console.log('🎯 RadialMenu: Hovering over icon:', icon.symbol);
+    
   }
 
   /**
@@ -151,7 +154,15 @@ export class RadialMenu {
     // Use dynamic hover radius based on menu radius
     const hoverRadius = this.dynamicMenuRadius ? this.dynamicMenuRadius + 20 : this.hoverRadius;
     
-    return distance <= hoverRadius;
+    const inArea = distance <= hoverRadius;
+    
+    // Debug logging (can be removed later)
+    if (inArea !== this.lastHoverState) {
+  
+      this.lastHoverState = inArea;
+    }
+    
+    return inArea;
   }
 
   /**
@@ -159,6 +170,7 @@ export class RadialMenu {
    * @param {Object} data - Event data containing star and position
    */
   onStarHover(data) {
+    const starName = data.star.getName ? data.star.getName() : `Star ${data.star.id}`;
     this.show(data.position, data.star);
   }
 
@@ -201,61 +213,94 @@ export class RadialMenu {
    */
   show(position, star) {
     if (this.isVisible && this.currentStar === star) {
-      return; // Already showing for this star
+      // Already showing for this star - don't update position to avoid reset
+      return;
     }
 
-    this.hide(); // Hide any existing menu
+    // Hide any existing menu only if switching to a different star
+    if (this.currentStar !== star) {
+    this.hide();
+    }
+    
     this.currentStar = star;
     this.isVisible = true;
-
+    
     // Project 3D position to screen coordinates
     this.updateMenuPosition(position);
 
-    // Define icon configurations
-    const iconConfigs = [
-      { symbol: '🏭', tooltip: 'Industry', action: 'industry' },
-      { symbol: '🚀', tooltip: 'Move', action: 'move' }
-    ];
+    // Only create icons if we don't have them yet
+    if (!this.icons || this.icons.length === 0) {
+      // Define icon configurations
+      const iconConfigs = [
+        { symbol: '🏭', tooltip: 'Industry', action: 'industry' },
+        { symbol: '🚀', tooltip: 'Move', action: 'move' }
+      ];
 
-    // Calculate angular spacing for 270° span
-    const totalSpan = 270 * (Math.PI / 180); // Convert to radians
-    const startAngle = 135 * (Math.PI / 180); // Start at 135° (bottom-left)
-    const spacing = totalSpan / (iconConfigs.length + 1);
+      // Calculate angular spacing for 270° span
+      const totalSpan = 270 * (Math.PI / 180); // Convert to radians
+      const startAngle = 135 * (Math.PI / 180); // Start at 135° (bottom-left)
+      const spacing = totalSpan / (iconConfigs.length + 1);
 
-    // Create icons with calculated positions
-    this.icons = iconConfigs.map((config, index) => {
-      const angle = startAngle + (spacing * (index + 1));
-      return this.createIcon(config.symbol, config.tooltip, angle, () => {
-        const starName = star.getName ? star.getName() : `Star ${star.id}`;
-        console.log(`${starName} - ${config.action}`);
-        
-        // Handle specific actions
-        if (config.action === 'industry') {
-          this.industryDialog.show(star);
-        } else if (config.action === 'move') {
-          this.moveDialog.show(star);
-        }
+      // Create icons with calculated positions
+      this.icons = iconConfigs.map((config, index) => {
+        const angle = startAngle + (spacing * (index + 1));
+        return this.createIcon(config.symbol, config.tooltip, angle, () => {
+          const starName = star.getName ? star.getName() : `Star ${star.id}`;
+          console.log(`${starName} - ${config.action}`);
+          
+          // Handle specific actions
+          if (config.action === 'industry') {
+            this.industryDialog.show(star);
+          } else if (config.action === 'move') {
+            this.moveDialog.show(star);
+          }
+        });
       });
-    });
 
-    console.log('🎯 RadialMenu: Menu created with icon at screen position:', this.menuScreenPosition);
+
+    } else {
+      // Update existing icon positions
+      this.updateIconPositions();
+
+    }
+  }
+
+  /**
+   * Update positions of existing icons based on current menu position
+   */
+  updateIconPositions() {
+    if (!this.icons || this.icons.length === 0) return;
+    
+    const totalSpan = 270 * (Math.PI / 180);
+    const startAngle = 135 * (Math.PI / 180);
+    const spacing = totalSpan / (this.icons.length + 1);
+    
+    this.icons.forEach((icon, index) => {
+      const angle = startAngle + (spacing * (index + 1));
+      const radius = this.dynamicMenuRadius || this.menuRadius;
+      
+      icon.screenX = this.menuScreenPosition.x + Math.cos(angle) * radius;
+      icon.screenY = this.menuScreenPosition.y + Math.sin(angle) * radius;
+      icon.angle = angle;
+    });
   }
 
   /**
    * Calculate the projected radius of a sphere in pixels on screen
    * @param {THREE.Mesh} mesh - The mesh to calculate projected radius for
+   * @param {THREE.Vector3} worldPosition - World position of the star group
    * @param {THREE.Camera} camera - The camera
    * @param {HTMLCanvasElement} canvas - The canvas element
    * @returns {number} Projected radius in pixels
    */
-  getProjectedRadius(mesh, camera, canvas) {
+  getProjectedRadius(mesh, worldPosition, camera, canvas) {
     // Get the sphere's radius (assuming it's a sphere geometry)
     const geometry = mesh.geometry;
     const boundingSphere = geometry.boundingSphere || geometry.computeBoundingSphere();
     const radius = boundingSphere.radius;
     
-    // Get the distance from camera to sphere center
-    const distance = camera.position.distanceTo(mesh.position);
+    // Get the distance from camera to star center (use world position, not mesh position)
+    const distance = camera.position.distanceTo(worldPosition);
     
     // Calculate the projected radius using similar triangles
     // tan(angle) = radius / distance = projectedRadius / (canvas.height / 2)
@@ -270,6 +315,9 @@ export class RadialMenu {
    * @param {THREE.Vector3} position - 3D position
    */
   updateMenuPosition(position) {
+    // Store the original world position
+    this.currentWorldPosition = position.clone();
+    
     // Clone the position to avoid modifying the original
     const worldPosition = position.clone();
     
@@ -282,7 +330,7 @@ export class RadialMenu {
     
     // Calculate dynamic menu radius based on projected star size
     if (this.currentStar && this.currentStar.mesh) {
-      const projectedRadius = this.getProjectedRadius(this.currentStar.mesh, this.camera, this.canvas);
+      const projectedRadius = this.getProjectedRadius(this.currentStar.mesh, this.currentWorldPosition, this.camera, this.canvas);
       this.dynamicMenuRadius = projectedRadius + 30; // 30 pixels beyond star edge
     }
   }
@@ -326,8 +374,10 @@ export class RadialMenu {
     this.icons = [];
     this.hoveredIcon = null;
     this.dynamicMenuRadius = null;
+    this.currentWorldPosition = null;
+    this.lastHoverState = false;
     
-    console.log('🎯 RadialMenu: Menu hidden');
+
   }
 
   /**
@@ -342,8 +392,9 @@ export class RadialMenu {
       return;
     }
     
-    // Update menu position based on current star position
-    this.updateMenuPosition(this.currentStar.mesh.position);
+    // Don't update position in render loop - position is set once in show()
+    // The continuous position updates were causing the (0,0,0) reset issue
+    // this.updateMenuPosition(this.currentStar.mesh.position);
     
     // Update icon positions
     this.icons.forEach(icon => {
@@ -352,9 +403,29 @@ export class RadialMenu {
       icon.screenY = this.menuScreenPosition.y + Math.sin(icon.angle) * radius;
     });
     
-    // Draw hover boundary circle
-    this.drawHoverCircle();
+    // Draw hover boundary circle (disabled for debugging)
+    // this.drawHoverCircle();
     
+    // Draw debug crosshair at menu center (temporary)
+    this.context.strokeStyle = 'red';
+    this.context.lineWidth = 3;
+    this.context.beginPath();
+    this.context.moveTo(this.menuScreenPosition.x - 15, this.menuScreenPosition.y);
+    this.context.lineTo(this.menuScreenPosition.x + 15, this.menuScreenPosition.y);
+    this.context.moveTo(this.menuScreenPosition.x, this.menuScreenPosition.y - 15);
+    this.context.lineTo(this.menuScreenPosition.x, this.menuScreenPosition.y + 15);
+    this.context.stroke();
+    
+    // Draw hover area circle (temporary) - RED circle
+    const hoverRadius = this.dynamicMenuRadius ? this.dynamicMenuRadius + 20 : this.hoverRadius;
+    this.context.strokeStyle = 'red';
+    this.context.lineWidth = 2;
+    this.context.beginPath();
+    this.context.arc(this.menuScreenPosition.x, this.menuScreenPosition.y, hoverRadius, 0, Math.PI * 2);
+    this.context.stroke();
+    
+
+
     // Draw icons
     this.icons.forEach(icon => {
       this.drawIcon(icon);
@@ -421,7 +492,7 @@ export class RadialMenu {
   onWindowResize() {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
-    console.log('🎯 RadialMenu: Canvas resized to:', this.canvas.width, 'x', this.canvas.height);
+
   }
 
   /**

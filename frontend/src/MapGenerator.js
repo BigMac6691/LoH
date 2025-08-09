@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+// import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'; // No longer needed
 import { MapModel } from '../../shared/MapModel.js';
 import { StarInteractionManager } from './StarInteractionManager.js';
 import { RadialMenu } from './RadialMenu.js';
 import { createStarLabel3D } from './scene/createStarLabel3D.js';
+import { assetManager } from './engine/AssetManager.js';
 
 // Constants for rendering
 const DEBUG_SHOW_SECTOR_BORDERS = true; // Set to false to hide sector borders
@@ -22,12 +23,67 @@ export class MapGenerator {
     this.wormholes = [];
     this.sectorBorders = [];
     this.currentModel = null;
-    this.labelRenderer = null;
-    this.starLabels = [];
+    // this.labelRenderer = null; // No longer needed - using 3D labels
+    // this.starLabels = []; // No longer needed - using 3D labels
     this.mapSize = 0; // Track map size for label visibility calculations
     this.starInteractionManager = null;
     this.radialMenu = null;
     this.font = null; // Will be loaded via AssetManager
+    this.starLookup = new Map(); // Lookup for efficient star access by ID
+    
+    // Set up asset manager event listeners
+    this.setupAssetEventListeners();
+  }
+
+  /**
+   * Set up event listeners for asset manager
+   */
+  setupAssetEventListeners() {
+    // Listen for individual asset loads
+    assetManager.addEventListener('asset:loaded', (event) => {
+      this.onAssetLoaded(event.detail);
+    });
+
+    // Listen for all assets ready (optional)
+    assetManager.addEventListener('assets:ready', (event) => {
+      this.onAssetsReady(event.detail);
+    });
+  }
+
+  /**
+   * Handle individual asset loaded event
+   * @param {Object} detail - Event detail { type, path, asset }
+   */
+  onAssetLoaded(detail) {
+    const { type, path, asset } = detail;
+    console.log(`🎨 Asset loaded: type=${type}, path=${path}`);
+    
+    // Build patch object from the loaded asset
+    const patch = {};
+    
+    if (type === 'font' || (path && path.includes('font'))) {
+      patch.font = asset;
+      this.font = asset; // Store font reference
+    } else if (path && path.includes('rocket')) {
+      patch.rocket = asset;
+    }
+    
+    // Apply the patch if we have a map loaded
+    if (Object.keys(patch).length > 0) {
+      this.applyAssetsPatch(patch);
+    }
+  }
+
+  /**
+   * Handle all assets ready event (optional)
+   * @param {Object} detail - Event detail with all loaded assets
+   */
+  onAssetsReady(detail) {
+    console.log('🎨 All assets ready:', detail);
+    
+    // This event is less useful since we handle individual asset loads
+    // But we could use it for batch operations if needed
+    console.log('🎨 Assets ready event received, but individual assets already processed');
   }
 
   /**
@@ -51,11 +107,11 @@ export class MapGenerator {
     // Calculate map size for label visibility
     this.calculateMapSize();
     
-    // Initialize label renderer if not already done
-    this.initializeLabelRenderer();
+    // CSS2D label renderer no longer needed - using 3D labels
+    // this.initializeLabelRenderer();
     
-    // Render the model
-    this.renderMap(this.currentModel);
+    // Build static map components (stars, wormholes, sectors)
+    this.buildStaticMap(this.currentModel);
     
     // Initialize star interaction system
     this.initializeStarInteraction();
@@ -81,8 +137,17 @@ export class MapGenerator {
     // Remove existing objects
     if (this.currentModel) {
       this.currentModel.stars.forEach(star => {
-        // Remove the entire star group
+        // Clean up star group and its contents
         if (star.group) {
+          // Dispose of 3D labels and fleet icons
+          if (star.group.userData.labelMesh) {
+            this.disposeLabelMesh(star.group.userData.labelMesh);
+          }
+          if (star.group.userData.fleetIcon) {
+            this.disposeFleetIcon(star.group.userData.fleetIcon);
+          }
+          
+          // Remove the entire star group
           this.scene.remove(star.group);
         }
       });
@@ -93,6 +158,13 @@ export class MapGenerator {
         }
       });
     }
+    
+    // Clear arrays and lookups
+    this.stars.length = 0;
+    this.wormholes.length = 0;
+    this.sectorBorders.length = 0;
+    // this.starLabels.length = 0; // No longer needed - using 3D labels
+    this.starLookup.clear();
     
     // Clear star interaction
     if (this.starInteractionManager) {
@@ -174,114 +246,265 @@ export class MapGenerator {
     return { minX, maxX, minY, maxY, minZ, maxZ };
   }
 
-    /**
-   * Render a map model using Three.js
+      /**
+   * Build static map components (stars, wormholes, sectors) - no labels or fleet icons
    * @param {Object} model - Map model data structure
    */
-  renderMap(model) {
+  buildStaticMap(model) {
     const { starRadius, wormholeRadius } = this.calculateScalingFactors();
     
-    // Render stars
+    // Create star lookup for efficient access
+    this.starLookup = new Map();
+    
+    // Build stars - base meshes only
     model.stars.forEach(star => {
-      // Create a group to hold all star components
-      const starGroup = new THREE.Group();
-      
-      // Make owned stars larger for better visibility
-      const isOwned = star.isOwned && star.isOwned();
-      const finalRadius = isOwned ? starRadius * 1.25 : starRadius;
-      const geometry = new THREE.SphereGeometry(finalRadius, 16, 16);
-      
-      // Use player color if star is owned, otherwise use light gray
-      const starColor = star.color || 0xcccccc;
-      
-      if (isOwned) {
-        // Enhanced material for owned stars - brighter and more prominent
-        const material = new THREE.MeshPhongMaterial({ 
-          color: starColor,
-          shininess: 100,
-          emissive: new THREE.Color(starColor).multiplyScalar(0.5), // Brighter glow effect
-          emissiveIntensity: 0.5
-        });
+      // Create star group if it doesn't exist
+      if (!star.group) {
+        star.group = new THREE.Group();
         
-        star.mesh = new THREE.Mesh(geometry, material);
-        
-        // Add a more visible glow effect for owned stars
-        const glowGeometry = new THREE.SphereGeometry(finalRadius * 1.4, 16, 16);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-          color: starColor,
-          transparent: true,
-          opacity: 0.6,
-          side: THREE.BackSide // Render on the back side for better glow effect
-        });
-        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-        glowMesh.position.set(0, 0, 0); // Ensure it's centered on the star
-        star.mesh.add(glowMesh);
-        star.glowMesh = glowMesh;
-      } else {
-        // Standard material for unowned stars
-        const material = new THREE.MeshPhongMaterial({ 
-          color: starColor,
-          shininess: 50
-        });
-        
-        star.mesh = new THREE.Mesh(geometry, material);
+        // Store references in userData for easy access
+        star.group.userData = {
+          starId: star.id,
+          starRadius: starRadius,
+          labelMesh: null,
+          fleetIcon: null
+        };
       }
       
-      // Add star mesh to group (centered at origin)
-      starGroup.add(star.mesh);
+      const starGroup = star.group;
+      const isOwned = star.isOwned && star.isOwned();
+      const finalRadius = isOwned ? starRadius * 1.25 : starRadius;
       
-      // Create 3D label if font is available
-      if (this.font) {
+      // Update userData with current radius
+      starGroup.userData.starRadius = finalRadius;
+      
+      // Create star mesh if it doesn't exist
+      if (!star.mesh) {
+        const geometry = new THREE.SphereGeometry(finalRadius, 16, 16);
+        const starColor = star.color || 0xcccccc;
+        
+        if (isOwned) {
+          // Enhanced material for owned stars
+          const material = new THREE.MeshPhongMaterial({ 
+            color: starColor,
+            shininess: 100,
+            emissive: new THREE.Color(starColor).multiplyScalar(0.5),
+            emissiveIntensity: 0.5
+          });
+          
+          star.mesh = new THREE.Mesh(geometry, material);
+          
+          // Add glow effect for owned stars
+          const glowGeometry = new THREE.SphereGeometry(finalRadius * 1.4, 16, 16);
+          const glowMaterial = new THREE.MeshBasicMaterial({
+            color: starColor,
+            transparent: true,
+            opacity: 0.6,
+            side: THREE.BackSide
+          });
+          const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+          star.mesh.add(glowMesh);
+          star.glowMesh = glowMesh;
+        } else {
+          // Standard material for unowned stars
+          const material = new THREE.MeshPhongMaterial({ 
+            color: starColor,
+            shininess: 50
+          });
+          
+          star.mesh = new THREE.Mesh(geometry, material);
+        }
+        
+        // Add star mesh to group
+        starGroup.add(star.mesh);
+      }
+      
+      // Position the group at the star's world position
+      starGroup.position.set(star.x, star.y, star.z);
+      
+      // Add group to scene if not already added
+      if (!this.scene.children.includes(starGroup)) {
+        this.scene.add(starGroup);
+      }
+      
+      // Add to stars array and lookup
+      if (!this.stars.includes(star)) {
+        this.stars.push(star);
+      }
+      this.starLookup.set(star.id, star);
+      
+      // CSS2D labels disabled - using 3D labels instead
+      // if (!star.css2dLabel) {
+      //   const starLabel = this.createStarLabel(star);
+      //   star.css2dLabel = starLabel;
+      //   this.scene.add(starLabel);
+      //   this.starLabels.push(starLabel);
+      // }
+    });
+    
+    // Build wormholes
+    this.buildWormholes(model.wormholes, wormholeRadius);
+    
+    // Build sector borders if debug mode is enabled
+    if (DEBUG_SHOW_SECTOR_BORDERS) {
+      this.renderSectorBorders(model.sectors);
+    }
+    
+    // Check if font is already loaded and apply 3D labels
+    if (this.font) {
+      console.log('🎨 Font already loaded, applying 3D labels immediately');
+      this.applyAssetsPatch({ font: this.font });
+    } else {
+      console.log('🎨 Font not yet loaded, will apply 3D labels when asset loads');
+    }
+  }
+
+  /**
+   * Build wormholes (extracted from buildStaticMap for clarity)
+   * @param {Array} wormholes - Array of wormhole data
+   * @param {number} wormholeRadius - Radius for wormhole meshes
+   */
+  buildWormholes(wormholes, wormholeRadius) {
+    wormholes.forEach(wormhole => {
+      // Check if this wormhole already exists
+      const existingWormhole = this.wormholes.find(w => 
+        (w.star1 === wormhole.star1 && w.star2 === wormhole.star2) ||
+        (w.star1 === wormhole.star2 && w.star2 === wormhole.star1)
+      );
+      
+      if (!existingWormhole) {
+        const wormholeMesh = this.createWormholeMesh(wormhole.star1, wormhole.star2, wormholeRadius);
+        this.scene.add(wormholeMesh);
+        this.wormholes.push({
+          mesh: wormholeMesh,
+          star1: wormhole.star1,
+          star2: wormhole.star2
+        });
+      }
+    });
+  }
+
+  /**
+   * Apply assets patch to add labels and fleet icons based on loaded assets
+   * @param {Object} patch - Asset patch object { font?, rocket? }
+   */
+  applyAssetsPatch(patch) {
+    if (!this.currentModel || !this.starLookup) {
+      console.warn('⚠️ Cannot apply assets patch: no map model loaded');
+      return;
+    }
+
+    console.log('🎨 Applying assets patch:', Object.keys(patch));
+
+    // Apply font patch (create 3D labels)
+    if (patch.font) {
+      this.applyFontPatch(patch.font);
+    }
+
+    // Apply rocket patch (create fleet icons)
+    if (patch.rocket) {
+      this.applyRocketPatch(patch.rocket);
+    }
+  }
+
+  /**
+   * Apply font patch to create 3D labels for stars that need them
+   * @param {Object} font - Loaded font resource
+   */
+  applyFontPatch(font) {
+    this.stars.forEach(star => {
+      if (star.group && !star.group.userData.labelMesh) {
+        const starRadius = star.group.userData.starRadius;
+        
         try {
           const labelMesh = createStarLabel3D(
             star.getName ? star.getName() : `Star ${star.id}`,
-            finalRadius,
-            this.font
+            starRadius,
+            font
           );
-          star.labelMesh = labelMesh;
-          starGroup.add(labelMesh);
+          
+          // Store reference in userData
+          star.group.userData.labelMesh = labelMesh;
+          star.group.add(labelMesh);
+          
+          // console.log(`📝 Added 3D label to ${star.getName ? star.getName() : `Star ${star.id}`}`);
         } catch (error) {
-          console.warn('⚠️ Failed to create 3D label, using CSS2D fallback:', error.message);
+          console.warn('⚠️ Failed to create 3D label:', error.message);
         }
       }
+    });
+  }
+
+  /**
+   * Apply rocket patch to create fleet icons for stars with ships
+   * @param {Object} rocket - Loaded GLTF resource
+   */
+  applyRocketPatch(rocket) {
+    this.stars.forEach(star => {
+      const hasShips = star.hasShips && star.hasShips();
+      const hasIcon = star.group && star.group.userData.fleetIcon;
       
-      // Create fleet icon if star has ships
-      if (star.hasShips && star.hasShips()) {
-        const fleetIcon = this.createFleetIconMesh(finalRadius);
-        star.fleetIcon = fleetIcon;
-        starGroup.add(fleetIcon);
+      if (hasShips && !hasIcon && star.group) {
+        const starRadius = star.group.userData.starRadius;
+        
+        try {
+          // Clone the GLTF scene
+          const fleetIcon = rocket.scene.clone();
+          
+          // Position with existing static world offsets
+          const iconOffset = starRadius + 8; // Offset to the right
+          const iconY = starRadius * 0.5; // Half the star's height
+          fleetIcon.position.set(iconOffset, iconY, 0);
+          
+          // Store reference in userData
+          star.group.userData.fleetIcon = fleetIcon;
+          star.group.add(fleetIcon);
+          
+          console.log(`🚀 Added fleet icon to ${star.getName ? star.getName() : `Star ${star.id}`}`);
+        } catch (error) {
+          console.warn('⚠️ Failed to create fleet icon:', error.message);
+        }
       }
-      
-      // Position the entire group at the star's world position
-      starGroup.position.set(star.x, star.y, star.z);
-      
-      // Store reference to the group
-      star.group = starGroup;
-      
-      // Add group to scene
-      this.scene.add(starGroup);
-      this.stars.push(star);
-      
-      // Create and add CSS2D label for compatibility
-      const starLabel = this.createStarLabel(star);
-      this.scene.add(starLabel);
-      this.starLabels.push(starLabel);
     });
-    
-    // Render wormholes
-    model.wormholes.forEach(wormhole => {
-      const wormholeMesh = this.createWormholeMesh(wormhole.star1, wormhole.star2, wormholeRadius);
-      this.scene.add(wormholeMesh);
-      this.wormholes.push({
-        mesh: wormholeMesh,
-        star1: wormhole.star1,
-        star2: wormhole.star2
+  }
+
+  /**
+   * Clean up and dispose of a 3D label mesh
+   * @param {THREE.Mesh} labelMesh - Label mesh to dispose
+   */
+  disposeLabelMesh(labelMesh) {
+    if (labelMesh) {
+      if (labelMesh.geometry) {
+        labelMesh.geometry.dispose();
+      }
+      if (labelMesh.material) {
+        if (Array.isArray(labelMesh.material)) {
+          labelMesh.material.forEach(material => material.dispose());
+        } else {
+          labelMesh.material.dispose();
+        }
+      }
+    }
+  }
+
+  /**
+   * Clean up and dispose of a fleet icon (GLTF clone)
+   * @param {THREE.Object3D} fleetIcon - Fleet icon to dispose
+   */
+  disposeFleetIcon(fleetIcon) {
+    if (fleetIcon) {
+      fleetIcon.traverse((child) => {
+        if (child.geometry) {
+          child.geometry.dispose();
+        }
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach(material => material.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
       });
-    });
-    
-    // Render sector borders if debug mode is enabled
-    if (DEBUG_SHOW_SECTOR_BORDERS) {
-      this.renderSectorBorders(model.sectors);
     }
   }
 
@@ -472,8 +695,8 @@ export class MapGenerator {
       }
     });
     
-    // Update label colors for owned stars
-    this.updateLabelColors(players);
+    // CSS2D label color updates no longer needed - using 3D labels
+    // this.updateLabelColors(players);
   }
 
   /**
@@ -576,7 +799,7 @@ export class MapGenerator {
   }
 
   /**
-   * Update star groups to face the camera
+   * Update star groups to face the camera (per-frame updates only)
    */
   updateStarGroups() {
     this.stars.forEach(star => {
@@ -584,24 +807,10 @@ export class MapGenerator {
         // Copy camera quaternion to make labels and icons face the camera
         star.group.quaternion.copy(this.camera.quaternion);
         
-        // Update fleet icon visibility based on ships
-        if (star.fleetIcon) {
+        // Update fleet icon visibility based on ships (no creation/removal here)
+        if (star.group.userData.fleetIcon) {
           const hasShips = star.hasShips && star.hasShips();
-          star.fleetIcon.visible = hasShips;
-          
-          // Remove fleet icon if no ships
-          if (!hasShips) {
-            star.group.remove(star.fleetIcon);
-            star.fleetIcon = null;
-          }
-        } else if (star.hasShips && star.hasShips()) {
-          // Add fleet icon if ships exist but no icon
-          const { starRadius } = this.calculateScalingFactors();
-          const isOwned = star.isOwned && star.isOwned();
-          const finalRadius = isOwned ? starRadius * 1.25 : starRadius;
-          const fleetIcon = this.createFleetIconMesh(finalRadius);
-          star.fleetIcon = fleetIcon;
-          star.group.add(fleetIcon);
+          star.group.userData.fleetIcon.visible = hasShips;
         }
       }
     });
@@ -642,13 +851,14 @@ export class MapGenerator {
   }
 
   /**
-   * Render labels (call this after the main render)
+   * Render labels (no longer needed - using 3D labels)
    */
   renderLabels() {
-    if (this.labelRenderer && this.currentModel) {
-      this.updateLabelVisibility();
-      this.labelRenderer.render(this.scene, this.camera);
-    }
+    // CSS2D labels disabled - using 3D labels instead
+    // if (this.labelRenderer && this.currentModel) {
+    //   this.updateLabelVisibility();
+    //   this.labelRenderer.render(this.scene, this.camera);
+    // }
   }
 
   /**
@@ -749,34 +959,7 @@ export class MapGenerator {
 
 
 
-  /**
-   * Add 3D labels to existing stars after font is loaded
-   */
-  add3DLabelsToExistingStars() {
-    if (!this.font || !this.currentModel) return;
-    
-    const { starRadius } = this.calculateScalingFactors();
-    
-    this.stars.forEach(star => {
-      if (star.group && !star.labelMesh) {
-        const isOwned = star.isOwned && star.isOwned();
-        const finalRadius = isOwned ? starRadius * 1.25 : starRadius;
-        
-        try {
-          const labelMesh = createStarLabel3D(
-            star.getName ? star.getName() : `Star ${star.id}`,
-            finalRadius,
-            this.font
-          );
-          star.labelMesh = labelMesh;
-          star.group.add(labelMesh);
-          console.log(`📝 Added 3D label to ${star.getName ? star.getName() : `Star ${star.id}`}`);
-        } catch (error) {
-          console.warn('⚠️ Failed to create 3D label for existing star:', error.message);
-        }
-      }
-    });
-  }
+
 
   /**
    * Get the current map model

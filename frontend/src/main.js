@@ -134,6 +134,13 @@ function removeDemoObjects() {
   demoCubes.length = 0; // Clear the array
 }
 
+// Start loading font assets immediately (before DOM ready)
+console.log('🎨 Starting font loading...');
+assetManager.loadFont('fonts/helvetiker_regular.typeface.json')
+  .catch(error => {
+    console.warn('⚠️ Could not load font for 3D labels:', error.message);
+  });
+
 // Remove loading screen and start animation
 document.addEventListener('DOMContentLoaded', () => {
   const loadingElement = document.getElementById('loading');
@@ -149,25 +156,6 @@ document.addEventListener('DOMContentLoaded', () => {
   mapGenerator = new MapGenerator(scene, camera);
   playerManager = new PlayerManager();
   
-  // Load font for 3D labels (only for non-dev mode, dev mode handles it separately)
-  if (!DEV_MODE) {
-    assetManager.loadFont('fonts/helvetiker_regular.typeface.json')
-      .then(font => {
-        mapGenerator.setFont(font);
-        console.log('📝 Font loaded for 3D labels');
-        
-        // Add 3D labels to existing stars if map exists
-        if (mapGenerator.getCurrentModel()) {
-          console.log('🔄 Adding 3D labels to existing stars...');
-          mapGenerator.add3DLabelsToExistingStars();
-        }
-      })
-      .catch(error => {
-        console.warn('⚠️ Could not load font for 3D labels, using CSS2D labels as fallback:', error.message);
-        // Font loading failed, but the game will still work with CSS2D labels
-      });
-  }
-  
   // Start animation
   animate();
   
@@ -179,20 +167,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set up dev mode event listeners
     setupDevModeEventListeners(playerManager);
     
-    // In dev mode, wait for font to load before starting
-    assetManager.loadFont('fonts/helvetiker_regular.typeface.json')
-      .then(font => {
-        mapGenerator.setFont(font);
-        console.log('📝 Font loaded for 3D labels');
-        
-        // Now start the development scenario
-        autoStartDevMode(generateMap);
-      })
-      .catch(error => {
-        console.warn('⚠️ Could not load font for 3D labels, starting without 3D labels:', error.message);
-        // Start anyway, but without 3D labels
-        autoStartDevMode(generateMap);
-      });
+    // Start the development scenario immediately
+    // Font loading will be handled by AssetManager events automatically
+    autoStartDevMode(generateMap);
   } else {
     // Show the map controls on load for normal flow
     uiController.showPanel();
