@@ -406,19 +406,9 @@ export class RadialMenu {
     // Draw hover boundary circle (disabled for debugging)
     // this.drawHoverCircle();
     
-    // Draw debug crosshair at menu center (temporary)
-    this.context.strokeStyle = 'red';
-    this.context.lineWidth = 3;
-    this.context.beginPath();
-    this.context.moveTo(this.menuScreenPosition.x - 15, this.menuScreenPosition.y);
-    this.context.lineTo(this.menuScreenPosition.x + 15, this.menuScreenPosition.y);
-    this.context.moveTo(this.menuScreenPosition.x, this.menuScreenPosition.y - 15);
-    this.context.lineTo(this.menuScreenPosition.x, this.menuScreenPosition.y + 15);
-    this.context.stroke();
-    
-    // Draw hover area circle (temporary) - RED circle
+    // Draw hover area circle
     const hoverRadius = this.dynamicMenuRadius ? this.dynamicMenuRadius + 20 : this.hoverRadius;
-    this.context.strokeStyle = 'red';
+    this.context.strokeStyle = 'rgba(0, 255, 136, 0.5)';
     this.context.lineWidth = 2;
     this.context.beginPath();
     this.context.arc(this.menuScreenPosition.x, this.menuScreenPosition.y, hoverRadius, 0, Math.PI * 2);

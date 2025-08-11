@@ -5,6 +5,7 @@ import { StarInteractionManager } from './StarInteractionManager.js';
 import { RadialMenu } from './RadialMenu.js';
 import { createStarLabel3D } from './scene/createStarLabel3D.js';
 import { assetManager } from './engine/AssetManager.js';
+import { mem } from './engine/MemoryManager.js';
 
 // Constants for rendering
 const DEBUG_SHOW_SECTOR_BORDERS = true; // Set to false to hide sector borders
@@ -29,6 +30,7 @@ export class MapGenerator {
     this.starInteractionManager = null;
     this.radialMenu = null;
     this.font = null; // Will be loaded via AssetManager
+    this.rocketModel = null; // Will be loaded via AssetManager
     this.starLookup = new Map(); // Lookup for efficient star access by ID
     
     // Set up asset manager event listeners
@@ -66,6 +68,7 @@ export class MapGenerator {
       this.font = asset; // Store font reference
     } else if (path && path.includes('rocket')) {
       patch.rocket = asset;
+      this.rocketModel = asset; // Store rocket model reference
     }
     
     // Apply the patch if we have a map loaded
@@ -134,20 +137,13 @@ export class MapGenerator {
    * Clear the current map
    */
   clearMap() {
-    // Remove existing objects
+    // Use MemoryManager to dispose all tracked objects
+    mem.disposeAll();
+    
+    // Remove existing objects from scene (MemoryManager handles disposal)
     if (this.currentModel) {
       this.currentModel.stars.forEach(star => {
-        // Clean up star group and its contents
         if (star.group) {
-          // Dispose of 3D labels and fleet icons
-          if (star.group.userData.labelMesh) {
-            this.disposeLabelMesh(star.group.userData.labelMesh);
-          }
-          if (star.group.userData.fleetIcon) {
-            this.disposeFleetIcon(star.group.userData.fleetIcon);
-          }
-          
-          // Remove the entire star group
           this.scene.remove(star.group);
         }
       });
@@ -163,7 +159,6 @@ export class MapGenerator {
     this.stars.length = 0;
     this.wormholes.length = 0;
     this.sectorBorders.length = 0;
-    // this.starLabels.length = 0; // No longer needed - using 3D labels
     this.starLookup.clear();
     
     // Clear star interaction
@@ -262,6 +257,9 @@ export class MapGenerator {
       if (!star.group) {
         star.group = new THREE.Group();
         
+        // Track the star group with MemoryManager
+        mem.track(star.group, `star-group-${star.id}`);
+        
         // Store references in userData for easy access
         star.group.userData = {
           starId: star.id,
@@ -314,6 +312,9 @@ export class MapGenerator {
           
           star.mesh = new THREE.Mesh(geometry, material);
         }
+        
+        // Track the star mesh with MemoryManager
+        mem.track(star.mesh, `star-mesh-${star.id}`);
         
         // Add star mesh to group
         starGroup.add(star.mesh);
@@ -374,6 +375,10 @@ export class MapGenerator {
       
       if (!existingWormhole) {
         const wormholeMesh = this.createWormholeMesh(wormhole.star1, wormhole.star2, wormholeRadius);
+        
+        // Track the wormhole mesh with MemoryManager
+        mem.track(wormholeMesh, `wormhole-${wormhole.star1.id}-${wormhole.star2.id}`);
+        
         this.scene.add(wormholeMesh);
         this.wormholes.push({
           mesh: wormholeMesh,
@@ -423,6 +428,9 @@ export class MapGenerator {
             font
           );
           
+          // Track the new label mesh with MemoryManager
+          mem.track(labelMesh, `star-label-${star.id}`);
+          
           // Store reference in userData
           star.group.userData.labelMesh = labelMesh;
           star.group.add(labelMesh);
@@ -440,71 +448,36 @@ export class MapGenerator {
    * @param {Object} rocket - Loaded GLTF resource
    */
   applyRocketPatch(rocket) {
+    // Store the rocket model reference
+    this.rocketModel = rocket;
+    
+    // Create fleet icons for all stars that have ships
     this.stars.forEach(star => {
-      const hasShips = star.hasShips && star.hasShips();
-      const hasIcon = star.group && star.group.userData.fleetIcon;
-      
-      if (hasShips && !hasIcon && star.group) {
-        const starRadius = star.group.userData.starRadius;
-        
-        try {
-          // Clone the GLTF scene
-          const fleetIcon = rocket.scene.clone();
-          
-          // Position with existing static world offsets
-          const iconOffset = starRadius + 8; // Offset to the right
-          const iconY = starRadius * 0.5; // Half the star's height
-          fleetIcon.position.set(iconOffset, iconY, 0);
-          
-          // Store reference in userData
-          star.group.userData.fleetIcon = fleetIcon;
-          star.group.add(fleetIcon);
-          
-          console.log(`🚀 Added fleet icon to ${star.getName ? star.getName() : `Star ${star.id}`}`);
-        } catch (error) {
-          console.warn('⚠️ Failed to create fleet icon:', error.message);
-        }
-      }
+      this.updateFleetIconForStar(star);
     });
+    
+    console.log('🚀 Rocket model loaded, fleet icons will be created dynamically');
   }
 
   /**
-   * Clean up and dispose of a 3D label mesh
+   * Clean up and dispose of a 3D label mesh (deprecated - use MemoryManager)
    * @param {THREE.Mesh} labelMesh - Label mesh to dispose
+   * @deprecated Use mem.dispose() instead
    */
   disposeLabelMesh(labelMesh) {
     if (labelMesh) {
-      if (labelMesh.geometry) {
-        labelMesh.geometry.dispose();
-      }
-      if (labelMesh.material) {
-        if (Array.isArray(labelMesh.material)) {
-          labelMesh.material.forEach(material => material.dispose());
-        } else {
-          labelMesh.material.dispose();
-        }
-      }
+      mem.dispose(labelMesh);
     }
   }
 
   /**
-   * Clean up and dispose of a fleet icon (GLTF clone)
+   * Clean up and dispose of a fleet icon (deprecated - use MemoryManager)
    * @param {THREE.Object3D} fleetIcon - Fleet icon to dispose
+   * @deprecated Use mem.dispose() instead
    */
   disposeFleetIcon(fleetIcon) {
     if (fleetIcon) {
-      fleetIcon.traverse((child) => {
-        if (child.geometry) {
-          child.geometry.dispose();
-        }
-        if (child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach(material => material.dispose());
-          } else {
-            child.material.dispose();
-          }
-        }
-      });
+      mem.dispose(fleetIcon);
     }
   }
 
@@ -768,38 +741,10 @@ export class MapGenerator {
     return label;
   }
 
-  /**
-   * Create a fleet icon mesh (positioned relative to star group)
-   * @param {number} starRadius - Radius of the star for positioning
-   * @returns {THREE.Mesh} Fleet icon mesh
-   */
-  createFleetIconMesh(starRadius) {
-    // Create a cone geometry for the fleet icon
-    const coneGeometry = new THREE.ConeGeometry(2, 6, 8);
-    
-    // Use a bright color for visibility
-    const iconMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00ff00, // Bright green
-      transparent: true,
-      opacity: 0.9
-    });
-    
-    const icon = new THREE.Mesh(coneGeometry, iconMaterial);
-    
-    // Position icon to the right of the star, at half the star's height
-    const iconOffset = starRadius + 8; // Offset to the right
-    const iconY = starRadius * 0.5; // Half the star's height
-    
-    icon.position.set(iconOffset, iconY, 0);
-    
-    // Rotate the cone so the base is in the x-z plane and the point extends along the y-axis
-    icon.rotation.z = Math.PI / 2;
-    
-    return icon;
-  }
+
 
   /**
-   * Update star groups to face the camera (per-frame updates only)
+   * Update star groups to face the camera and manage fleet icons
    */
   updateStarGroups() {
     this.stars.forEach(star => {
@@ -807,13 +752,91 @@ export class MapGenerator {
         // Copy camera quaternion to make labels and icons face the camera
         star.group.quaternion.copy(this.camera.quaternion);
         
-        // Update fleet icon visibility based on ships (no creation/removal here)
-        if (star.group.userData.fleetIcon) {
-          const hasShips = star.hasShips && star.hasShips();
-          star.group.userData.fleetIcon.visible = hasShips;
-        }
+        // Manage fleet icons based on ship presence
+        this.updateFleetIconForStar(star);
       }
     });
+  }
+
+  /**
+   * Update fleet icon for a specific star based on ship presence
+   * @param {Object} star - Star object
+   */
+  updateFleetIconForStar(star) {
+    if (!star.group) return;
+    
+    const hasShips = star.hasShips && star.hasShips();
+    const hasIcon = star.group.userData.fleetIcon;
+    
+    if (hasShips && !hasIcon) {
+      // Need to create fleet icon - but only if we have the rocket model
+      if (this.rocketModel) {
+        this.createFleetIconForStar(star);
+      }
+    } else if (!hasShips && hasIcon) {
+      // Need to remove fleet icon
+      this.removeFleetIconFromStar(star);
+    }
+  }
+
+  /**
+   * Create a fleet icon for a specific star
+   * @param {Object} star - Star object
+   */
+  createFleetIconForStar(star) {
+    if (!star.group || !this.rocketModel) return;
+    
+    const starRadius = star.group.userData.starRadius;
+    
+    try {
+      // Clone the GLTF scene
+      const fleetIcon = this.rocketModel.scene.clone();
+      
+      // Calculate the bounding box to determine the model's size
+      const bbox = new THREE.Box3().setFromObject(fleetIcon);
+      const modelHeight = bbox.max.y - bbox.min.y;
+      
+      // Scale the fleet icon to about 2/3 the height of the star
+      const targetHeight = starRadius * 2; 
+      const scale = targetHeight / modelHeight;
+      fleetIcon.scale.set(scale, scale, scale);
+      
+      // Position to the right of the star (similar to label positioning)
+      const iconOffset = starRadius + (targetHeight * 0.7); // Offset to the right
+      fleetIcon.position.set(iconOffset, -starRadius, 0);
+      
+      // Track the new fleet icon with MemoryManager
+      mem.track(fleetIcon, `fleet-icon-${star.id}`);
+      
+      // Store reference in userData
+      star.group.userData.fleetIcon = fleetIcon;
+      star.group.add(fleetIcon);
+      
+      console.log(`🚀 Created fleet icon for ${star.getName ? star.getName() : `Star ${star.id}`} (scale: ${scale.toFixed(3)})`);
+    } catch (error) {
+      console.warn('⚠️ Failed to create fleet icon:', error.message);
+    }
+  }
+
+  /**
+   * Remove fleet icon from a specific star
+   * @param {Object} star - Star object
+   */
+  removeFleetIconFromStar(star) {
+    if (!star.group || !star.group.userData.fleetIcon) return;
+    
+    const fleetIcon = star.group.userData.fleetIcon;
+    
+    // Remove from group
+    star.group.remove(fleetIcon);
+    
+    // Dispose via MemoryManager
+    mem.dispose(fleetIcon);
+    
+    // Clear reference
+    star.group.userData.fleetIcon = null;
+    
+    console.log(`🚀 Removed fleet icon from ${star.getName ? star.getName() : `Star ${star.id}`}`);
   }
 
   /**

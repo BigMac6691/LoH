@@ -39,11 +39,11 @@ const cube = new THREE.Mesh(geometry, material);
 scene.add(cube);
 
 // Add lighting
-const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
-scene.add(ambientLight);
+const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x999999, 0.3);
+scene.add(hemisphereLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-directionalLight.position.set(5, 5, 5);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 3.0);
+directionalLight.position.copy(camera.position);
 scene.add(directionalLight);
 
 // Initialize OrbitControls
@@ -134,11 +134,16 @@ function removeDemoObjects() {
   demoCubes.length = 0; // Clear the array
 }
 
-// Start loading font assets immediately (before DOM ready)
-console.log('🎨 Starting font loading...');
+// Start loading assets immediately (before DOM ready)
+console.log('🎨 Starting asset loading...');
 assetManager.loadFont('fonts/helvetiker_regular.typeface.json')
   .catch(error => {
     console.warn('⚠️ Could not load font for 3D labels:', error.message);
+  });
+
+assetManager.loadGLTF('models/toy_rocket_4k_free_3d_model_gltf/scene.gltf')
+  .catch(error => {
+    console.warn('⚠️ Could not load rocket model for fleet icons:', error.message);
   });
 
 // Remove loading screen and start animation
