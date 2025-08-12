@@ -1,6 +1,10 @@
+import { MoveOrder } from '../../shared/MoveOrder.js';
+import { moveOrderStore } from '../../shared/MoveOrderStore.js';
+import { groupShipsByPowerAndDamage, getShipDisplayName, getShipHealthPercentage, canShipMove } from './utils/shipGrouping.js';
+
 /**
  * MoveDialog - A draggable dialog for managing fleet movement
- * Shows connected stars for movement selection
+ * Shows connected stars for movement selection and hierarchical ship tree
  */
 export class MoveDialog {
   constructor() {
@@ -10,6 +14,11 @@ export class MoveDialog {
     this.isDragging = false;
     this.dragOffset = { x: 0, y: 0 };
     this.selectedDestination = null;
+    this.currentPlayer = null;
+    this.currentMoveOrder = null;
+    this.selectedShipIds = new Set();
+    this.expandedNodes = new Set();
+    this.shipTreeData = null;
     
     this.createDialog();
   }
@@ -22,7 +31,7 @@ export class MoveDialog {
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 400px;
+      width: 800px;
       background: #2a2a2a;
       border: 2px solid #00ff88;
       border-radius: 8px;
@@ -104,9 +113,33 @@ export class MoveDialog {
 
     // Content container
     const content = document.createElement('div');
+    content.style.cssText = `
+      display: flex;
+      gap: 20px;
+      height: 500px;
+      max-height: 70vh;
+    `;
 
-    // Connected stars section
-    this.createConnectedStarsSection(content);
+    // Left panel - Connected stars
+    const leftPanel = document.createElement('div');
+    leftPanel.style.cssText = `
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    `;
+    this.createConnectedStarsSection(leftPanel);
+
+    // Right panel - Ship tree
+    const rightPanel = document.createElement('div');
+    rightPanel.style.cssText = `
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    `;
+    this.createShipTreeSection(rightPanel);
+
+    content.appendChild(leftPanel);
+    content.appendChild(rightPanel);
 
     this.dialog.appendChild(header);
     this.dialog.appendChild(this.starNameElement);
@@ -115,7 +148,65 @@ export class MoveDialog {
     // Setup drag handlers
     this.setupDragHandlers(header);
 
+    // Setup keyboard handlers
+    this.setupKeyboardHandlers();
+
     document.body.appendChild(this.dialog);
+  }
+
+  /**
+   * Create the ship tree section
+   */
+  createShipTreeSection(container) {
+    const section = document.createElement('div');
+    section.style.cssText = `
+      margin-bottom: 20px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    `;
+
+    // Section title
+    const title = document.createElement('h3');
+    title.textContent = 'Fleet Selection';
+    title.style.cssText = `
+      margin: 0 0 15px 0;
+      color: #00ff88;
+      font-size: 16px;
+      text-align: center;
+    `;
+    section.appendChild(title);
+
+    // Ship tree container
+    this.shipTreeContainer = document.createElement('div');
+    this.shipTreeContainer.style.cssText = `
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #333;
+      padding: 10px;
+      opacity: 0.5;
+      pointer-events: none;
+      max-height: 350px;
+    `;
+    section.appendChild(this.shipTreeContainer);
+
+    // Selection summary
+    this.selectionSummary = document.createElement('div');
+    this.selectionSummary.style.cssText = `
+      margin-top: 10px;
+      padding: 8px;
+      background: #444;
+      border-radius: 4px;
+      font-size: 12px;
+      text-align: center;
+      color: #ccc;
+    `;
+    this.selectionSummary.textContent = 'No ships selected';
+    section.appendChild(this.selectionSummary);
+
+    container.appendChild(section);
   }
 
   /**
@@ -171,13 +262,13 @@ export class MoveDialog {
     this.moveButton = moveButton;
     
     moveButton.addEventListener('mouseenter', () => {
-      if (this.selectedDestination) {
+      if (this.canSubmit()) {
         moveButton.style.background = '#00cc6a';
       }
     });
     
     moveButton.addEventListener('mouseleave', () => {
-      if (this.selectedDestination) {
+      if (this.canSubmit()) {
         moveButton.style.background = '#00ff88';
       }
     });
@@ -228,16 +319,87 @@ export class MoveDialog {
   }
 
   /**
+   * Setup keyboard handlers for accessibility
+   */
+  setupKeyboardHandlers() {
+    document.addEventListener('keydown', (e) => {
+      if (!this.isVisible) return;
+
+      // Handle arrow keys for navigation
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        this.navigateTree(e.key === 'ArrowDown' ? 1 : -1);
+      }
+      
+      // Handle space for selection toggle
+      if (e.key === ' ' && e.target === document.body) {
+        e.preventDefault();
+        this.toggleCurrentSelection();
+      }
+      
+      // Handle enter for expand/collapse
+      if (e.key === 'Enter' && e.target === document.body) {
+        e.preventDefault();
+        this.toggleCurrentExpansion();
+      }
+    });
+  }
+
+  /**
+   * Navigate the tree with arrow keys
+   */
+  navigateTree(direction) {
+    // TODO: Implement tree navigation
+    // This would require tracking the currently focused element
+    console.log('🚀 MoveDialog: Tree navigation', direction);
+  }
+
+  /**
+   * Toggle current selection
+   */
+  toggleCurrentSelection() {
+    // TODO: Implement selection toggle for focused element
+    console.log('🚀 MoveDialog: Toggle current selection');
+  }
+
+  /**
+   * Toggle current expansion
+   */
+  toggleCurrentExpansion() {
+    // TODO: Implement expansion toggle for focused element
+    console.log('🚀 MoveDialog: Toggle current expansion');
+  }
+
+  /**
    * Show the dialog for a specific star
    */
-  show(star) {
+  show(star, player = null) {
     if (!star) {
       console.error('MoveDialog: No star provided');
       return;
     }
 
+    // Ensure the star has an owner (only owned stars can have fleets)
+    if (!star.owner) {
+      console.error('MoveDialog: Cannot open dialog for unowned star');
+      return;
+    }
+
     this.currentStar = star;
+    
+    // If no player is provided, use the star's owner as the current player
+    if (!player && star.owner) {
+      this.currentPlayer = star.owner;
+      console.log('🚀 MoveDialog: Using star owner as current player:', star.owner.id);
+    } else {
+      this.currentPlayer = player;
+    }
+    
+    // Clear all state when opening dialog
     this.selectedDestination = null;
+    this.selectedShipIds.clear();
+    this.expandedNodes.clear();
+    this.currentMoveOrder = null;
     this.isVisible = true;
     this.dialog.style.display = 'block';
 
@@ -248,10 +410,13 @@ export class MoveDialog {
     // Update connected stars list
     this.updateConnectedStarsList();
 
+    // Update ship tree
+    this.updateShipTree();
+
     // Reset move button
     this.updateMoveButton();
 
-    console.log('🚀 MoveDialog: Opened for star:', starName);
+    console.log('🚀 MoveDialog: Opened for star:', starName, 'player:', this.currentPlayer?.id);
   }
 
   /**
@@ -293,6 +458,9 @@ export class MoveDialog {
         align-items: center;
       `;
 
+      // Check if there's an existing move order to this star
+      const hasMoveOrder = this.checkForExistingMoveOrder(star);
+
       const starName = star.getName ? star.getName() : `Star ${star.id}`;
       const starNameElement = document.createElement('span');
       starNameElement.textContent = starName;
@@ -302,6 +470,14 @@ export class MoveDialog {
       starNameElement.style.cssText = `
         color: ${starColor};
         font-weight: bold;
+      `;
+
+      // Create right side container for owner and rocket icon
+      const rightSide = document.createElement('div');
+      rightSide.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 8px;
       `;
 
       // Show star owner if any
@@ -314,8 +490,21 @@ export class MoveDialog {
         color: #888;
       `;
 
+      // Add rocket icon if there's an existing move order
+      if (hasMoveOrder) {
+        const rocketIcon = document.createElement('span');
+        rocketIcon.textContent = '🚀';
+        rocketIcon.style.cssText = `
+          font-size: 14px;
+          color: #00ff88;
+        `;
+        rocketIcon.title = 'Has existing move order';
+        rightSide.appendChild(rocketIcon);
+      }
+
+      rightSide.appendChild(ownerElement);
       starItem.appendChild(starNameElement);
-      starItem.appendChild(ownerElement);
+      starItem.appendChild(rightSide);
 
       // Hover effects
       starItem.addEventListener('mouseenter', () => {
@@ -375,17 +564,626 @@ export class MoveDialog {
       starNameElement.style.color = '#000';
     }
 
-    // Update move button
+    // Enable ship tree and load previous selection for this destination
+    this.enableShipTree();
+    this.loadPreviousSelectionForDestination(star);
     this.updateMoveButton();
 
     console.log('🚀 MoveDialog: Selected destination:', star.getName ? star.getName() : `Star ${star.id}`);
   }
 
   /**
+   * Enable ship tree when destination is selected
+   */
+  enableShipTree() {
+    if (this.shipTreeContainer) {
+      this.shipTreeContainer.style.opacity = '1';
+      this.shipTreeContainer.style.pointerEvents = 'auto';
+    }
+  }
+
+  /**
+   * Update the ship tree
+   */
+  updateShipTree() {
+    if (!this.currentStar) return;
+
+    // Get ships at this star
+    const ships = this.currentStar.getShips ? this.currentStar.getShips() : [];
+    
+    // Group ships by power and damage
+    this.shipTreeData = groupShipsByPowerAndDamage(ships);
+    
+    // Render the tree (without loading previous selection)
+    this.renderShipTree();
+  }
+
+  /**
+   * Render the ship tree
+   */
+  renderShipTree() {
+    if (!this.shipTreeContainer || !this.shipTreeData) return;
+
+    this.shipTreeContainer.innerHTML = '';
+
+    if (this.shipTreeData.totalShips === 0) {
+      const noShipsMessage = document.createElement('div');
+      noShipsMessage.textContent = 'No ships available at this star';
+      noShipsMessage.style.cssText = `
+        padding: 20px;
+        text-align: center;
+        color: #888;
+        font-style: italic;
+      `;
+      this.shipTreeContainer.appendChild(noShipsMessage);
+      return;
+    }
+
+    // Render power groups
+    this.shipTreeData.powerGroups.forEach(powerGroup => {
+      this.renderPowerGroup(powerGroup);
+    });
+
+    // Update selection summary
+    this.updateSelectionSummary();
+  }
+
+  /**
+   * Render a power group
+   */
+  renderPowerGroup(powerGroup) {
+    const groupElement = document.createElement('div');
+    groupElement.className = 'power-group';
+    groupElement.style.cssText = `
+      margin-bottom: 10px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      background: #3a3a3a;
+    `;
+
+    // Power group header
+    const header = document.createElement('div');
+    header.className = 'power-group-header';
+    header.style.cssText = `
+      padding: 8px 12px;
+      background: #444;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-radius: 4px 4px 0 0;
+    `;
+
+    const selectedCount = this.calculatePowerGroupSelectionCount(powerGroup);
+    
+    // Add checkbox for "select all" in this power group
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.style.cssText = `
+      margin-right: 8px;
+      cursor: pointer;
+    `;
+    
+    // Set checkbox state
+    if (selectedCount === 0) {
+      checkbox.checked = false;
+      checkbox.indeterminate = false;
+    } else if (selectedCount === powerGroup.totalCount) {
+      checkbox.checked = true;
+      checkbox.indeterminate = false;
+    } else {
+      checkbox.checked = false;
+      checkbox.indeterminate = true;
+    }
+    
+    // Add checkbox click handler
+    checkbox.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent header click
+      this.togglePowerGroupSelection(powerGroup, checkbox.checked);
+    });
+    
+    const headerText = document.createElement('span');
+    headerText.textContent = `Power ${powerGroup.power} (${selectedCount}/${powerGroup.totalCount} ships)`;
+    headerText.style.cssText = `
+      font-weight: bold;
+      color: ${selectedCount > 0 ? '#00ff88' : '#00ff88'};
+      flex: 1;
+    `;
+
+    const expandIcon = document.createElement('span');
+    expandIcon.textContent = '▼';
+    expandIcon.style.cssText = `
+      font-size: 12px;
+      transition: transform 0.2s;
+    `;
+
+    header.appendChild(checkbox);
+    header.appendChild(headerText);
+    header.appendChild(expandIcon);
+
+    // Content container
+    const content = document.createElement('div');
+    content.className = 'power-group-content';
+    content.style.cssText = `
+      padding: 8px;
+      display: none;
+    `;
+
+    // Render categories
+    this.renderCategory(content, 'undamaged', powerGroup.categories.undamaged);
+    this.renderCategory(content, 'damagedMobile', powerGroup.categories.damagedMobile);
+    this.renderCategory(content, 'damagedImmobile', powerGroup.categories.damagedImmobile);
+
+    groupElement.appendChild(header);
+    groupElement.appendChild(content);
+
+    // Handle expand/collapse
+    const groupKey = `power-${powerGroup.power}`;
+    const isExpanded = this.expandedNodes.has(groupKey);
+    
+    if (isExpanded) {
+      content.style.display = 'block';
+      expandIcon.style.transform = 'rotate(180deg)';
+    }
+
+    header.addEventListener('click', () => {
+      const isCurrentlyExpanded = content.style.display !== 'none';
+      
+      if (isCurrentlyExpanded) {
+        content.style.display = 'none';
+        expandIcon.style.transform = 'rotate(0deg)';
+        this.expandedNodes.delete(groupKey);
+      } else {
+        content.style.display = 'block';
+        expandIcon.style.transform = 'rotate(180deg)';
+        this.expandedNodes.add(groupKey);
+      }
+    });
+
+    this.shipTreeContainer.appendChild(groupElement);
+  }
+
+  /**
+   * Render a category within a power group
+   */
+  renderCategory(container, categoryType, category) {
+    if (category.count === 0) return;
+
+    const categoryElement = document.createElement('div');
+    categoryElement.className = 'category';
+    categoryElement.style.cssText = `
+      margin-bottom: 8px;
+    `;
+
+    // Category header
+    const header = document.createElement('div');
+    header.className = 'category-header';
+    header.style.cssText = `
+      padding: 6px 8px;
+      background: #555;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-radius: 3px;
+      margin-bottom: 4px;
+    `;
+
+    const categoryName = this.getCategoryDisplayName(categoryType);
+    const selectedCount = this.calculateCategorySelectionCount(category);
+    
+    // Add checkbox for "select all" in this category
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.style.cssText = `
+      margin-right: 6px;
+      cursor: pointer;
+      transform: scale(0.8);
+    `;
+    
+    // Disable checkbox for damaged immobile ships
+    if (categoryType === 'damagedImmobile') {
+      checkbox.disabled = true;
+      checkbox.style.cssText = `
+        margin-right: 6px;
+        cursor: not-allowed;
+        transform: scale(0.8);
+        opacity: 0.5;
+      `;
+    }
+    
+    // Set checkbox state
+    if (selectedCount === 0) {
+      checkbox.checked = false;
+      checkbox.indeterminate = false;
+    } else if (selectedCount === category.count) {
+      checkbox.checked = true;
+      checkbox.indeterminate = false;
+    } else {
+      checkbox.checked = false;
+      checkbox.indeterminate = true;
+    }
+    
+    // Add checkbox click handler
+    checkbox.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent header click
+      if (categoryType !== 'damagedImmobile') {
+        this.toggleCategorySelection(category, categoryType, checkbox.checked);
+      }
+    });
+    
+    const headerText = document.createElement('span');
+    headerText.textContent = `${categoryName} (${selectedCount}/${category.count})`;
+    headerText.style.cssText = `
+      font-size: 13px;
+      color: ${selectedCount > 0 ? '#00ff88' : this.getCategoryColor(categoryType)};
+      flex: 1;
+    `;
+
+    const expandIcon = document.createElement('span');
+    expandIcon.textContent = '▶';
+    expandIcon.style.cssText = `
+      font-size: 10px;
+      transition: transform 0.2s;
+    `;
+
+    header.appendChild(checkbox);
+    header.appendChild(headerText);
+    header.appendChild(expandIcon);
+
+    // Ships container
+    const shipsContainer = document.createElement('div');
+    shipsContainer.className = 'ships-container';
+    shipsContainer.style.cssText = `
+      padding-left: 15px;
+      display: none;
+    `;
+
+    // Render ships
+    category.ships.forEach(ship => {
+      this.renderShipItem(shipsContainer, ship, categoryType);
+    });
+
+    categoryElement.appendChild(header);
+    categoryElement.appendChild(shipsContainer);
+
+    // Handle expand/collapse
+    const categoryKey = `category-${categoryType}`;
+    const isExpanded = this.expandedNodes.has(categoryKey);
+    
+    if (isExpanded) {
+      shipsContainer.style.display = 'block';
+      expandIcon.style.transform = 'rotate(90deg)';
+    }
+
+    header.addEventListener('click', () => {
+      const isCurrentlyExpanded = shipsContainer.style.display !== 'none';
+      
+      if (isCurrentlyExpanded) {
+        shipsContainer.style.display = 'none';
+        expandIcon.style.transform = 'rotate(0deg)';
+        this.expandedNodes.delete(categoryKey);
+      } else {
+        shipsContainer.style.display = 'block';
+        expandIcon.style.transform = 'rotate(90deg)';
+        this.expandedNodes.add(categoryKey);
+      }
+    });
+
+    container.appendChild(categoryElement);
+  }
+
+  /**
+   * Check if there's an existing move order to a specific star
+   */
+  checkForExistingMoveOrder(destinationStar) {
+    if (!this.currentPlayer || !this.currentStar) return false;
+    
+    const playerId = this.currentPlayer.id;
+    const originStarId = this.currentStar.id;
+    const destStarId = destinationStar.id;
+    
+    const existingOrder = moveOrderStore.getOrder(playerId, originStarId);
+    return existingOrder && existingOrder.getDestStarId() === destStarId;
+  }
+
+  /**
+   * Get consistent ship ID
+   */
+  getShipId(ship) {
+    if (ship.id !== undefined) return ship.id;
+    if (ship.getId) return ship.getId();
+    // Fallback to object reference for consistency
+    return `ship-${ship.constructor.name}-${ship.power || 0}-${ship.damage || 0}`;
+  }
+
+  /**
+   * Render a ship item
+   */
+  renderShipItem(container, ship, categoryType) {
+    const shipElement = document.createElement('div');
+    shipElement.className = 'ship-item';
+    shipElement.style.cssText = `
+      padding: 4px 8px;
+      margin: 2px 0;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    `;
+
+    const shipId = this.getShipId(ship);
+    const isSelected = this.selectedShipIds.has(shipId);
+    const canMove = categoryType !== 'damagedImmobile';
+
+    if (isSelected) {
+      shipElement.style.background = '#00ff88';
+      shipElement.style.color = '#000';
+      shipElement.style.border = '1px solid #00cc6a';
+      shipElement.style.fontWeight = 'bold';
+    } else if (!canMove) {
+      shipElement.style.background = '#666';
+      shipElement.style.color = '#999';
+      shipElement.style.cursor = 'not-allowed';
+    } else {
+      shipElement.style.background = 'transparent';
+      shipElement.style.color = '#fff';
+    }
+
+    // Ship name
+    const shipName = document.createElement('span');
+    shipName.textContent = getShipDisplayName(ship);
+    shipName.style.cssText = `
+      font-size: 12px;
+    `;
+
+    // Ship health (for damaged ships)
+    const healthInfo = document.createElement('span');
+    if (categoryType !== 'undamaged') {
+      const healthPercentage = getShipHealthPercentage(ship);
+      healthInfo.textContent = `${Math.round(healthPercentage)}%`;
+      
+      // Ensure proper contrast for selected ships
+      if (isSelected) {
+        healthInfo.style.cssText = `
+          font-size: 11px;
+          color: #000;
+          font-weight: bold;
+        `;
+      } else {
+        healthInfo.style.cssText = `
+          font-size: 11px;
+          color: ${healthPercentage > 50 ? '#00ff88' : healthPercentage > 25 ? '#ffaa00' : '#ff4444'};
+        `;
+      }
+    }
+
+    shipElement.appendChild(shipName);
+    shipElement.appendChild(healthInfo);
+
+    // Click handler
+    if (canMove) {
+      shipElement.addEventListener('click', () => {
+        this.toggleShipSelection(shipId);
+      });
+    }
+
+    container.appendChild(shipElement);
+  }
+
+  /**
+   * Get category display name
+   */
+  getCategoryDisplayName(categoryType) {
+    switch (categoryType) {
+      case 'undamaged': return 'Undamaged';
+      case 'damagedMobile': return 'Damaged Mobile';
+      case 'damagedImmobile': return 'Damaged Immobile';
+      default: return 'Unknown';
+    }
+  }
+
+  /**
+   * Get category color
+   */
+  getCategoryColor(categoryType) {
+    switch (categoryType) {
+      case 'undamaged': return '#00ff88';
+      case 'damagedMobile': return '#ffaa00';
+      case 'damagedImmobile': return '#ff4444';
+      default: return '#ccc';
+    }
+  }
+
+  /**
+   * Toggle ship selection
+   */
+  toggleShipSelection(shipId) {
+    if (this.selectedShipIds.has(shipId)) {
+      this.selectedShipIds.delete(shipId);
+    } else {
+      this.selectedShipIds.add(shipId);
+    }
+    
+    this.updateSelectionSummary();
+    this.updateMoveButton();
+    // Re-render the tree to update selection counts in headers
+    this.renderShipTree();
+  }
+
+  /**
+   * Update selection summary
+   */
+  updateSelectionSummary() {
+    if (!this.selectionSummary) return;
+
+    const selectedCount = this.selectedShipIds.size;
+    const totalPower = this.calculateSelectedPower();
+
+    if (selectedCount === 0) {
+      this.selectionSummary.textContent = 'No ships selected';
+    } else {
+      this.selectionSummary.textContent = `${selectedCount} ships selected (${totalPower} power)`;
+    }
+  }
+
+  /**
+   * Calculate total power of selected ships
+   */
+  calculateSelectedPower() {
+    if (!this.shipTreeData) return 0;
+
+    let totalPower = 0;
+    this.shipTreeData.powerGroups.forEach(powerGroup => {
+      ['undamaged', 'damagedMobile', 'damagedImmobile'].forEach(categoryType => {
+        const category = powerGroup.categories[categoryType];
+        category.ships.forEach(ship => {
+          const shipId = this.getShipId(ship);
+          if (this.selectedShipIds.has(shipId)) {
+            const power = ship.getPower ? ship.getPower() : ship.power || 0;
+            totalPower += power;
+          }
+        });
+      });
+    });
+
+    return totalPower;
+  }
+
+  /**
+   * Calculate selection count for a power group
+   */
+  calculatePowerGroupSelectionCount(powerGroup) {
+    let selectedCount = 0;
+    ['undamaged', 'damagedMobile', 'damagedImmobile'].forEach(categoryType => {
+      const category = powerGroup.categories[categoryType];
+      category.ships.forEach(ship => {
+        const shipId = this.getShipId(ship);
+        if (this.selectedShipIds.has(shipId)) {
+          selectedCount++;
+        }
+      });
+    });
+    return selectedCount;
+  }
+
+  /**
+   * Calculate selection count for a category
+   */
+  calculateCategorySelectionCount(category) {
+    let selectedCount = 0;
+    category.ships.forEach(ship => {
+      const shipId = this.getShipId(ship);
+      if (this.selectedShipIds.has(shipId)) {
+        selectedCount++;
+      }
+    });
+    return selectedCount;
+  }
+
+  /**
+   * Toggle selection for all ships in a power group
+   */
+  togglePowerGroupSelection(powerGroup, select) {
+    ['undamaged', 'damagedMobile'].forEach(categoryType => {
+      const category = powerGroup.categories[categoryType];
+      category.ships.forEach(ship => {
+        const shipId = this.getShipId(ship);
+        if (select) {
+          this.selectedShipIds.add(shipId);
+        } else {
+          this.selectedShipIds.delete(shipId);
+        }
+      });
+    });
+    
+    this.updateSelectionSummary();
+    this.updateMoveButton();
+    this.renderShipTree();
+  }
+
+  /**
+   * Toggle selection for all ships in a category
+   */
+  toggleCategorySelection(category, categoryType, select) {
+    // Don't allow selection of damaged immobile ships
+    if (categoryType === 'damagedImmobile') {
+      return;
+    }
+    
+    category.ships.forEach(ship => {
+      const shipId = this.getShipId(ship);
+      if (select) {
+        this.selectedShipIds.add(shipId);
+      } else {
+        this.selectedShipIds.delete(shipId);
+      }
+    });
+    
+    this.updateSelectionSummary();
+    this.updateMoveButton();
+    this.renderShipTree();
+  }
+
+  /**
+   * Load previous selection for a specific destination
+   */
+  loadPreviousSelectionForDestination(destinationStar) {
+    if (!this.currentPlayer || !this.currentStar) return;
+
+    const playerId = this.currentPlayer.id;
+    const originStarId = this.currentStar.id;
+    
+    const previousOrder = moveOrderStore.getOrder(playerId, originStarId);
+    if (previousOrder && previousOrder.getDestStarId() === destinationStar.id) {
+      this.currentMoveOrder = previousOrder;
+      this.selectedShipIds = new Set(previousOrder.getSelectedShipIds());
+      
+      // Re-render to show selections
+      this.renderShipTree();
+      console.log('🚀 MoveDialog: Loaded previous selection for destination:', destinationStar.getName ? destinationStar.getName() : `Star ${destinationStar.id}`);
+    } else {
+      // Clear any existing selection if no previous order for this destination
+      this.selectedShipIds.clear();
+      this.currentMoveOrder = null;
+      this.renderShipTree();
+      console.log('🚀 MoveDialog: No previous selection found for destination:', destinationStar.getName ? destinationStar.getName() : `Star ${destinationStar.id}`);
+    }
+  }
+
+  /**
+   * Load previous selection (legacy method - kept for compatibility)
+   */
+  loadPreviousSelection() {
+    if (!this.currentPlayer || !this.currentStar) return;
+
+    const playerId = this.currentPlayer.id;
+    const originStarId = this.currentStar.id;
+    
+    const previousOrder = moveOrderStore.getOrder(playerId, originStarId);
+    if (previousOrder) {
+      this.currentMoveOrder = previousOrder;
+      this.selectedShipIds = new Set(previousOrder.getSelectedShipIds());
+      
+      // Re-render to show selections
+      this.renderShipTree();
+    }
+  }
+
+  /**
+   * Check if dialog can be submitted
+   */
+  canSubmit() {
+    return this.selectedDestination && this.selectedShipIds.size > 0;
+  }
+
+  /**
    * Update the move button state
    */
   updateMoveButton() {
-    if (this.selectedDestination) {
+    if (this.canSubmit()) {
       this.moveButton.style.opacity = '1';
       this.moveButton.style.pointerEvents = 'auto';
     } else {
@@ -398,8 +1196,8 @@ export class MoveDialog {
    * Move the fleet to the selected destination
    */
   moveFleet() {
-    if (!this.selectedDestination || !this.currentStar) {
-      console.warn('MoveDialog: No destination selected or no current star');
+    if (!this.canSubmit()) {
+      console.warn('MoveDialog: Cannot submit - missing destination or ship selection');
       return;
     }
 
@@ -407,6 +1205,26 @@ export class MoveDialog {
     const toStar = this.selectedDestination.getName ? this.selectedDestination.getName() : `Star ${this.selectedDestination.id}`;
     
     console.log(`🚀 MoveDialog: Moving fleet from ${fromStar} to ${toStar}`);
+    
+    // Create MoveOrder
+    const moveOrder = new MoveOrder({
+      originStarId: this.currentStar.id,
+      destStarId: this.selectedDestination.id,
+      selectedShipIds: Array.from(this.selectedShipIds)
+    });
+
+    // Store the move order
+    console.log('🚀 MoveDialog: currentPlayer:', this.currentPlayer);
+    if (this.currentPlayer) {
+      const playerId = this.currentPlayer.id;
+      const originStarId = this.currentStar.id;
+      console.log('🚀 MoveDialog: Storing order with playerId:', playerId, 'originStarId:', originStarId);
+      moveOrderStore.storeOrder(playerId, originStarId, moveOrder);
+      
+      console.log('🚀 MoveDialog: Stored move order:', moveOrder.getSummary());
+    } else {
+      console.warn('🚀 MoveDialog: No current player, cannot store move order');
+    }
     
     // TODO: Implement actual fleet movement logic
     // For now, just log the action
@@ -464,7 +1282,12 @@ export class MoveDialog {
   hide() {
     this.isVisible = false;
     this.currentStar = null;
+    this.currentPlayer = null;
+    this.currentMoveOrder = null;
     this.selectedDestination = null;
+    this.selectedShipIds.clear();
+    this.expandedNodes.clear();
+    this.shipTreeData = null;
     this.dialog.style.display = 'none';
     console.log('🚀 MoveDialog: Closed');
   }

@@ -70,13 +70,13 @@ export function generateDevScenario(playerManager, mapModel) {
   players.forEach((player, index) => {
     if (player.star) {
       // Add 2-3 ships to each player's star
-      const shipCount = 2 + (index % 2); // 2 ships for player 1, 3 for player 2
+      const shipCount = 12 + (index % 2); // 2 ships for player 1, 3 for player 2
       
       for (let i = 0; i < shipCount; i++) {
         const ship = new Ship({
           id: `ship_${player.name}_${i}`,
-          power: 50 + (i * 10), // Varying power levels
-          damage: Math.floor(Math.random() * 20), // Random damage
+          power: 50 + 10 * (i % 3), // Varying power levels
+          damage: Math.random() > 0.5 ? Math.floor(Math.random() * 49) : 0, // Random damage
           owner: player,
           location: player.star
         });

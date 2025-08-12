@@ -1,4 +1,5 @@
 import { runMemoryTest, logMemoryUsage } from './MemoryTest.js';
+import { moveOrderStore } from '../../../shared/MoveOrderStore.js';
 
 /**
  * DevPanel - Development tools panel for testing and debugging
@@ -66,6 +67,18 @@ export class DevPanel {
       </div>
       
       <div style="margin-bottom: 10px;">
+        <button id="move-orders-btn" style="
+          background: #444;
+          color: white;
+          border: 1px solid #666;
+          padding: 5px 10px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 11px;
+        ">Log Move Orders</button>
+      </div>
+      
+      <div style="margin-bottom: 10px;">
         <button id="toggle-panel-btn" style="
           background: #666;
           color: white;
@@ -102,6 +115,12 @@ export class DevPanel {
       this.logMemoryUsage();
     });
     
+    // Move orders button
+    const moveOrdersBtn = this.panel.querySelector('#move-orders-btn');
+    moveOrdersBtn.addEventListener('click', () => {
+      this.logMoveOrders();
+    });
+    
     // Toggle panel button
     const togglePanelBtn = this.panel.querySelector('#toggle-panel-btn');
     togglePanelBtn.addEventListener('click', () => {
@@ -132,6 +151,25 @@ export class DevPanel {
   logMemoryUsage() {
     console.log('🧪 DEV PANEL: Logging memory usage...');
     logMemoryUsage(this.renderer);
+  }
+  
+  /**
+   * Log MoveOrderStore contents
+   */
+  logMoveOrders() {
+    console.log('🧪 DEV PANEL: Logging MoveOrderStore contents...');
+    const debugInfo = moveOrderStore.getDebugInfo();
+    console.log('📋 MoveOrderStore Debug Info:', debugInfo);
+    
+    if (debugInfo.totalOrders === 0) {
+      console.log('📋 No move orders stored');
+    } else {
+      console.log('📋 All stored move orders:');
+      const allOrders = moveOrderStore.getAllOrders();
+      allOrders.forEach((order, key) => {
+        console.log(`  ${key}:`, order.getSummary());
+      });
+    }
   }
   
   /**
