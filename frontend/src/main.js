@@ -7,6 +7,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DEV_MODE, autoStartDevMode, logDevModeStatus, setupDevModeEventListeners } from './devScenarios.js';
 import { eventBus } from './eventBus.js';
 import { assetManager } from './engine/AssetManager.js';
+import { DevPanel } from './dev/DevPanel.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -117,6 +118,7 @@ let uiController;
 let mapGenerator;
 let playerManager;
 let playerSetupUI;
+let devPanel;
 
 // Function to remove demo objects when generating map
 function removeDemoObjects() {
@@ -160,6 +162,12 @@ document.addEventListener('DOMContentLoaded', () => {
   uiController = new UIController();
   mapGenerator = new MapGenerator(scene, camera);
   playerManager = new PlayerManager();
+  
+  // Initialize dev panel if in dev mode
+  if (DEV_MODE) {
+    devPanel = new DevPanel(scene, renderer, camera);
+    devPanel.show(); // Show dev panel by default in dev mode
+  }
   
   // Start animation
   animate();

@@ -108,7 +108,7 @@ class MemoryManager {
       this._disposeObject3D(obj);
     }
     // Handle Geometry
-    else if (obj instanceof THREE.BufferGeometry || obj instanceof THREE.Geometry) {
+    else if (obj instanceof THREE.BufferGeometry) {
       if (obj.dispose) {
         obj.dispose();
       }
@@ -133,9 +133,13 @@ class MemoryManager {
   _disposeObject3D(object3D) {
     if (!object3D) return;
 
-    // Dispose all children first
+    // Dispose all children first and remove them from tracking
     const children = [...object3D.children];
     children.forEach(child => {
+      // Remove child from tracking if it's tracked
+      if (this.trackedObjects.has(child)) {
+        this.trackedObjects.delete(child);
+      }
       this._disposeObject3D(child);
     });
 
@@ -146,12 +150,22 @@ class MemoryManager {
       
       // Dispose geometry
       if (object3D.geometry) {
-        this._disposeObject(object3D.geometry);
+        // If geometry is tracked separately, dispose it properly
+        if (this.trackedObjects.has(object3D.geometry)) {
+          this.dispose(object3D.geometry);
+        } else {
+          this._disposeObject(object3D.geometry);
+        }
       }
       
       // Dispose material(s)
       if (object3D.material) {
-        this._disposeObject(object3D.material);
+        // If material is tracked separately, dispose it properly
+        if (this.trackedObjects.has(object3D.material)) {
+          this.dispose(object3D.material);
+        } else {
+          this._disposeObject(object3D.material);
+        }
       }
     }
   }
