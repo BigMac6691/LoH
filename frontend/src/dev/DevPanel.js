@@ -156,21 +156,20 @@ export class DevPanel {
   /**
    * Log MoveOrderStore contents
    */
-  logMoveOrders() {
-    console.log('🧪 DEV PANEL: Logging MoveOrderStore contents...');
-    const debugInfo = moveOrderStore.getDebugInfo();
-    console.log('📋 MoveOrderStore Debug Info:', debugInfo);
-    
-    if (debugInfo.totalOrders === 0) {
-      console.log('📋 No move orders stored');
-    } else {
-      console.log('📋 All stored move orders:');
-      const allOrders = moveOrderStore.getAllOrders();
-      allOrders.forEach((order, key) => {
-        console.log(`  ${key}:`, order.getSummary());
-      });
-    }
-  }
+              logMoveOrders() {
+              console.log('🧪 DEV PANEL: Logging MoveOrderStore contents...');
+              const debugInfo = moveOrderStore.getDebugInfo();
+              console.log('📋 MoveOrderStore Debug Info:', debugInfo);
+              
+              if (debugInfo.totalOrders === 0) {
+                console.log('📋 No move orders stored');
+              } else {
+                console.log('📋 All stored move orders:');
+                debugInfo.orders.forEach(orderInfo => {
+                  console.log(`  ${orderInfo.key}:`, orderInfo.summary);
+                });
+              }
+            }
   
   /**
    * Show the dev panel

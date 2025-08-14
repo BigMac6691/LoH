@@ -242,7 +242,7 @@ export class MoveDialog {
 
     // Move button
     const moveButton = document.createElement('button');
-    moveButton.textContent = 'Move Fleet';
+    moveButton.textContent = 'Submit Order';
     moveButton.style.cssText = `
       width: 100%;
       padding: 12px;
@@ -655,6 +655,7 @@ export class MoveDialog {
     `;
 
     const selectedCount = this.calculatePowerGroupSelectionCount(powerGroup);
+    const availableCount = this.calculatePowerGroupAvailableCount(powerGroup);
     
     // Add checkbox for "select all" in this power group
     const checkbox = document.createElement('input');
@@ -668,7 +669,7 @@ export class MoveDialog {
     if (selectedCount === 0) {
       checkbox.checked = false;
       checkbox.indeterminate = false;
-    } else if (selectedCount === powerGroup.totalCount) {
+    } else if (selectedCount === availableCount) {
       checkbox.checked = true;
       checkbox.indeterminate = false;
     } else {
@@ -683,7 +684,7 @@ export class MoveDialog {
     });
     
     const headerText = document.createElement('span');
-    headerText.textContent = `Power ${powerGroup.power} (${selectedCount}/${powerGroup.totalCount} ships)`;
+    headerText.textContent = `Power ${powerGroup.power} (${selectedCount}/${availableCount} ships)`;
     headerText.style.cssText = `
       font-weight: bold;
       color: ${selectedCount > 0 ? '#00ff88' : '#00ff88'};
@@ -771,6 +772,7 @@ export class MoveDialog {
 
     const categoryName = this.getCategoryDisplayName(categoryType);
     const selectedCount = this.calculateCategorySelectionCount(category);
+    const availableCount = this.calculateCategoryAvailableCount(category);
     
     // Add checkbox for "select all" in this category
     const checkbox = document.createElement('input');
@@ -796,7 +798,7 @@ export class MoveDialog {
     if (selectedCount === 0) {
       checkbox.checked = false;
       checkbox.indeterminate = false;
-    } else if (selectedCount === category.count) {
+    } else if (selectedCount === availableCount) {
       checkbox.checked = true;
       checkbox.indeterminate = false;
     } else {
@@ -813,7 +815,7 @@ export class MoveDialog {
     });
     
     const headerText = document.createElement('span');
-    headerText.textContent = `${categoryName} (${selectedCount}/${category.count})`;
+    headerText.textContent = `${categoryName} (${selectedCount}/${availableCount})`;
     headerText.style.cssText = `
       font-size: 13px;
       color: ${selectedCount > 0 ? '#00ff88' : this.getCategoryColor(categoryType)};
@@ -883,8 +885,34 @@ export class MoveDialog {
     const originStarId = this.currentStar.id;
     const destStarId = destinationStar.id;
     
-    const existingOrder = moveOrderStore.getOrder(playerId, originStarId);
-    return existingOrder && existingOrder.getDestStarId() === destStarId;
+    return moveOrderStore.hasOrder(playerId, originStarId, destStarId);
+  }
+
+  /**
+   * Calculate which ships are available for selection (not already assigned to other destinations)
+   */
+  calculateAvailableShips() {
+    if (!this.currentPlayer || !this.currentStar) return new Set();
+    
+    const playerId = this.currentPlayer.id;
+    const originStarId = this.currentStar.id;
+    
+    // Get all existing move orders for this origin star
+    const existingOrders = moveOrderStore.getOrdersForOriginStar(playerId, originStarId);
+    
+    // Collect all ship IDs that are already assigned to other destinations
+    const assignedShipIds = new Set();
+    existingOrders.forEach(order => {
+      // Don't include ships from the current destination (if any)
+      if (this.selectedDestination && order.getDestStarId() === this.selectedDestination.id) {
+        return;
+      }
+      order.getSelectedShipIds().forEach(shipId => {
+        assignedShipIds.add(shipId);
+      });
+    });
+    
+    return assignedShipIds;
   }
 
   /**
@@ -917,13 +945,17 @@ export class MoveDialog {
     const shipId = this.getShipId(ship);
     const isSelected = this.selectedShipIds.has(shipId);
     const canMove = categoryType !== 'damagedImmobile';
+    
+    // Check if ship is available (not assigned to other destinations)
+    const assignedShipIds = this.calculateAvailableShips();
+    const isAvailable = !assignedShipIds.has(shipId);
 
     if (isSelected) {
       shipElement.style.background = '#00ff88';
       shipElement.style.color = '#000';
       shipElement.style.border = '1px solid #00cc6a';
       shipElement.style.fontWeight = 'bold';
-    } else if (!canMove) {
+    } else if (!canMove || !isAvailable) {
       shipElement.style.background = '#666';
       shipElement.style.color = '#999';
       shipElement.style.cursor = 'not-allowed';
@@ -964,7 +996,7 @@ export class MoveDialog {
     shipElement.appendChild(healthInfo);
 
     // Click handler
-    if (canMove) {
+    if (canMove && isAvailable) {
       shipElement.addEventListener('click', () => {
         this.toggleShipSelection(shipId);
       });
@@ -1070,6 +1102,25 @@ export class MoveDialog {
   }
 
   /**
+   * Calculate available count for a power group (total minus assigned to other destinations)
+   */
+  calculatePowerGroupAvailableCount(powerGroup) {
+    const assignedShipIds = this.calculateAvailableShips();
+    let availableCount = 0;
+    
+    ['undamaged', 'damagedMobile', 'damagedImmobile'].forEach(categoryType => {
+      const category = powerGroup.categories[categoryType];
+      category.ships.forEach(ship => {
+        const shipId = this.getShipId(ship);
+        if (!assignedShipIds.has(shipId)) {
+          availableCount++;
+        }
+      });
+    });
+    return availableCount;
+  }
+
+  /**
    * Calculate selection count for a category
    */
   calculateCategorySelectionCount(category) {
@@ -1084,17 +1135,38 @@ export class MoveDialog {
   }
 
   /**
+   * Calculate available count for a category (total minus assigned to other destinations)
+   */
+  calculateCategoryAvailableCount(category) {
+    const assignedShipIds = this.calculateAvailableShips();
+    let availableCount = 0;
+    
+    category.ships.forEach(ship => {
+      const shipId = this.getShipId(ship);
+      if (!assignedShipIds.has(shipId)) {
+        availableCount++;
+      }
+    });
+    return availableCount;
+  }
+
+  /**
    * Toggle selection for all ships in a power group
    */
   togglePowerGroupSelection(powerGroup, select) {
+    const assignedShipIds = this.calculateAvailableShips();
+    
     ['undamaged', 'damagedMobile'].forEach(categoryType => {
       const category = powerGroup.categories[categoryType];
       category.ships.forEach(ship => {
         const shipId = this.getShipId(ship);
-        if (select) {
-          this.selectedShipIds.add(shipId);
-        } else {
-          this.selectedShipIds.delete(shipId);
+        // Only select/deselect available ships
+        if (!assignedShipIds.has(shipId)) {
+          if (select) {
+            this.selectedShipIds.add(shipId);
+          } else {
+            this.selectedShipIds.delete(shipId);
+          }
         }
       });
     });
@@ -1113,12 +1185,17 @@ export class MoveDialog {
       return;
     }
     
+    const assignedShipIds = this.calculateAvailableShips();
+    
     category.ships.forEach(ship => {
       const shipId = this.getShipId(ship);
-      if (select) {
-        this.selectedShipIds.add(shipId);
-      } else {
-        this.selectedShipIds.delete(shipId);
+      // Only select/deselect available ships
+      if (!assignedShipIds.has(shipId)) {
+        if (select) {
+          this.selectedShipIds.add(shipId);
+        } else {
+          this.selectedShipIds.delete(shipId);
+        }
       }
     });
     
@@ -1135,9 +1212,10 @@ export class MoveDialog {
 
     const playerId = this.currentPlayer.id;
     const originStarId = this.currentStar.id;
+    const destStarId = destinationStar.id;
     
-    const previousOrder = moveOrderStore.getOrder(playerId, originStarId);
-    if (previousOrder && previousOrder.getDestStarId() === destinationStar.id) {
+    const previousOrder = moveOrderStore.getOrder(playerId, originStarId, destStarId);
+    if (previousOrder) {
       this.currentMoveOrder = previousOrder;
       this.selectedShipIds = new Set(previousOrder.getSelectedShipIds());
       
@@ -1193,7 +1271,7 @@ export class MoveDialog {
   }
 
   /**
-   * Move the fleet to the selected destination
+   * Submit the move order for the selected destination
    */
   moveFleet() {
     if (!this.canSubmit()) {
@@ -1204,7 +1282,7 @@ export class MoveDialog {
     const fromStar = this.currentStar.getName ? this.currentStar.getName() : `Star ${this.currentStar.id}`;
     const toStar = this.selectedDestination.getName ? this.selectedDestination.getName() : `Star ${this.selectedDestination.id}`;
     
-    console.log(`🚀 MoveDialog: Moving fleet from ${fromStar} to ${toStar}`);
+    console.log(`🚀 MoveDialog: Submitting move order from ${fromStar} to ${toStar}`);
     
     // Create MoveOrder
     const moveOrder = new MoveOrder({
@@ -1218,8 +1296,9 @@ export class MoveDialog {
     if (this.currentPlayer) {
       const playerId = this.currentPlayer.id;
       const originStarId = this.currentStar.id;
-      console.log('🚀 MoveDialog: Storing order with playerId:', playerId, 'originStarId:', originStarId);
-      moveOrderStore.storeOrder(playerId, originStarId, moveOrder);
+      const destStarId = this.selectedDestination.id;
+      console.log('🚀 MoveDialog: Storing order with playerId:', playerId, 'originStarId:', originStarId, 'destStarId:', destStarId);
+      moveOrderStore.storeOrder(playerId, originStarId, destStarId, moveOrder);
       
       console.log('🚀 MoveDialog: Stored move order:', moveOrder.getSummary());
     } else {
@@ -1239,7 +1318,7 @@ export class MoveDialog {
    */
   showMoveConfirmation(fromStar, toStar) {
     const confirmation = document.createElement('div');
-    confirmation.textContent = `Fleet moved from ${fromStar} to ${toStar}!`;
+    confirmation.textContent = `Move order submitted: ${fromStar} → ${toStar}`;
     confirmation.style.cssText = `
       position: fixed;
       top: 20px;

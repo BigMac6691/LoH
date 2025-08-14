@@ -14,29 +14,32 @@ export class MoveOrderStore {
    * Generate a key for storing move orders
    * @param {string} playerId - Player ID
    * @param {string} originStarId - Origin star ID
+   * @param {string} destStarId - Destination star ID
    * @returns {string} Storage key
    */
-  generateKey(playerId, originStarId) {
-    return `${playerId}:${originStarId}`;
+  generateKey(playerId, originStarId, destStarId) {
+    return `${playerId}:${originStarId}:${destStarId}`;
   }
 
   /**
    * Store a move order
    * @param {string} playerId - Player ID
    * @param {string} originStarId - Origin star ID
+   * @param {string} destStarId - Destination star ID
    * @param {MoveOrder} moveOrder - Move order to store
    */
-  storeOrder(playerId, originStarId, moveOrder) {
-    console.log('📋 MoveOrderStore: storeOrder called with:', { playerId, originStarId, moveOrder });
+  storeOrder(playerId, originStarId, destStarId, moveOrder) {
+    console.log('📋 MoveOrderStore: storeOrder called with:', { playerId, originStarId, destStarId, moveOrder });
     
     if (playerId === null || playerId === undefined || 
         originStarId === null || originStarId === undefined || 
+        destStarId === null || destStarId === undefined ||
         moveOrder === null || moveOrder === undefined) {
-      console.warn('MoveOrderStore: Invalid parameters for storeOrder', { playerId, originStarId, moveOrder });
+      console.warn('MoveOrderStore: Invalid parameters for storeOrder', { playerId, originStarId, destStarId, moveOrder });
       return;
     }
 
-    const key = this.generateKey(playerId, originStarId);
+    const key = this.generateKey(playerId, originStarId, destStarId);
     console.log('📋 MoveOrderStore: Storing order with key:', key);
     this.orders.set(key, moveOrder.clone()); // Store a copy
     console.log('📋 MoveOrderStore: Order stored. Total orders now:', this.orders.size);
@@ -46,15 +49,17 @@ export class MoveOrderStore {
    * Retrieve a move order
    * @param {string} playerId - Player ID
    * @param {string} originStarId - Origin star ID
+   * @param {string} destStarId - Destination star ID
    * @returns {MoveOrder|null} Move order or null if not found
    */
-  getOrder(playerId, originStarId) {
+  getOrder(playerId, originStarId, destStarId) {
     if (playerId === null || playerId === undefined || 
-        originStarId === null || originStarId === undefined) {
+        originStarId === null || originStarId === undefined ||
+        destStarId === null || destStarId === undefined) {
       return null;
     }
 
-    const key = this.generateKey(playerId, originStarId);
+    const key = this.generateKey(playerId, originStarId, destStarId);
     const order = this.orders.get(key);
     return order ? order.clone() : null; // Return a copy
   }
@@ -63,15 +68,17 @@ export class MoveOrderStore {
    * Check if a move order exists
    * @param {string} playerId - Player ID
    * @param {string} originStarId - Origin star ID
+   * @param {string} destStarId - Destination star ID
    * @returns {boolean} True if order exists
    */
-  hasOrder(playerId, originStarId) {
+  hasOrder(playerId, originStarId, destStarId) {
     if (playerId === null || playerId === undefined || 
-        originStarId === null || originStarId === undefined) {
+        originStarId === null || originStarId === undefined ||
+        destStarId === null || destStarId === undefined) {
       return false;
     }
 
-    const key = this.generateKey(playerId, originStarId);
+    const key = this.generateKey(playerId, originStarId, destStarId);
     return this.orders.has(key);
   }
 
@@ -79,15 +86,17 @@ export class MoveOrderStore {
    * Remove a move order
    * @param {string} playerId - Player ID
    * @param {string} originStarId - Origin star ID
+   * @param {string} destStarId - Destination star ID
    * @returns {boolean} True if order was removed
    */
-  removeOrder(playerId, originStarId) {
+  removeOrder(playerId, originStarId, destStarId) {
     if (playerId === null || playerId === undefined || 
-        originStarId === null || originStarId === undefined) {
+        originStarId === null || originStarId === undefined ||
+        destStarId === null || destStarId === undefined) {
       return false;
     }
 
-    const key = this.generateKey(playerId, originStarId);
+    const key = this.generateKey(playerId, originStarId, destStarId);
     return this.orders.delete(key);
   }
 
@@ -108,6 +117,28 @@ export class MoveOrderStore {
       }
     }
     return playerOrders;
+  }
+
+  /**
+   * Get all move orders for a specific origin star
+   * @param {string} playerId - Player ID
+   * @param {string} originStarId - Origin star ID
+   * @returns {Array<MoveOrder>} Array of move orders
+   */
+  getOrdersForOriginStar(playerId, originStarId) {
+    if (playerId === null || playerId === undefined || 
+        originStarId === null || originStarId === undefined) {
+      return [];
+    }
+
+    const originOrders = [];
+    const prefix = `${playerId}:${originStarId}:`;
+    for (const [key, order] of this.orders) {
+      if (key.startsWith(prefix)) {
+        originOrders.push(order.clone());
+      }
+    }
+    return originOrders;
   }
 
   /**
