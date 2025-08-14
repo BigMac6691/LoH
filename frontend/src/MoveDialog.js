@@ -240,13 +240,20 @@ export class MoveDialog {
     `;
     section.appendChild(this.starsListContainer);
 
-    // Move button
-    const moveButton = document.createElement('button');
-    moveButton.textContent = 'Submit Order';
-    moveButton.style.cssText = `
-      width: 100%;
-      padding: 12px;
+    // Button container
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = `
+      display: flex;
+      gap: 10px;
       margin-top: 15px;
+    `;
+
+    // Submit button
+    const submitButton = document.createElement('button');
+    submitButton.textContent = 'Submit Order';
+    submitButton.style.cssText = `
+      flex: 1;
+      padding: 12px;
       background: #00ff88;
       color: #000;
       border: none;
@@ -259,25 +266,63 @@ export class MoveDialog {
       pointer-events: none;
     `;
     
-    this.moveButton = moveButton;
+    this.moveButton = submitButton;
     
-    moveButton.addEventListener('mouseenter', () => {
+    submitButton.addEventListener('mouseenter', () => {
       if (this.canSubmit()) {
-        moveButton.style.background = '#00cc6a';
+        submitButton.style.background = '#00cc6a';
       }
     });
     
-    moveButton.addEventListener('mouseleave', () => {
+    submitButton.addEventListener('mouseleave', () => {
       if (this.canSubmit()) {
-        moveButton.style.background = '#00ff88';
+        submitButton.style.background = '#00ff88';
       }
     });
     
-    moveButton.addEventListener('click', () => {
+    submitButton.addEventListener('click', () => {
       this.moveFleet();
     });
+
+    // Cancel button
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel Order';
+    cancelButton.style.cssText = `
+      flex: 1;
+      padding: 12px;
+      background: #ff4444;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      opacity: 0.5;
+      pointer-events: none;
+    `;
     
-    section.appendChild(moveButton);
+    this.cancelButton = cancelButton;
+    
+    cancelButton.addEventListener('mouseenter', () => {
+      if (this.canCancel()) {
+        cancelButton.style.background = '#cc3333';
+      }
+    });
+    
+    cancelButton.addEventListener('mouseleave', () => {
+      if (this.canCancel()) {
+        cancelButton.style.background = '#ff4444';
+      }
+    });
+    
+    cancelButton.addEventListener('click', () => {
+      this.cancelOrder();
+    });
+    
+    buttonContainer.appendChild(submitButton);
+    buttonContainer.appendChild(cancelButton);
+    section.appendChild(buttonContainer);
     container.appendChild(section);
   }
 
@@ -528,10 +573,43 @@ export class MoveDialog {
     });
   }
 
-  /**
-   * Select a destination star
-   */
-  selectDestination(star, element) {
+     /**
+    * Clear destination selection
+    */
+   clearDestinationSelection() {
+     // Clear previous selection
+     const previousSelected = this.starsListContainer.querySelector('.selected');
+     if (previousSelected) {
+       previousSelected.classList.remove('selected');
+       previousSelected.style.background = 'transparent';
+       previousSelected.style.border = 'none';
+       
+       // Restore original star name color
+       const starNameElement = previousSelected.querySelector('span:first-child');
+       if (starNameElement) {
+         const originalStar = this.currentStar.getConnectedStars().find(s => 
+           (s.getName ? s.getName() : `Star ${s.id}`) === starNameElement.textContent
+         );
+         if (originalStar) {
+           const starColor = originalStar.color || '#CCCCCC';
+           starNameElement.style.color = starColor;
+         }
+       }
+     }
+     
+     this.selectedDestination = null;
+     
+     // Disable ship tree
+     if (this.shipTreeContainer) {
+       this.shipTreeContainer.style.opacity = '0.5';
+       this.shipTreeContainer.style.pointerEvents = 'none';
+     }
+   }
+
+   /**
+    * Select a destination star
+    */
+   selectDestination(star, element) {
     // Clear previous selection
     const previousSelected = this.starsListContainer.querySelector('.selected');
     if (previousSelected) {
@@ -654,34 +732,30 @@ export class MoveDialog {
       border-radius: 4px 4px 0 0;
     `;
 
-    const selectedCount = this.calculatePowerGroupSelectionCount(powerGroup);
-    const availableCount = this.calculatePowerGroupAvailableCount(powerGroup);
+         const selectedCount = this.calculatePowerGroupSelectionCount(powerGroup);
+     const availableCount = this.calculatePowerGroupAvailableCount(powerGroup);
+     
+     // Add checkbox for "select all" in this power group
+     const checkbox = document.createElement('input');
+     checkbox.type = 'checkbox';
+     checkbox.style.cssText = `
+       margin-right: 8px;
+       cursor: pointer;
+     `;
+     
+     // Set checkbox state - checked if all available ships (excluding damaged immobile) are selected, unchecked otherwise
+     checkbox.checked = selectedCount > 0 && selectedCount === availableCount;
     
-    // Add checkbox for "select all" in this power group
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.style.cssText = `
-      margin-right: 8px;
-      cursor: pointer;
-    `;
-    
-    // Set checkbox state
-    if (selectedCount === 0) {
-      checkbox.checked = false;
-      checkbox.indeterminate = false;
-    } else if (selectedCount === availableCount) {
-      checkbox.checked = true;
-      checkbox.indeterminate = false;
-    } else {
-      checkbox.checked = false;
-      checkbox.indeterminate = true;
-    }
-    
-    // Add checkbox click handler
-    checkbox.addEventListener('click', (e) => {
-      e.stopPropagation(); // Prevent header click
-      this.togglePowerGroupSelection(powerGroup, checkbox.checked);
-    });
+         // Add checkbox click handler
+     checkbox.addEventListener('change', (e) => {
+       e.stopPropagation(); // Prevent header click
+       this.togglePowerGroupSelection(powerGroup, checkbox.checked);
+     });
+     
+     // Also prevent click event from bubbling
+     checkbox.addEventListener('click', (e) => {
+       e.stopPropagation();
+     });
     
     const headerText = document.createElement('span');
     headerText.textContent = `Power ${powerGroup.power} (${selectedCount}/${availableCount} ships)`;
@@ -794,25 +868,21 @@ export class MoveDialog {
       `;
     }
     
-    // Set checkbox state
-    if (selectedCount === 0) {
-      checkbox.checked = false;
-      checkbox.indeterminate = false;
-    } else if (selectedCount === availableCount) {
-      checkbox.checked = true;
-      checkbox.indeterminate = false;
-    } else {
-      checkbox.checked = false;
-      checkbox.indeterminate = true;
-    }
+         // Set checkbox state - checked if all available ships (excluding damaged immobile) are selected, unchecked otherwise
+     checkbox.checked = selectedCount > 0 && selectedCount === availableCount;
     
-    // Add checkbox click handler
-    checkbox.addEventListener('click', (e) => {
-      e.stopPropagation(); // Prevent header click
-      if (categoryType !== 'damagedImmobile') {
-        this.toggleCategorySelection(category, categoryType, checkbox.checked);
-      }
-    });
+         // Add checkbox click handler
+     checkbox.addEventListener('change', (e) => {
+       e.stopPropagation(); // Prevent header click
+       if (categoryType !== 'damagedImmobile') {
+         this.toggleCategorySelection(category, categoryType, checkbox.checked);
+       }
+     });
+     
+     // Also prevent click event from bubbling
+     checkbox.addEventListener('click', (e) => {
+       e.stopPropagation();
+     });
     
     const headerText = document.createElement('span');
     headerText.textContent = `${categoryName} (${selectedCount}/${availableCount})`;
@@ -1258,9 +1328,17 @@ export class MoveDialog {
   }
 
   /**
-   * Update the move button state
+   * Check if dialog can be cancelled (has existing order for this destination)
+   */
+  canCancel() {
+    return this.selectedDestination && this.currentMoveOrder !== null;
+  }
+
+  /**
+   * Update the button states
    */
   updateMoveButton() {
+    // Update submit button
     if (this.canSubmit()) {
       this.moveButton.style.opacity = '1';
       this.moveButton.style.pointerEvents = 'auto';
@@ -1268,6 +1346,56 @@ export class MoveDialog {
       this.moveButton.style.opacity = '0.5';
       this.moveButton.style.pointerEvents = 'none';
     }
+
+    // Update cancel button
+    if (this.canCancel()) {
+      this.cancelButton.style.opacity = '1';
+      this.cancelButton.style.pointerEvents = 'auto';
+    } else {
+      this.cancelButton.style.opacity = '0.5';
+      this.cancelButton.style.pointerEvents = 'none';
+    }
+  }
+
+  /**
+   * Cancel the move order for the selected destination
+   */
+  cancelOrder() {
+    if (!this.canCancel()) {
+      console.warn('MoveDialog: Cannot cancel - no existing order for this destination');
+      return;
+    }
+
+    const fromStar = this.currentStar.getName ? this.currentStar.getName() : `Star ${this.currentStar.id}`;
+    const toStar = this.selectedDestination.getName ? this.selectedDestination.getName() : `Star ${this.selectedDestination.id}`;
+    
+    console.log(`🚀 MoveDialog: Cancelling move order from ${fromStar} to ${toStar}`);
+    
+    // Remove the move order from store
+    if (this.currentPlayer) {
+      const playerId = this.currentPlayer.id;
+      const originStarId = this.currentStar.id;
+      const destStarId = this.selectedDestination.id;
+      
+      const removed = moveOrderStore.removeOrder(playerId, originStarId, destStarId);
+      if (removed) {
+        console.log('🚀 MoveDialog: Removed move order from store');
+      } else {
+        console.warn('🚀 MoveDialog: Failed to remove move order from store');
+      }
+    }
+    
+    // Clear current selection
+    this.selectedShipIds.clear();
+    this.currentMoveOrder = null;
+    
+         // Update UI
+     this.updateMoveButton();
+     this.renderShipTree();
+     this.updateConnectedStarsList(); // Refresh rocket icons
+     
+     // Show confirmation
+     this.showCancelConfirmation(fromStar, toStar);
   }
 
   /**
@@ -1308,9 +1436,16 @@ export class MoveDialog {
     // TODO: Implement actual fleet movement logic
     // For now, just log the action
     
-    // Show confirmation and close dialog
-    this.showMoveConfirmation(fromStar, toStar);
-    this.hide();
+         // Show confirmation and refresh UI
+     this.showMoveConfirmation(fromStar, toStar);
+     this.updateConnectedStarsList(); // Refresh rocket icons
+     
+     // Clear destination selection and ship selection after successful submit
+     this.clearDestinationSelection();
+     this.selectedShipIds.clear();
+     this.currentMoveOrder = null;
+     this.updateMoveButton();
+     this.renderShipTree();
   }
 
   /**
@@ -1325,6 +1460,48 @@ export class MoveDialog {
       right: 20px;
       background: #00ff88;
       color: #000;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: bold;
+      z-index: 3000;
+      animation: slideIn 0.3s ease-out;
+    `;
+
+    // Add CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    document.body.appendChild(confirmation);
+
+    // Remove after 3 seconds
+    setTimeout(() => {
+      if (confirmation.parentNode) {
+        confirmation.parentNode.removeChild(confirmation);
+      }
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    }, 3000);
+  }
+
+  /**
+   * Show cancel confirmation feedback
+   */
+  showCancelConfirmation(fromStar, toStar) {
+    const confirmation = document.createElement('div');
+    confirmation.textContent = `Move order cancelled: ${fromStar} → ${toStar}`;
+    confirmation.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #ff4444;
+      color: #fff;
       padding: 10px 20px;
       border-radius: 6px;
       font-weight: bold;
