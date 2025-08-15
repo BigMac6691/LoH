@@ -82,7 +82,7 @@ export function generateDevScenario(playerManager, mapModel) {
         });
         
         player.star.addShip(ship);
-        console.log(`🔧 DEV MODE: Added ship ${ship.id} to ${player.name}'s star`);
+        console.log(`🔧 DEV MODE: Added ship ${ship.id} (${ship.getDamagePercentage()}%) to ${player.name}'s star`);
       }
       
       // Ship indicators will be created during game start event when map generator is available

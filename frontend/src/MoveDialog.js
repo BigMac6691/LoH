@@ -734,6 +734,7 @@ export class MoveDialog {
 
          const selectedCount = this.calculatePowerGroupSelectionCount(powerGroup);
      const availableCount = this.calculatePowerGroupAvailableCount(powerGroup);
+     const immobileCount = this.calculatePowerGroupImmobileCount(powerGroup);
      
      // Add checkbox for "select all" in this power group
      const checkbox = document.createElement('input');
@@ -754,11 +755,12 @@ export class MoveDialog {
      
      // Also prevent click event from bubbling
      checkbox.addEventListener('click', (e) => {
+      console.log('🚀 MoveDialog: Checkbox clicked');
        e.stopPropagation();
      });
     
     const headerText = document.createElement('span');
-    headerText.textContent = `Power ${powerGroup.power} (${selectedCount}/${availableCount} ships)`;
+    headerText.innerHTML = `Power ${powerGroup.power} (${selectedCount}/${availableCount}/<span style="color: #ff4444;">${immobileCount}</span> ships)`;
     headerText.style.cssText = `
       font-weight: bold;
       color: ${selectedCount > 0 ? '#00ff88' : '#00ff88'};
@@ -847,6 +849,7 @@ export class MoveDialog {
     const categoryName = this.getCategoryDisplayName(categoryType);
     const selectedCount = this.calculateCategorySelectionCount(category);
     const availableCount = this.calculateCategoryAvailableCount(category);
+    const totalCount = category.ships.length;
     
     // Add checkbox for "select all" in this category
     const checkbox = document.createElement('input');
@@ -885,7 +888,11 @@ export class MoveDialog {
      });
     
     const headerText = document.createElement('span');
-    headerText.textContent = `${categoryName} (${selectedCount}/${availableCount})`;
+    if (categoryType === 'damagedImmobile') {
+      headerText.innerHTML = `${categoryName} (${selectedCount}/${availableCount}/<span style="color: #ff4444;">${totalCount}</span>)`;
+    } else {
+      headerText.textContent = `${categoryName} (${selectedCount}/${availableCount})`;
+    }
     headerText.style.cssText = `
       font-size: 13px;
       color: ${selectedCount > 0 ? '#00ff88' : this.getCategoryColor(categoryType)};
@@ -1159,7 +1166,7 @@ export class MoveDialog {
    */
   calculatePowerGroupSelectionCount(powerGroup) {
     let selectedCount = 0;
-    ['undamaged', 'damagedMobile', 'damagedImmobile'].forEach(categoryType => {
+    ['undamaged', 'damagedMobile'].forEach(categoryType => {
       const category = powerGroup.categories[categoryType];
       category.ships.forEach(ship => {
         const shipId = this.getShipId(ship);
@@ -1178,7 +1185,7 @@ export class MoveDialog {
     const assignedShipIds = this.calculateAvailableShips();
     let availableCount = 0;
     
-    ['undamaged', 'damagedMobile', 'damagedImmobile'].forEach(categoryType => {
+    ['undamaged', 'damagedMobile'].forEach(categoryType => {
       const category = powerGroup.categories[categoryType];
       category.ships.forEach(ship => {
         const shipId = this.getShipId(ship);
@@ -1188,6 +1195,25 @@ export class MoveDialog {
       });
     });
     return availableCount;
+  }
+
+  /**
+   * Calculate immobile count for a power group
+   */
+  calculatePowerGroupImmobileCount(powerGroup) {
+    let immobileCount = 0;
+    const category = powerGroup.categories['damagedImmobile'];
+    if (category) {
+      immobileCount = category.ships.length;
+    }
+    return immobileCount;
+  }
+
+  /**
+   * Calculate immobile count for a category
+   */
+  calculateCategoryImmobileCount(category) {
+    return category.ships.length;
   }
 
   /**
@@ -1224,6 +1250,7 @@ export class MoveDialog {
    * Toggle selection for all ships in a power group
    */
   togglePowerGroupSelection(powerGroup, select) {
+    console.log('🚀 MoveDialog: Toggling power group selection:', powerGroup, select);
     const assignedShipIds = this.calculateAvailableShips();
     
     ['undamaged', 'damagedMobile'].forEach(categoryType => {
