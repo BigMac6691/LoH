@@ -17,7 +17,7 @@ export function createStarLabel3D(name, starRadius, font) {
     curveSegments: 6,
     bevelEnabled: true,
     bevelThickness: 0.2,
-    bevelSize: 0.15,
+    bevelSize: 0.15
   });
 
   // Compute bounding box to center the text
