@@ -29,15 +29,24 @@
 - Backup DB (custom format):  
   `docker compose exec -T db pg_dump -U "$PGUSER" -d "$PGDATABASE" -Fc > backups/loh_$(date +%F).dump`
 - Restore to new DB:  
-  `docker compose exec -T db createdb -U "$PGUSER" loh_restore`
+  `docker compose exec -T db createdb -U "$PGUSER" loh_restore`  
   `docker compose exec -T db pg_restore -U "$PGUSER" -d loh_restore -c < backups/loh_YYYY-MM-DD.dump`
-- Docker (wipe DB volume):
-  `docker compose down -v`
-  `docker compose up -d`
+- Docker (wipe DB volume):  
+  `docker compose down -v`  
+  `docker compose up -d`  
   `docker compose exec api node scripts/migrate.js`
-- Drop schema from psql (faster than deleting volume):
-  `docker compose exec -it db psql -U "$PGUSER" -d "$PGDATABASE" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"`
+- Drop schema from psql (faster than deleting volume):  
+  `docker compose exec -it db psql -U "$PGUSER" -d "$PGDATABASE" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"`  
   `docker compose exec api node scripts/migrate.js`
+- Using psql  
+  `docker exec -it loh-db-1 psql -U "$PGUSER" -d loh`  
+  `loh-db-1` is the container name (from your docker compose ps output).  
+  `-U "$PGUSER"` logs in as user define in .env.  
+  `-d loh` selects your database (replace with whatever you named it in your .env).  
+  `\dt`                  -- list all tables  
+  `\d` order_submission  -- describe a table’s structure  
+  `select * from order_submission limit 10;`  -- peek at rows
+  `\q`                   -- quit
 
 ## Backend (in container)
 - Run migrations:  
