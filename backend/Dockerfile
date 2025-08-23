@@ -1,16 +1,13 @@
-# backend/Dockerfile
-FROM node:20-alpine AS base
+FROM node:20-alpine
 WORKDIR /app
 
-# Install deps
-COPY package*.json ./
-RUN npm ci
+# Copy local package and backend (so file:../packages/shared resolves)
+COPY packages/shared/ packages/shared/
+COPY backend/ backend/
 
-# Copy app
-COPY . .
+WORKDIR /app/backend
+RUN npm install
 
-# If you transpile (TS), add: RUN npm run build
 ENV NODE_ENV=production
 EXPOSE 3000
-# Adjust if your entry differs
 CMD ["node", "server.js"]

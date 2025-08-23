@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@loh/shared": "file:../packages/shared",
     "three": "^0.178.0"
   },
   "devDependencies": {

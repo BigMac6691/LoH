@@ -10,11 +10,14 @@ import { randomUUID } from 'crypto';
  * @param {string|null} params.ownerPlayer - Owner player UUID (optional)
  * @param {Object} params.economy - Economy data (default: {})
  * @param {Object} params.damage - Damage data (default: {})
+ * @param {Object} [client] - Optional database client for transactions
  * @returns {Promise<Object>} The upserted star state row
  */
-export async function upsertStarState({ gameId, starId, ownerPlayer = null, economy = {}, damage = {} }) {
+export async function upsertStarState({ gameId, starId, ownerPlayer = null, economy = {}, damage = {} }, client = null) {
   const id = randomUUID();
-  const { rows } = await pool.query(
+  const dbClient = client || pool;
+  
+  const { rows } = await dbClient.query(
     `INSERT INTO star_state (id, game_id, star_id, owner_player, economy, damage)
      VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (game_id, star_id)
@@ -34,10 +37,13 @@ export async function upsertStarState({ gameId, starId, ownerPlayer = null, econ
  * @param {Object} params
  * @param {string} params.gameId - Game UUID
  * @param {string} params.starId - Star ID
+ * @param {Object} [client] - Optional database client for transactions
  * @returns {Promise<Object|null>} The star state row or null
  */
-export async function getStarState({ gameId, starId }) {
-  const { rows } = await pool.query(
+export async function getStarState({ gameId, starId }, client = null) {
+  const dbClient = client || pool;
+  
+  const { rows } = await dbClient.query(
     `SELECT * FROM star_state WHERE game_id=$1 AND star_id=$2`,
     [gameId, starId]
   );
@@ -50,10 +56,13 @@ export async function getStarState({ gameId, starId }) {
  * @param {Object} params
  * @param {string} params.gameId - Game UUID
  * @param {string} params.playerId - Player UUID
+ * @param {Object} [client] - Optional database client for transactions
  * @returns {Promise<Array>} Array of star state rows
  */
-export async function listStarsByOwner({ gameId, playerId }) {
-  const { rows } = await pool.query(
+export async function listStarsByOwner({ gameId, playerId }, client = null) {
+  const dbClient = client || pool;
+  
+  const { rows } = await dbClient.query(
     `SELECT * FROM star_state WHERE game_id=$1 AND owner_player=$2`,
     [gameId, playerId]
   );

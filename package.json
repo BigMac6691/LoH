@@ -1,32 +1,13 @@
 {
-  "name": "loh-backend",
-  "version": "1.0.0",
-  "description": "Backend server for LoH game",
-  "main": "backend/server.js",
+  "name": "loh-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "backend", "frontend"],
   "scripts": {
-    "start": "node backend/server.js",
-    "dev": "nodemon backend/server.js",
-    "backend": "nodemon backend/server.js",
-    "frontend": "cd frontend && npm run dev",
-    "test": "vitest",
-    "test:run": "vitest run"
-  },
-  "dependencies": {
-    "express": "^4.21.2",
-    "morgan": "^1.10.1",
-    "winston": "^3.17.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2",
-    "vite": "^7.0.6",
-    "vitest": "^1.0.0",
-    "jsdom": "^23.0.0"
-  },
-  "keywords": [
-    "game",
-    "backend",
-    "express"
-  ],
-  "author": "",
-  "license": "MIT"
+    "postinstall": "npm -w @loh/shared run build || true",
+    "dev:api": "npm -w loh-backend run dev",
+    "start:api": "npm -w loh-backend start",
+    "migrate": "npm -w loh-backend run migrate",
+    "dev:web": "npm -w loh-frontend run dev"
+  }
 }

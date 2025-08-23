@@ -1,5 +1,5 @@
 import { runMemoryTest, logMemoryUsage } from './MemoryTest.js';
-import { moveOrderStore } from '../../../shared/MoveOrderStore.js';
+import { moveOrderStore } from '@loh/shared';
 
 /**
  * DevPanel - Development tools panel for testing and debugging

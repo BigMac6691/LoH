@@ -8,6 +8,7 @@ import { DEV_MODE, autoStartDevMode, logDevModeStatus, setupDevModeEventListener
 import { eventBus } from './eventBus.js';
 import { assetManager } from './engine/AssetManager.js';
 import { DevPanel } from './dev/DevPanel.js';
+import { BackendTestPanel } from './dev/BackendTestPanel.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -119,6 +120,7 @@ let mapGenerator;
 let playerManager;
 let playerSetupUI;
 let devPanel;
+let backendTestPanel;
 
 // Function to remove demo objects when generating map
 function removeDemoObjects() {
@@ -167,6 +169,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (DEV_MODE) {
     devPanel = new DevPanel(scene, renderer, camera);
     devPanel.show(); // Show dev panel by default in dev mode
+    
+    // Initialize backend test panel
+    backendTestPanel = new BackendTestPanel(scene, renderer, camera, mapGenerator);
+    backendTestPanel.show(); // Show backend test panel by default in dev mode
   }
   
   // Start animation

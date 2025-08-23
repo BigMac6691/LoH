@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 // import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'; // No longer needed
-import { MapModel } from '../../shared/MapModel.js';
+import { MapModel } from '@loh/shared';
 import { StarInteractionManager } from './StarInteractionManager.js';
 import { RadialMenu } from './RadialMenu.js';
 import { createStarLabel3D } from './scene/createStarLabel3D.js';
@@ -123,6 +123,34 @@ export class MapGenerator {
     this.positionCameraToFitMap();
     
     console.log(`Map generated: ${this.currentModel.stars.length} stars, ${this.currentModel.wormholes.length} wormholes`);
+  }
+
+  /**
+   * Generate and render a map from existing model data (e.g., from backend)
+   * @param {Object} mapModel - Map model with stars, wormholes, and config
+   */
+  generateMapFromModel(mapModel) {
+    console.log('Generating map from model data:', mapModel);
+    
+    // Clear existing map
+    this.clearMap();
+    
+    // Set the current model
+    this.currentModel = mapModel;
+    
+    // Calculate map size for label visibility
+    this.calculateMapSize();
+    
+    // Build static map components (stars, wormholes, sectors)
+    this.buildStaticMap(this.currentModel);
+    
+    // Initialize star interaction system
+    this.initializeStarInteraction();
+    
+    // Position camera to fit the entire map
+    this.positionCameraToFitMap();
+    
+    console.log(`Map generated from model: ${this.currentModel.stars.length} stars, ${this.currentModel.wormholes.length} wormholes`);
   }
 
   /**

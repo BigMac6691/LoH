@@ -1,5 +1,4 @@
-import { MoveOrder } from '../../shared/MoveOrder.js';
-import { moveOrderStore } from '../../shared/MoveOrderStore.js';
+import { MoveOrder, moveOrderStore } from '@loh/shared';
 import { groupShipsByPowerAndDamage, getShipDisplayName, getShipHealthPercentage, canShipMove } from './utils/shipGrouping.js';
 
 /**

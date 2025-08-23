@@ -4,7 +4,10 @@
  */
 
 import { eventBus } from './eventBus.js';
-import { Ship } from '../../shared/Ship.js';
+import { assetManager } from './engine/AssetManager.js';
+import { PlayerManager } from './PlayerManager.js';
+import { generateMap } from './main.js';
+import { Ship } from '@loh/shared';
 
 // Development mode flag
 export const DEV_MODE = true; // Set to false for production

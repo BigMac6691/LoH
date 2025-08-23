@@ -57,6 +57,8 @@
 `cd backend && npm install`
 - Start dev:  
 `npm run dev`
+- Restart docker when package.json, docker file, env or server.js changed:  
+`docker compose restart api`
 - Run migrations:  
 `node scripts/migrate.js`
 

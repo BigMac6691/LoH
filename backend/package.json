@@ -9,8 +9,9 @@
       "dev": "node server.js",
       "migrate": "node scripts/migrate.js"
     },
-    "dependencies": {
-      "cors": "^2.8.5",
+      "dependencies": {
+    "@loh/shared": "file:../packages/shared",
+    "cors": "^2.8.5",
       "dotenv": "^16.4.5",
       "express": "^4.21.2",
       "morgan": "^1.10.1",

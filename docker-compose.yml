@@ -9,8 +9,7 @@ services:
       POSTGRES_DB: ${PGDATABASE}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # Keep DB private on the Docker network (safer).
-    # Uncomment the next lines temporarily if you want to connect from a host GUI client:
+    # Expose only if you need host access temporarily:
     # ports:
     #   - "5432:5432"
     healthcheck:
@@ -21,8 +20,8 @@ services:
 
   api:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .                # <-- repo root
+      dockerfile: backend/Dockerfile
     env_file: ./.env
     environment:
       NODE_ENV: ${NODE_ENV:-development}
@@ -33,11 +32,15 @@ services:
         condition: service_healthy
     ports:
       - "${API_PORT:-3000}:3000"
+    working_dir: /app/backend   # <-- run from backend folder
     volumes:
-      # live-edit backend code from WSL filesystem
-      - ./backend:/app:rw,delegated
+      # live-edit backend & shared during dev:
+      - ./backend:/app/backend:rw,delegated
+      - ./packages/shared:/app/packages/shared:rw,delegated
+      # prevent node_modules from being shadowed by bind mounts:
       - /app/node_modules
-    command: ["node", "server.js"]  # or ["npm","run","dev"] if you prefer hot reload
+      - /app/backend/node_modules
+    command: ["node", "server.js"]   # or ["npm","run","dev"] if you prefer
     restart: unless-stopped
 
 volumes:
