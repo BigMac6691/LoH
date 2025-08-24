@@ -163,7 +163,7 @@ export class PlayerSetupUI {
     // Create info text
     const infoText = document.createElement('div');
     infoText.innerHTML = `
-      <p style="margin: 15px 0; color: #ccc; font-size: 14px; text-align: center;">
+      <p class="info-text">
         Add at least 2 players to start the game.<br>
         Each player will be assigned to a random sector with stars.
       </p>

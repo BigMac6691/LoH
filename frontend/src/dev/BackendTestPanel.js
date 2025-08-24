@@ -25,219 +25,79 @@ export class BackendTestPanel {
   createPanel() {
     this.panel = document.createElement('div');
     this.panel.id = 'backend-test-panel';
-    this.panel.style.cssText = `
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: rgba(0, 0, 0, 0.9);
-      color: white;
-      padding: 20px;
-      border-radius: 8px;
-      font-family: monospace;
-      font-size: 12px;
-      z-index: 1000;
-      min-width: 300px;
-      max-width: 400px;
-      display: none;
-      border: 2px solid #00ff00;
-      cursor: move;
-      user-select: none;
-    `;
+    this.panel.className = 'panel';
+    this.panel.id = 'backend-test-panel';
     
     this.panel.innerHTML = `
-      <div style="margin-bottom: 15px; font-weight: bold; color: #00ff00; font-size: 14px;">
+      <div class="backend-test-panel-header">
         🗄️ BACKEND TEST PANEL
       </div>
       
-      <form id="game-form">
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; margin-bottom: 3px; color: #ccc;">Seed:</label>
-          <input type="number" id="seed-input" value="12345" min="0" max="999999" style="
-            width: 100%;
-            padding: 5px;
-            background: #333;
-            color: white;
-            border: 1px solid #555;
-            border-radius: 3px;
-            font-family: monospace;
-            font-size: 11px;
-          ">
+      <form id="game-form" class="game-form">
+        <div class="form-group">
+          <label class="form-label">Seed:</label>
+          <input type="number" id="seed-input" value="12345" min="0" max="999999" class="form-input">
         </div>
         
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; margin-bottom: 3px; color: #ccc;">Map Size:</label>
-          <input type="number" id="map-size-input" value="5" min="2" max="9" style="
-            width: 100%;
-            padding: 5px;
-            background: #333;
-            color: white;
-            border: 1px solid #555;
-            border-radius: 3px;
-            font-family: monospace;
-            font-size: 11px;
-          ">
+        <div class="form-group">
+          <label class="form-label">Map Size:</label>
+          <input type="number" id="map-size-input" value="5" min="2" max="9" class="form-input">
         </div>
         
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; margin-bottom: 3px; color: #ccc;">Density Min:</label>
-          <input type="number" id="density-min-input" value="3" min="0" max="9" style="
-            width: 100%;
-            padding: 5px;
-            background: #333;
-            color: white;
-            border: 1px solid #555;
-            border-radius: 3px;
-            font-family: monospace;
-            font-size: 11px;
-          ">
+        <div class="form-group">
+          <label class="form-label">Density Min:</label>
+          <input type="number" id="density-min-input" value="3" min="0" max="9" class="form-input">
         </div>
         
-        <div style="margin-bottom: 10px;">
-          <label style="display: block; margin-bottom: 3px; color: #ccc;">Density Max:</label>
-          <input type="number" id="density-max-input" value="7" min="0" max="9" style="
-            width: 100%;
-            padding: 5px;
-            background: #333;
-            color: white;
-            border: 1px solid #555;
-            border-radius: 3px;
-            font-family: monospace;
-            font-size: 11px;
-          ">
+        <div class="form-group">
+          <label class="form-label">Density Max:</label>
+          <input type="number" id="density-max-input" value="7" min="0" max="9" class="form-input">
         </div>
         
-        <div style="margin-bottom: 15px;">
+        <div class="form-group">
           <div style="margin-bottom: 8px; color: #ccc; font-weight: bold;">Players:</div>
           
-          <div style="margin-bottom: 8px;">
-            <label style="display: block; margin-bottom: 3px; color: #ccc;">Player 1:</label>
-            <input type="text" id="player1-name" value="Red Player" placeholder="Name" style="
-              width: 60%;
-              padding: 5px;
-              background: #333;
-              color: white;
-              border: 1px solid #555;
-              border-radius: 3px;
-              font-family: monospace;
-              font-size: 11px;
-              margin-right: 5px;
-            ">
-            <input type="color" id="player1-color" value="#ff0000" style="
-              width: 35%;
-              height: 25px;
-              background: #333;
-              border: 1px solid #555;
-              border-radius: 3px;
-            ">
+          <div class="player-input-group">
+            <label class="form-label">Player 1:</label>
+            <input type="text" id="player1-name" value="Red Player" placeholder="Name" class="player-name-input">
+            <input type="color" id="player1-color" value="#ff0000" class="player-color-input">
           </div>
           
-          <div style="margin-bottom: 8px;">
-            <label style="display: block; margin-bottom: 3px; color: #ccc;">Player 2:</label>
-            <input type="text" id="player2-name" value="Blue Player" placeholder="Name" style="
-              width: 60%;
-              padding: 5px;
-              background: #333;
-              color: white;
-              border: 1px solid #555;
-              border-radius: 3px;
-              font-family: monospace;
-              font-size: 11px;
-              margin-right: 5px;
-            ">
-            <input type="color" id="player2-color" value="#0000ff" style="
-              width: 35%;
-              height: 25px;
-              background: #333;
-              border: 1px solid #555;
-              border-radius: 3px;
-            ">
+          <div class="player-input-group">
+            <label class="form-label">Player 2:</label>
+            <input type="text" id="player2-name" value="Blue Player" placeholder="Name" class="player-name-input">
+            <input type="color" id="player2-color" value="#0000ff" class="player-color-input">
           </div>
         </div>
         
-        <button type="submit" id="start-game-btn" style="
-          width: 100%;
-          background: #00aa00;
-          color: white;
-          border: none;
-          padding: 10px;
-          border-radius: 5px;
-          cursor: pointer;
-          font-family: monospace;
-          font-size: 12px;
-          font-weight: bold;
-        ">🚀 START GAME</button>
+        <button type="submit" id="start-game-btn" class="start-game-btn">🚀 START GAME</button>
       </form>
       
-      <div id="status" style="
-        margin-top: 15px;
-        padding: 10px;
-        background: #222;
-        border-radius: 5px;
-        font-size: 11px;
-        min-height: 20px;
-      "></div>
+      <div id="status" class="status-display"></div>
       
-      <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 15px;">
-          <div style="margin-bottom: 10px; font-weight: bold; color: #00ffff; font-size: 12px;">
+      <div class="dev-tools-section">
+          <div class="dev-tools-header">
             🧪 DEV TOOLS
           </div>
           
-          <div style="margin-bottom: 10px;">
-            <button id="memory-test-btn" style="
-              background: #444;
-              color: white;
-              border: 1px solid #666;
-              padding: 5px 10px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 11px;
-              width: 100%;
-              margin-bottom: 5px;
-            ">Run Memory Test</button>
+          <div class="mb-lg">
+            <button id="memory-test-btn" class="dev-tools-btn">Run Memory Test</button>
           </div>
           
-          <div style="margin-bottom: 10px;">
-            <button id="memory-log-btn" style="
-              background: #444;
-              color: white;
-              border: 1px solid #666;
-              padding: 5px 10px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 11px;
-              width: 100%;
-              margin-bottom: 5px;
-            ">Log Memory Usage</button>
+          <div class="mb-lg">
+            <button id="memory-log-btn" class="dev-tools-btn">Log Memory Usage</button>
           </div>
           
-          <div style="margin-bottom: 10px;">
-            <button id="move-orders-btn" style="
-              background: #444;
-              color: white;
-              border: 1px solid #666;
-              padding: 5px 10px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 11px;
-              width: 100%;
-              margin-bottom: 5px;
-            ">Log Move Orders</button>
+          <div class="mb-lg">
+            <button id="move-orders-btn" class="dev-tools-btn">Log Move Orders</button>
           </div>
         </div>
       
-      <div style="margin-top: 15px;">
-        <button id="toggle-panel-btn" style="
-          background: #666;
-          color: white;
-          border: 1px solid #888;
-          padding: 5px 10px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 11px;
-        ">Hide Panel</button>
+      <div class="mt-xl">
+        <button id="toggle-panel-btn" class="toggle-panel-btn">Hide Panel</button>
       </div>
       
-      <div style="font-size: 10px; color: #ccc; margin-top: 10px;">
+      <div class="help-text">
         Press 'B' to toggle panel<br>
         Press 'M' to run memory test<br>
         Drag to move panel
@@ -362,7 +222,7 @@ export class BackendTestPanel {
    */
   async startGame() {
     const statusDiv = this.panel.querySelector('#status');
-    statusDiv.innerHTML = '<span style="color: #ffff00;">⏳ Starting game...</span>';
+          statusDiv.innerHTML = '<span class="status-loading">⏳ Starting game...</span>';
     
     try {
       // Get form values
@@ -398,7 +258,7 @@ export class BackendTestPanel {
 
       console.log('requestBody', requestBody);
       
-      statusDiv.innerHTML = '<span style="color: #ffff00;">⏳ Creating game...</span>';
+      statusDiv.innerHTML = '<span class="status-loading">⏳ Creating game...</span>';
       
       // POST to start game
       const startResponse = await fetch('/api/dev/start-game', {
@@ -415,10 +275,10 @@ export class BackendTestPanel {
       }
       
       const startData = await startResponse.json();
-      statusDiv.innerHTML = `<span style="color: #00ff00;">✅ Game created! ID: ${startData.gameId}</span>`;
+      statusDiv.innerHTML = `<span class="status-success">✅ Game created! ID: ${startData.gameId}</span>`;
       
       // GET game state
-      statusDiv.innerHTML = '<span style="color: #ffff00;">⏳ Loading game state...</span>';
+      statusDiv.innerHTML = '<span class="status-loading">⏳ Loading game state...</span>';
       
       const stateResponse = await fetch(`/api/dev/state?gameId=${startData.gameId}`);
       
@@ -428,14 +288,14 @@ export class BackendTestPanel {
       }
       
       const stateData = await stateResponse.json();
-      statusDiv.innerHTML = `<span style="color: #00ff00;">✅ Game state loaded! Stars: ${stateData.counts.stars}, Edges: ${stateData.counts.wormholes}</span>`;
+      statusDiv.innerHTML = `<span class="status-success">✅ Game state loaded! Stars: ${stateData.counts.stars}, Edges: ${stateData.counts.wormholes}</span>`;
       
       // Render the game state
       this.renderGameState(stateData);
       
     } catch (error) {
       console.error('Error starting game:', error);
-      statusDiv.innerHTML = `<span style="color: #ff0000;">❌ Error: ${error.message}</span>`;
+      statusDiv.innerHTML = `<span class="status-error">❌ Error: ${error.message}</span>`;
     }
   }
   
@@ -449,30 +309,67 @@ export class BackendTestPanel {
     this.mapGenerator.clearMap();
     
     // Convert backend data to frontend format
+    const stars = stateData.stars.map(star => ({
+      id: star.star_id, // Use star_id instead of id for frontend compatibility
+      name: star.name,
+      x: star.pos_x,
+      y: star.pos_y,
+      z: star.pos_z,
+      sectorX: star.sector_x,
+      sectorY: star.sector_y,
+      owner: null // Will be set from starStates
+    }));
+    
+    const wormholes = stateData.wormholes.map(wormhole => {
+      // Find the actual star objects by ID
+      const star1 = stars.find(s => s.id === wormhole.star_a_id);
+      const star2 = stars.find(s => s.id === wormhole.star_b_id);
+      return {
+        star1: star1,
+        star2: star2
+      };
+    }).filter(wormhole => wormhole.star1 && wormhole.star2); // Only include wormholes where both stars exist
+    
     const mapModel = {
-      stars: stateData.stars.map(star => ({
-        id: star.star_id, // Use star_id instead of id for frontend compatibility
-        name: star.name,
-        x: star.pos_x,
-        y: star.pos_y,
-        z: star.pos_z,
-        sectorX: star.sector_x,
-        sectorY: star.sector_y,
-        owner: null // Will be set from starStates
-      })),
-      wormholes: stateData.wormholes.map(wormhole => ({
-        star1: wormhole.star_a_id,
-        star2: wormhole.star_b_id
-      })),
+      stars: stars,
+      wormholes: wormholes,
       config: {
         mapSize: Math.sqrt(stateData.stars.length), // Approximate
         seed: 'backend-generated'
       }
     };
     
+    // Reconstruct sectors from star data for sector border rendering
+    const maxSectorX = Math.max(...stars.map(star => star.sectorX));
+    const maxSectorY = Math.max(...stars.map(star => star.sectorY));
+    const mapSize = Math.max(maxSectorX, maxSectorY) + 1;
+    
+    // Calculate sector size based on canvas size (same as original MapModel)
+    const canvasSize = Math.min(window.innerWidth, window.innerHeight);
+    const sectorSize = canvasSize / mapSize;
+    const offset = canvasSize / 2;
+    
+    // Create sectors array (2D array of sector objects)
+    mapModel.sectors = [];
+    for (let row = 0; row < mapSize; row++) {
+      const sectorRow = [];
+      for (let col = 0; col < mapSize; col++) {
+        sectorRow.push({
+          row,
+          col,
+          x: (col * sectorSize) - offset + (sectorSize / 2),
+          y: (row * sectorSize) - offset + (sectorSize / 2),
+          width: sectorSize,
+          height: sectorSize,
+          stars: []
+        });
+      }
+      mapModel.sectors.push(sectorRow);
+    }
+    
     // Apply ownership from starStates
     stateData.starStates.forEach(starState => {
-      const star = mapModel.stars.find(s => s.id === starState.star_id);
+      const star = stars.find(s => s.id === starState.star_id);
       if (star) {
         star.owner = starState.owner_player;
       }

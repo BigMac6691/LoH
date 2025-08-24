@@ -18,8 +18,6 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
 
     const model = generateMap({ seed, mapSize, densityMin, densityMax });
 
-    console.log('model', model);
-
     // insert stars
     for (const s of model.stars) {
       await client.query(

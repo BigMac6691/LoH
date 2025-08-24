@@ -1,0 +1,286 @@
+/* UI Components Styles */
+
+/* Player Setup UI */
+.player-setup-ui {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  padding: var(--spacing-xxl);
+  border-radius: var(--radius-xl);
+  font-family: var(--font-family-default);
+  font-size: var(--font-size-md);
+  z-index: var(--z-modal);
+  border: 2px solid var(--border-primary);
+  min-width: 400px;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.player-setup-header {
+  margin-bottom: var(--spacing-xl);
+  font-weight: bold;
+  color: var(--color-primary);
+  font-size: var(--font-size-lg);
+  text-align: center;
+}
+
+.player-list {
+  margin-bottom: var(--spacing-xl);
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  background: var(--bg-darker);
+}
+
+.player-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  background: var(--bg-medium);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-secondary);
+}
+
+.player-item:last-child {
+  margin-bottom: 0;
+}
+
+.player-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.player-color-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--text-primary);
+}
+
+.player-name {
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.player-sector {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.remove-player-btn {
+  background: var(--color-accent);
+  color: var(--text-primary);
+  border: none;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  transition: background-color 0.2s ease;
+}
+
+.remove-player-btn:hover {
+  background: #cc3333;
+}
+
+.player-form {
+  margin-bottom: var(--spacing-xl);
+}
+
+.player-form-row {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.player-form-group {
+  flex: 1;
+}
+
+.player-form-label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.player-form-input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  background: var(--bg-medium);
+  color: var(--text-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-default);
+  font-size: var(--font-size-sm);
+}
+
+.player-form-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.player-form-select {
+  width: 100%;
+  padding: var(--spacing-sm);
+  background: var(--bg-medium);
+  color: var(--text-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-default);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.player-form-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.add-player-btn {
+  background: var(--color-primary);
+  color: var(--text-primary);
+  border: none;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-family-default);
+  font-size: var(--font-size-sm);
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}
+
+.add-player-btn:hover {
+  background: #00cc00;
+}
+
+.start-game-btn {
+  width: 100%;
+  background: var(--color-success);
+  color: var(--text-primary);
+  border: none;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-family: var(--font-family-default);
+  font-size: var(--font-size-md);
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}
+
+.start-game-btn:hover {
+  background: #008800;
+}
+
+.start-game-btn:disabled {
+  background: var(--bg-light);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.info-text {
+  margin: var(--spacing-xl) 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Move Dialog Styles */
+.move-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  padding: var(--spacing-xxl);
+  border-radius: var(--radius-xl);
+  font-family: var(--font-family-default);
+  font-size: var(--font-size-md);
+  z-index: var(--z-modal);
+  border: 2px solid var(--border-primary);
+  min-width: 500px;
+  max-width: 800px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.move-dialog-header {
+  margin-bottom: var(--spacing-xl);
+  font-weight: bold;
+  color: var(--color-primary);
+  font-size: var(--font-size-lg);
+  text-align: center;
+}
+
+.move-dialog-content {
+  margin-bottom: var(--spacing-xl);
+}
+
+.move-dialog-footer {
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: flex-end;
+}
+
+.move-dialog-btn {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-family-default);
+  font-size: var(--font-size-sm);
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.move-dialog-btn-primary {
+  background: var(--color-success);
+  color: var(--text-primary);
+  border: none;
+}
+
+.move-dialog-btn-primary:hover {
+  background: #008800;
+}
+
+.move-dialog-btn-secondary {
+  background: var(--bg-light);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+}
+
+.move-dialog-btn-secondary:hover {
+  background: var(--bg-lighter);
+  border-color: var(--border-lighter);
+}
+
+/* Error message styles */
+.error-message {
+  color: var(--color-error);
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid var(--color-error);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+  font-size: var(--font-size-sm);
+}
+
+/* Success message styles */
+.success-message {
+  color: var(--color-success);
+  background: rgba(0, 170, 0, 0.1);
+  border: 1px solid var(--color-success);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+  font-size: var(--font-size-sm);
+}

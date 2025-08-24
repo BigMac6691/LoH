@@ -1,0 +1,101 @@
+/* Main CSS file for LoH Frontend */
+
+/* Import base styles first */
+@import './base.css';
+
+/* Import component-specific styles */
+@import './dev-panels.css';
+@import './ui-components.css';
+@import './test-pages.css';
+
+/* Global overrides and additional styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  background: #000;
+  color: #fff;
+  overflow-x: hidden;
+}
+
+/* Ensure panels are above other content */
+.panel {
+  z-index: var(--z-panel);
+}
+
+/* Ensure modals are above panels */
+.player-setup-ui,
+.move-dialog {
+  z-index: var(--z-modal);
+}
+
+/* Hide elements by default */
+.hidden {
+  display: none !important;
+}
+
+/* Loading states */
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid var(--color-primary);
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Focus management */
+.focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --color-primary: #00ff00;
+    --color-secondary: #00ffff;
+    --color-accent: #ff0000;
+    --text-primary: #ffffff;
+    --text-secondary: #ffffff;
+    --border-primary: #ffffff;
+    --border-secondary: #ffffff;
+  }
+}
+
+/* Print styles */
+@media print {
+  .panel,
+  .player-setup-ui,
+  .move-dialog {
+    display: none !important;
+  }
+}

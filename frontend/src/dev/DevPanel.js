@@ -24,73 +24,29 @@ export class DevPanel {
   createPanel() {
     this.panel = document.createElement('div');
     this.panel.id = 'dev-panel';
-    this.panel.style.cssText = `
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 15px;
-      border-radius: 8px;
-      font-family: monospace;
-      font-size: 12px;
-      z-index: 1000;
-      min-width: 200px;
-      display: none;
-    `;
+    this.panel.className = 'panel';
+    this.panel.id = 'dev-panel';
     
     this.panel.innerHTML = `
-      <div style="margin-bottom: 10px; font-weight: bold; color: #00ff00;">🧪 DEV PANEL</div>
+      <div class="dev-panel-header">🧪 DEV PANEL</div>
       
-      <div style="margin-bottom: 10px;">
-        <button id="memory-test-btn" style="
-          background: #444;
-          color: white;
-          border: 1px solid #666;
-          padding: 5px 10px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 11px;
-        ">Run Memory Test</button>
+      <div class="mb-lg">
+        <button id="memory-test-btn" class="dev-panel-btn">Run Memory Test</button>
       </div>
       
-      <div style="margin-bottom: 10px;">
-        <button id="memory-log-btn" style="
-          background: #444;
-          color: white;
-          border: 1px solid #666;
-          padding: 5px 10px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 11px;
-        ">Log Memory Usage</button>
+      <div class="mb-lg">
+        <button id="memory-log-btn" class="dev-panel-btn">Log Memory Usage</button>
       </div>
       
-      <div style="margin-bottom: 10px;">
-        <button id="move-orders-btn" style="
-          background: #444;
-          color: white;
-          border: 1px solid #666;
-          padding: 5px 10px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 11px;
-        ">Log Move Orders</button>
+      <div class="mb-lg">
+        <button id="move-orders-btn" class="dev-panel-btn">Log Move Orders</button>
       </div>
       
-      <div style="margin-bottom: 10px;">
-        <button id="toggle-panel-btn" style="
-          background: #666;
-          color: white;
-          border: 1px solid #888;
-          padding: 5px 10px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 11px;
-        ">Hide Panel</button>
+      <div class="mb-lg">
+        <button id="toggle-panel-btn" class="dev-panel-btn">Hide Panel</button>
       </div>
       
-      <div style="font-size: 10px; color: #ccc;">
+      <div class="dev-panel-help">
         Press 'M' to toggle panel<br>
         Press 'T' to run memory test
       </div>
