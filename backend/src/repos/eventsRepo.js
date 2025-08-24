@@ -16,9 +16,7 @@ export async function getNextSequenceNumber({ gameId, turnId }, client = null) {
   if (client) {
     // Use provided client (assumes transaction is already started)
     const { rows } = await dbClient.query(
-      `SELECT COALESCE(MAX(seq), 0) + 1 as next_seq 
-       FROM turn_resolution_event 
-       WHERE game_id=$1 AND turn_id=$2 FOR UPDATE`,
+      `SELECT COALESCE((SELECT MAX(seq) FROM turn_resolution_event WHERE game_id=$1 AND turn_id=$2), 0) + 1 as next_seq`,
       [gameId, turnId]
     );
     
@@ -30,10 +28,8 @@ export async function getNextSequenceNumber({ gameId, turnId }, client = null) {
     try {
       await client.query('BEGIN');
       
-      const { rows } = await client.query(
-        `SELECT COALESCE(MAX(seq), 0) + 1 as next_seq 
-         FROM turn_resolution_event 
-         WHERE game_id=$1 AND turn_id=$2 FOR UPDATE`,
+      const { rows } = await dbClient.query(
+        `SELECT COALESCE((SELECT MAX(seq) FROM turn_resolution_event WHERE game_id=$1 AND turn_id=$2), 0) + 1 as next_seq`,
         [gameId, turnId]
       );
       

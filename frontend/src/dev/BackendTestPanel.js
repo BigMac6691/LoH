@@ -11,9 +11,12 @@ export class BackendTestPanel {
     this.mapGenerator = mapGenerator;
     this.panel = null;
     this.isVisible = false;
+    this.isDragging = false;
+    this.dragOffset = { x: 0, y: 0 };
     
     this.createPanel();
     this.setupEventListeners();
+    this.setupDragging();
   }
   
   /**
@@ -25,7 +28,7 @@ export class BackendTestPanel {
     this.panel.style.cssText = `
       position: fixed;
       top: 10px;
-      left: 10px;
+      right: 10px;
       background: rgba(0, 0, 0, 0.9);
       color: white;
       padding: 20px;
@@ -37,6 +40,8 @@ export class BackendTestPanel {
       max-width: 400px;
       display: none;
       border: 2px solid #00ff00;
+      cursor: move;
+      user-select: none;
     `;
     
     this.panel.innerHTML = `
@@ -177,7 +182,6 @@ export class BackendTestPanel {
             🧪 DEV TOOLS
           </div>
           
-          <!-- Memory tests disabled for now
           <div style="margin-bottom: 10px;">
             <button id="memory-test-btn" style="
               background: #444;
@@ -205,7 +209,6 @@ export class BackendTestPanel {
               margin-bottom: 5px;
             ">Log Memory Usage</button>
           </div>
-          -->
           
           <div style="margin-bottom: 10px;">
             <button id="move-orders-btn" style="
@@ -235,7 +238,9 @@ export class BackendTestPanel {
       </div>
       
       <div style="font-size: 10px; color: #ccc; margin-top: 10px;">
-        Press 'B' to toggle panel
+        Press 'B' to toggle panel<br>
+        Press 'M' to run memory test<br>
+        Drag to move panel
       </div>
     `;
     
@@ -264,19 +269,16 @@ export class BackendTestPanel {
       if (e.key === 'b' || e.key === 'B') {
         this.toggle();
       }
-      // Memory test disabled for now
-      // else if (e.key === 'm' || e.key === 'M') {
-      //   this.runMemoryTest();
-      // }
+      else if (e.key === 'm' || e.key === 'M') {
+        this.runMemoryTest();
+      }
     });
     
     // Dev tools buttons
-    // const memoryTestBtn = this.panel.querySelector('#memory-test-btn');
-    // const memoryLogBtn = this.panel.querySelector('#memory-log-btn');
+    const memoryTestBtn = this.panel.querySelector('#memory-test-btn');
+    const memoryLogBtn = this.panel.querySelector('#memory-log-btn');
     const moveOrdersBtn = this.panel.querySelector('#move-orders-btn');
     
-    // Memory tests disabled for now
-    /*
     memoryTestBtn.addEventListener('click', () => {
       this.runMemoryTest();
     });
@@ -284,10 +286,74 @@ export class BackendTestPanel {
     memoryLogBtn.addEventListener('click', () => {
       this.logMemoryUsage();
     });
-    */
     
     moveOrdersBtn.addEventListener('click', () => {
       this.logMoveOrders();
+    });
+  }
+  
+  /**
+   * Set up dragging functionality
+   */
+  setupDragging() {
+    this.panel.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') {
+        return; // Don't drag when clicking on form elements
+      }
+      
+      this.isDragging = true;
+      const rect = this.panel.getBoundingClientRect();
+      this.dragOffset.x = e.clientX - rect.left;
+      this.dragOffset.y = e.clientY - rect.top;
+      this.panel.style.cursor = 'grabbing';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (!this.isDragging) return;
+      
+      const x = e.clientX - this.dragOffset.x;
+      const y = e.clientY - this.dragOffset.y;
+      
+      // Keep panel within viewport bounds
+      const maxX = window.innerWidth - this.panel.offsetWidth;
+      const maxY = window.innerHeight - this.panel.offsetHeight;
+      
+      this.panel.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
+      this.panel.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
+      this.panel.style.right = 'auto';
+    });
+    
+    document.addEventListener('mouseup', () => {
+      if (this.isDragging) {
+        this.isDragging = false;
+        this.panel.style.cursor = 'move';
+      }
+    });
+  }
+  
+  /**
+   * Run memory test
+   */
+  runMemoryTest() {
+    console.log('🧪 Running memory test...');
+    // Import and run the memory test
+    import('./MemoryTest.js').then(module => {
+      module.runMemoryTest();
+    }).catch(error => {
+      console.error('Failed to run memory test:', error);
+    });
+  }
+  
+  /**
+   * Log memory usage
+   */
+  logMemoryUsage() {
+    console.log('📊 Logging memory usage...');
+    // Import and run the memory usage logging
+    import('./MemoryTest.js').then(module => {
+      module.logMemoryUsage();
+    }).catch(error => {
+      console.error('Failed to log memory usage:', error);
     });
   }
   
@@ -329,6 +395,8 @@ export class BackendTestPanel {
           { name: player2Name, colorHex: player2Color }
         ]
       };
+
+      console.log('requestBody', requestBody);
       
       statusDiv.innerHTML = '<span style="color: #ffff00;">⏳ Creating game...</span>';
       
@@ -383,7 +451,7 @@ export class BackendTestPanel {
     // Convert backend data to frontend format
     const mapModel = {
       stars: stateData.stars.map(star => ({
-        id: star.id,
+        id: star.star_id, // Use star_id instead of id for frontend compatibility
         name: star.name,
         x: star.pos_x,
         y: star.pos_y,

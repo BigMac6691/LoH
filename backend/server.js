@@ -1,6 +1,7 @@
 import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
+import { randomUUID } from 'crypto';
 import { pool } from './src/db/pool.js';
 import { startGameFromSeed } from './src/services/startGameService.js';
 import { getGame } from './src/repos/gamesRepo.js';
@@ -43,7 +44,7 @@ if (process.env.NODE_ENV !== 'production') {
       }
       
       // TODO: Add proper owner ID handling
-      const ownerId = 'dev-owner-id'; // Placeholder for development
+      const ownerId = "a109d369-0df3-4e73-b262-62c793ad743f";//randomUUID(); // Generate a proper UUID for development
       
       const result = await startGameFromSeed({
         ownerId,

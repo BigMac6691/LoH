@@ -18,12 +18,14 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
 
     const model = generateMap({ seed, mapSize, densityMin, densityMax });
 
+    console.log('model', model);
+
     // insert stars
     for (const s of model.stars) {
       await client.query(
-        `INSERT INTO star (id, game_id, name, sector_x, sector_y, pos_x, pos_y, pos_z)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [s.id, game.id, s.name, s.sectorX, s.sectorY, s.x, s.y, s.z]
+        `INSERT INTO star (id, game_id, star_id, name, sector_x, sector_y, pos_x, pos_y, pos_z)
+         VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8)`,
+        [game.id, s.id, s.name, s.sectorX, s.sectorY, s.x, s.y, s.z]
       );
     }
 
@@ -31,10 +33,11 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
     for (const e of model.edges) {
       const a = e.aStarId < e.bStarId ? e.aStarId : e.bStarId;
       const b = e.aStarId < e.bStarId ? e.bStarId : e.aStarId;
+      const wormholeId = `EDGE_${a}_${b}`;
       await client.query(
-        `INSERT INTO wormhole (id, game_id, star_a_id, star_b_id)
-         VALUES ($1,$2,$3,$4)`,
-        [`EDGE_${a}_${b}`, game.id, a, b]
+        `INSERT INTO wormhole (id, game_id, wormhole_id, star_a_id, star_b_id)
+         VALUES (gen_random_uuid(),$1,$2,$3,$4)`,
+        [game.id, wormholeId, a, b]
       );
     }
 
