@@ -13,17 +13,17 @@ export function createStarLabel3D(name, starRadius, font) {
   const textGeometry = new TextGeometry(name, {
     font: font,
     size: starRadius * 2, // Scale text size relative to star radius
-    depth: 0.3, // Small depth for 3D effect
+    depth: 0.001, // Small depth for 3D effect
     curveSegments: 6,
     bevelEnabled: true,
-    bevelThickness: 0.2,
-    bevelSize: 0.15
+    bevelThickness: 0.0002,
+    bevelSize: 0.00015
   });
 
   // Compute bounding box to center the text
   textGeometry.computeBoundingBox();
   const boundingBox = textGeometry.boundingBox;
-  
+
   // Center the text horizontally
   const textWidth = boundingBox.max.x - boundingBox.min.x;
   const centerX = -textWidth / 2;

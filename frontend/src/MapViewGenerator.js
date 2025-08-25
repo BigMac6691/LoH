@@ -175,13 +175,14 @@ export class MapViewGenerator {
           this.scene.remove(star.group);
         }
       });
-      
-      this.currentModel.wormholes.forEach(wormhole => {
-        if (wormhole.mesh) {
-          this.scene.remove(wormhole.mesh);
-        }
-      });
     }
+    
+    // Clear wormholes from scene (they're stored in this.wormholes, not currentModel.wormholes)
+    this.wormholes.forEach(wormhole => {
+      if (wormhole.mesh) {
+        this.scene.remove(wormhole.mesh);
+      }
+    });
     
     // Clear arrays and lookups
     this.stars.length = 0;
@@ -435,7 +436,7 @@ export class MapViewGenerator {
    * @param {Object} font - Loaded font resource
    */
   applyFontPatch(font) {
-    return;
+    // return;
     this.stars.forEach(star => {
       if (star.group && !star.group.userData.labelMesh) {
         const starRadius = star.group.userData.starRadius;

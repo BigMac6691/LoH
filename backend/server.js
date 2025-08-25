@@ -149,11 +149,18 @@ if (process.env.NODE_ENV !== 'production') {
         [gameId]
       );
       
+      // Get players
+      const { rows: players } = await pool.query(
+        `SELECT * FROM game_player WHERE game_id = $1 ORDER BY name`,
+        [gameId]
+      );
+      
       res.json({
         stars,
         wormholes,
         starStates,
         ships,
+        players,
         counts: {
           stars: stars.length,
           wormholes: wormholes.length,

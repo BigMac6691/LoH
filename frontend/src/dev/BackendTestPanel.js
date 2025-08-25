@@ -365,17 +365,19 @@ export class BackendTestPanel {
     // Clear existing map
     this.mapGenerator.clearMap();
     
-    // Convert backend data to frontend format
-    const stars = stateData.stars.map(star => ({
-      id: star.star_id, // Use star_id instead of id for frontend compatibility
-      name: star.name,
-      x: star.pos_x,
-      y: star.pos_y,
-      z: star.pos_z,
-      sectorX: star.sector_x,
-      sectorY: star.sector_y,
-      owner: null // Will be set from starStates
-    }));
+         // Convert backend data to frontend format
+     const stars = stateData.stars.map(star => ({
+       id: star.star_id, // Use star_id instead of id for frontend compatibility
+       name: star.name,
+       x: star.pos_x,
+       y: star.pos_y,
+       z: star.pos_z,
+       sectorX: star.sector_x,
+       sectorY: star.sector_y,
+       owner: null, // Will be set from starStates
+       // Add getName method for compatibility with MapViewGenerator
+       getName: () => star.name
+     }));
     
     const wormholes = stateData.wormholes.map(wormhole => {
       // Find the actual star objects by ID
@@ -424,19 +426,32 @@ export class BackendTestPanel {
       mapModel.sectors.push(sectorRow);
     }
     
-    // Apply ownership from starStates
-    stateData.starStates.forEach(starState => {
-      const star = stars.find(s => s.id === starState.star_id);
-      if (star) {
-        star.owner = starState.owner_player;
-      }
-    });
+         // Apply ownership from starStates and set correct player colors
+     stateData.starStates.forEach(starState => {
+       const star = stars.find(s => s.id === starState.star_id);
+       if (star) {
+         star.owner = starState.owner_player;
+         // Add isOwned method for compatibility with MapViewGenerator
+         star.isOwned = () => star.owner !== null;
+         
+         // Find the player who owns this star and set the correct color
+         const ownerPlayer = stateData.players.find(p => p.id === starState.owner_player);
+         if (ownerPlayer) {
+           star.color = ownerPlayer.color_hex;
+         } else {
+           star.color = '#ff0000'; // Fallback to red if player not found
+         }
+       }
+     });
     
     // Generate map with backend data
     this.mapGenerator.generateMapFromModel(mapModel);
     
     // Update camera to fit the map
     this.mapGenerator.positionCameraToFitMap();
+    
+    // Update star colors to show ownership
+    this.mapGenerator.updateStarColors([]);
     
     console.log('✅ Game state rendered from backend data');
   }

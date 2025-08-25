@@ -127,7 +127,7 @@ export class MapModel {
         // Calculate position within the sector using normalized coordinates
         const x = sector.x + margin + this.seededRandom.nextFloat(0, availableWidth);
         const y = sector.y + margin + this.seededRandom.nextFloat(0, availableHeight);
-        const z = this.seededRandom.nextFloat(-0.05, 0.05); // Random depth in normalized space
+        const z = this.seededRandom.nextFloat(-0.01, 0.01); // Random depth in normalized space
         
         // Check distance from existing stars in this sector
         const minDistance = sector.width * 0.1; // 10% of sector width
