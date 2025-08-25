@@ -8,12 +8,12 @@ import { addShip } from '../repos/shipsRepo.js';
 import { logEvent } from '../repos/eventsRepo.js';
 import { generateMap } from '@loh/shared';
 
-export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, densityMax, players }) {
+export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, densityMax, title, description, players }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const game = await createGame({ ownerId, seed, mapSize, densityMin, densityMax, params: {} }, client);
+    const game = await createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, params: {} }, client);
     const turn = await openTurn({ gameId: game.id, number: 1 }, client);
 
     const model = generateMap({ seed, mapSize, densityMin, densityMax });

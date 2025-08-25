@@ -4,7 +4,7 @@ import cors from 'cors';
 import { randomUUID } from 'crypto';
 import { pool } from './src/db/pool.js';
 import { startGameFromSeed } from './src/services/startGameService.js';
-import { getGame } from './src/repos/gamesRepo.js';
+import { getGame, listGames } from './src/repos/gamesRepo.js';
 import { getOpenTurn } from './src/repos/turnsRepo.js';
 import { listPlayers } from './src/repos/playersRepo.js';
 
@@ -34,12 +34,16 @@ if (process.env.NODE_ENV !== 'production') {
    */
   devRouter.post('/start-game', async (req, res) => {
     try {
-      const { seed, mapSize, densityMin, densityMax, players } = req.body;
+      const { seed, mapSize, densityMin, densityMax, title, description, players } = req.body;
+      
+      // Debug logging
+      console.log('Received request body:', req.body);
+      console.log('Extracted values:', { seed, mapSize, densityMin, densityMax, title, description, players });
       
       // Validate required parameters
-      if (!seed || !mapSize || densityMin === undefined || densityMax === undefined || !players) {
+      if (!seed || !mapSize || densityMin === undefined || densityMax === undefined || !title || !description || !players) {
         return res.status(400).json({
-          error: 'Missing required parameters: seed, mapSize, densityMin, densityMax, players'
+          error: 'Missing required parameters: seed, mapSize, densityMin, densityMax, title, description, players'
         });
       }
       
@@ -52,6 +56,8 @@ if (process.env.NODE_ENV !== 'production') {
         mapSize,
         densityMin,
         densityMax,
+        title,
+        description,
         players
       });
       
@@ -160,6 +166,23 @@ if (process.env.NODE_ENV !== 'production') {
       console.error('Error getting game state:', error);
       res.status(500).json({
         error: 'Failed to get game state',
+        details: error.message
+      });
+    }
+  });
+  
+  /**
+   * GET /api/dev/games
+   * Get all games for the dropdown list
+   */
+  devRouter.get('/games', async (req, res) => {
+    try {
+      const games = await listGames();
+      res.json(games);
+    } catch (error) {
+      console.error('Error getting games list:', error);
+      res.status(500).json({
+        error: 'Failed to get games list',
         details: error.message
       });
     }

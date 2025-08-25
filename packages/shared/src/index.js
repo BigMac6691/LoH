@@ -1,5 +1,4 @@
 export * from "./SeededRandom.js";
-export * from "./mapGenerator.js";
 export * from "./Economy.js";
 export * from "./MapModel.js";
 export * from "./MoveOrder.js";

@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { UIController } from './UIController.js';
-import { MapGenerator } from './MapGenerator.js';
+import { MapViewGenerator } from './MapViewGenerator.js';
 import { PlayerManager } from './PlayerManager.js';
 import { PlayerSetupUI } from './PlayerSetupUI.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DEV_MODE, autoStartDevMode, logDevModeStatus, setupDevModeEventListeners } from './devScenarios.js';
 import { eventBus } from './eventBus.js';
 import { assetManager } from './engine/AssetManager.js';
-import { DevPanel } from './dev/DevPanel.js';
+
 import { BackendTestPanel } from './dev/BackendTestPanel.js';
 
 // Scene setup
@@ -119,7 +119,7 @@ let uiController;
 let mapGenerator;
 let playerManager;
 let playerSetupUI;
-let devPanel;
+
 let backendTestPanel;
 
 // Function to remove demo objects when generating map
@@ -162,15 +162,12 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize UI Controller and Map Generator
   uiController = new UIController();
-  mapGenerator = new MapGenerator(scene, camera);
+      mapGenerator = new MapViewGenerator(scene, camera);
   playerManager = new PlayerManager();
   
-  // Initialize dev panel if in dev mode
+  // Initialize backend test panel if in dev mode
   if (DEV_MODE) {
-    devPanel = new DevPanel(scene, renderer, camera);
-    devPanel.show(); // Show dev panel by default in dev mode
-    
-    // Initialize backend test panel
+    // Initialize backend test panel (includes all dev tools)
     backendTestPanel = new BackendTestPanel(scene, renderer, camera, mapGenerator);
     backendTestPanel.show(); // Show backend test panel by default in dev mode
   }
@@ -211,7 +208,7 @@ function generateMap(config) {
   // Remove demo objects (spinning cubes) to show only the star map
   removeDemoObjects();
   
-  // Generate the map using MapGenerator
+      // Generate the map using MapViewGenerator
   mapGenerator.generateMap(config);
   
   // Get and display statistics

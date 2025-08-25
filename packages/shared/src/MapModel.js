@@ -26,9 +26,8 @@ export class MapModel {
   generateMapModel(config) {
     console.log('Generating map model with config:', config);
     
-    // Calculate sector size (assuming canvas is square)
-    const canvasSize = Math.min(window.innerWidth, window.innerHeight);
-    const sectorSize = canvasSize / config.mapSize;
+    // Calculate sector size using normalized coordinates (-1 to +1)
+    const sectorSize = 2 / config.mapSize;
     
     // Generate sectors
     const sectors = this.generateSectors(config.mapSize, sectorSize);
@@ -60,8 +59,6 @@ export class MapModel {
    * @returns {Array} 2D array of sector objects
    */
   generateSectors(mapSize, sectorSize) {
-    const canvasSize = Math.min(window.innerWidth, window.innerHeight);
-    const offset = canvasSize / 2;
     const sectors = [];
     
     for (let row = 0; row < mapSize; row++) {
@@ -70,8 +67,8 @@ export class MapModel {
         sectors[row][col] = {
           row,
           col,
-          x: (col * sectorSize) - offset + (sectorSize / 2),
-          y: (row * sectorSize) - offset + (sectorSize / 2),
+          x: (col * sectorSize) - 1,
+          y: (row * sectorSize) - 1,
           width: sectorSize,
           height: sectorSize,
           stars: []
@@ -127,9 +124,10 @@ export class MapModel {
       
       // Try to place star with minimum distance from others
       while (attempts < 50 && !starPlaced) {
-        const x = sector.x - (sector.width / 2) + margin + this.seededRandom.nextFloat(0, availableWidth);
-        const y = sector.y - (sector.height / 2) + margin + this.seededRandom.nextFloat(0, availableHeight);
-        const z = this.seededRandom.nextFloat(-2, 2); // Random depth
+        // Calculate position within the sector using normalized coordinates
+        const x = sector.x + margin + this.seededRandom.nextFloat(0, availableWidth);
+        const y = sector.y + margin + this.seededRandom.nextFloat(0, availableHeight);
+        const z = this.seededRandom.nextFloat(-0.05, 0.05); // Random depth in normalized space
         
         // Check distance from existing stars in this sector
         const minDistance = sector.width * 0.1; // 10% of sector width
@@ -338,4 +336,108 @@ export class MapModel {
       Math.pow(star1.z - star2.z, 2)
     );
   }
+}
+
+/**
+ * Generate a deterministic map based on seed and configuration
+ * This function provides the same interface as the old mapGenerator.js
+ * but uses MapModel internally for better structure
+ * @param {Object} params
+ * @param {string|number} params.seed - Random seed for deterministic generation
+ * @param {number} params.mapSize - Grid size (2-9)
+ * @param {number} params.densityMin - Minimum star density (0-9)
+ * @param {number} params.densityMax - Maximum star density (0-9)
+ * @returns {Object} Map data with stars, edges, and suggested player placements
+ */
+export function generateMap({ seed, mapSize, densityMin, densityMax }) {
+  // Convert string seed to number if needed
+  const numericSeed = typeof seed === 'string' ? hashString(seed) : seed;
+  
+  // Create MapModel instance
+  const mapModel = new MapModel(numericSeed);
+  
+  // Generate the map model
+  const model = mapModel.generateMapModel({
+    mapSize,
+    minStarDensity: densityMin,
+    maxStarDensity: densityMax
+  });
+  
+  // Convert to the expected interface
+  const stars = model.stars.map(star => ({
+    id: star.id,
+    name: star.name,
+    x: star.x,
+    y: star.y,
+    z: star.z,
+    sectorX: star.sector.col,
+    sectorY: star.sector.row
+  }));
+  
+  const edges = model.wormholes.map(wormhole => ({
+    id: `edge_${wormhole.star1.id}_${wormhole.star2.id}`,
+    aStarId: wormhole.star1.id,
+    bStarId: wormhole.star2.id
+  }));
+  
+  // Generate suggested player placements (corners)
+  const suggestedPlayers = generateSuggestedPlayerPlacements(model.sectors, model.stars, mapModel.seededRandom);
+  
+  return {
+    stars,
+    edges,
+    suggestedPlayers
+  };
+}
+
+/**
+ * Generate suggested player placements
+ * @param {Array} sectors - 2D array of sectors
+ * @param {Array} stars - Array of all stars
+ * @param {SeededRandom} random - Random number generator
+ * @returns {Array} Array of suggested player placement objects
+ */
+function generateSuggestedPlayerPlacements(sectors, stars, random) {
+  const placements = [];
+  const mapSize = sectors.length;
+  
+  // Place players in corners for balanced gameplay
+  const cornerSectors = [
+    { sectorX: 0, sectorY: 0 },
+    { sectorX: mapSize - 1, sectorY: 0 },
+    { sectorX: 0, sectorY: mapSize - 1 },
+    { sectorX: mapSize - 1, sectorY: mapSize - 1 }
+  ];
+  
+  for (const corner of cornerSectors) {
+    const sector = sectors[corner.sectorY][corner.sectorX];
+    
+    if (sector.stars.length > 0) {
+      // Pick a random star from this sector
+      const star = random.pick(sector.stars);
+      
+      placements.push({
+        sectorX: corner.sectorX,
+        sectorY: corner.sectorY,
+        starId: star.id
+      });
+    }
+  }
+  
+  return placements;
+}
+
+/**
+ * Hash a string to a number for seeding
+ * @param {string} str - String to hash
+ * @returns {number} Hash value
+ */
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash);
 } 

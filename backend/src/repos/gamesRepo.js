@@ -10,18 +10,23 @@ import { randomUUID } from 'crypto';
  * @param {number} params.mapSize - Map size (2-9)
  * @param {number} params.densityMin - Minimum star density
  * @param {number} params.densityMax - Maximum star density
+ * @param {string} params.title - Game title
+ * @param {string} params.description - Game description
  * @param {Object} params.params - Additional game parameters
  * @param {Object} [client] - Optional database client for transactions
  * @returns {Promise<Object>} The created game row
  */
-export async function createGame({ ownerId, seed, mapSize, densityMin, densityMax, params = {} }, client = null) {
+export async function createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, params = {} }, client = null) {
   const id = randomUUID();
   const dbClient = client || pool;
   
+  // Debug logging
+  console.log('createGame called with:', { ownerId, seed, mapSize, densityMin, densityMax, title, description, params });
+  
   const { rows } = await dbClient.query(
-    `INSERT INTO game (id, owner_id, seed, map_size, density_min, density_max, params, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'lobby') RETURNING *`,
-    [id, ownerId, seed, mapSize, densityMin, densityMax, params]
+    `INSERT INTO game (id, owner_id, seed, map_size, density_min, density_max, title, description, params, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'lobby') RETURNING *`,
+    [id, ownerId, seed, mapSize, densityMin, densityMax, title, description, params]
   );
   
   return rows[0];
@@ -61,4 +66,19 @@ export async function updateGameStatus({ id, status }, client = null) {
   );
   
   return rows[0] ?? null;
+}
+
+/**
+ * Get all games
+ * @param {Object} [client] - Optional database client for transactions
+ * @returns {Promise<Array>} Array of all game rows
+ */
+export async function listGames(client = null) {
+  const dbClient = client || pool;
+  
+  const { rows } = await dbClient.query(
+    `SELECT * FROM game ORDER BY created_at DESC`
+  );
+  
+  return rows;
 }

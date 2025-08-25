@@ -14,9 +14,9 @@ const WORMHOLE_RADIUS_PERCENT = 0.1; // 10% of star radius
 const LABEL_VISIBILITY_THRESHOLD = 0.7; // Hide labels when camera distance > 30% of map size
 
 /**
- * MapGenerator - Renders space maps using Three.js
+ * MapViewGenerator - Renders space maps using Three.js
  */
-export class MapGenerator {
+export class MapViewGenerator {
   constructor(scene, camera) {
     this.scene = scene;
     this.camera = camera;
@@ -209,7 +209,7 @@ export class MapGenerator {
    * @returns {Object} Object containing star and wormhole radii
    */
   calculateScalingFactors() {
-    const canvasSize = Math.min(window.innerWidth, window.innerHeight);
+    const canvasSize = 2;//Math.min(window.innerWidth, window.innerHeight);
     const starRadius = canvasSize * STAR_RADIUS_PERCENT;
     const wormholeRadius = starRadius * WORMHOLE_RADIUS_PERCENT;
     
@@ -274,6 +274,8 @@ export class MapGenerator {
    * @param {Object} model - Map model data structure
    */
   buildStaticMap(model) {
+    console.log('Building static map with model:', model);
+
     const { starRadius, wormholeRadius } = this.calculateScalingFactors();
     
     // Create star lookup for efficient access
@@ -319,18 +321,6 @@ export class MapGenerator {
           });
           
           star.mesh = new THREE.Mesh(geometry, material);
-          
-          // Add glow effect for owned stars
-          const glowGeometry = new THREE.SphereGeometry(finalRadius * 1.4, 16, 16);
-          const glowMaterial = new THREE.MeshBasicMaterial({
-            color: starColor,
-            transparent: true,
-            opacity: 0.6,
-            side: THREE.BackSide
-          });
-          const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-          star.mesh.add(glowMesh);
-          star.glowMesh = glowMesh;
         } else {
           // Standard material for unowned stars
           const material = new THREE.MeshPhongMaterial({ 
@@ -445,6 +435,7 @@ export class MapGenerator {
    * @param {Object} font - Loaded font resource
    */
   applyFontPatch(font) {
+    return;
     this.stars.forEach(star => {
       if (star.group && !star.group.userData.labelMesh) {
         const starRadius = star.group.userData.starRadius;
@@ -514,50 +505,23 @@ export class MapGenerator {
    * @param {Array} sectors - 2D array of sectors
    */
   renderSectorBorders(sectors) {
-    const borderMaterial = new THREE.LineBasicMaterial({ 
-      color: 0x00ff00, 
-      transparent: true, 
-      opacity: 0.3 
-    });
-    
-    sectors.forEach(row => {
-      row.forEach(sector => {
-        const borderGeometry = new THREE.BufferGeometry();
-        const vertices = new Float32Array([
-          // Bottom face
-          sector.x - sector.width/2, sector.y - sector.height/2, -2,
-          sector.x + sector.width/2, sector.y - sector.height/2, -2,
-          sector.x + sector.width/2, sector.y + sector.height/2, -2,
-          sector.x - sector.width/2, sector.y + sector.height/2, -2,
-          sector.x - sector.width/2, sector.y - sector.height/2, -2,
-          
-          // Top face
-          sector.x - sector.width/2, sector.y - sector.height/2, 2,
-          sector.x + sector.width/2, sector.y - sector.height/2, 2,
-          sector.x + sector.width/2, sector.y + sector.height/2, 2,
-          sector.x - sector.width/2, sector.y + sector.height/2, 2,
-          sector.x - sector.width/2, sector.y - sector.height/2, 2,
-          
-          // Connecting lines
-          sector.x - sector.width/2, sector.y - sector.height/2, -2,
-          sector.x - sector.width/2, sector.y - sector.height/2, 2,
-          
-          sector.x + sector.width/2, sector.y - sector.height/2, -2,
-          sector.x + sector.width/2, sector.y - sector.height/2, 2,
-          
-          sector.x + sector.width/2, sector.y + sector.height/2, -2,
-          sector.x + sector.width/2, sector.y + sector.height/2, 2,
-          
-          sector.x - sector.width/2, sector.y + sector.height/2, -2,
-          sector.x - sector.width/2, sector.y + sector.height/2, 2
-        ]);
-        
-        borderGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        const border = new THREE.LineSegments(borderGeometry, borderMaterial);
-        this.scene.add(border);
-        this.sectorBorders.push(border);
-      });
-    });
+    const size = sectors.length;
+    const sectorSize = 2 / size;
+    const points = [];
+
+    for(let i = 0; i <= size; i++) {
+      points.push(new THREE.Vector3(i * sectorSize - 1, -1, 0));
+      points.push(new THREE.Vector3(i * sectorSize - 1, 1, 0));
+
+      points.push(new THREE.Vector3(-1, i * sectorSize - 1, 0));
+      points.push(new THREE.Vector3(1, i * sectorSize - 1, 0));
+    }
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+    const grid = new THREE.LineSegments(geometry, material);
+
+    this.scene.add(grid);
   }
 
   /**
@@ -673,26 +637,7 @@ export class MapGenerator {
         star.mesh.material.emissiveIntensity = 0.5;
         
         // Make owned stars larger (25% larger)
-        star.mesh.scale.set(1.25, 1.25, 1.25);
-        
-        // Add glow effect if it doesn't exist
-        if (!star.glowMesh) {
-          const glowGeometry = new THREE.SphereGeometry(1.4, 16, 16);
-          const glowMaterial = new THREE.MeshBasicMaterial({
-            color: color,
-            transparent: true,
-            opacity: 0.6,
-            side: THREE.BackSide
-          });
-          const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-          glowMesh.position.set(0, 0, 0);
-          star.mesh.add(glowMesh);
-          star.glowMesh = glowMesh;
-        } else {
-          // Update existing glow mesh color and properties
-          star.glowMesh.material.color.copy(color);
-          star.glowMesh.material.opacity = 0.6;
-        }
+        star.mesh.scale.set(1.25, 1.25, 1.25);        
       }
     });
     
