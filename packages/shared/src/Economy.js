@@ -82,4 +82,19 @@ export class Economy {
       available: this.available
     });
   }
+
+  /**
+   * Return the current data state as JSON
+   * @returns {Object} Current data object
+   */
+  toJSON() {
+    return {
+      techLevel: this.techLevel,
+      capacity: this.capacity,
+      available: this.available,
+      tradeValue: this.tradeValue,
+      infrastructureValue: this.infrastructureValue,
+      productionCapacity: this.productionCapacity
+    };
+  }
 } 

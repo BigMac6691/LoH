@@ -110,7 +110,11 @@ export function setupDevModeEventListeners(playerManager) {
     const players = generateDevScenario(playerManager, mapModel);
 
     // make sure there is a connection between the two players
-    players[0].star.getConnectedStars()[0].assignOwner(players[1]);
+    // const mapModel = window.mapGenerator?.currentModel;
+    const connectedStars = players[0].star.getConnectedStars(mapModel?.getStarById);
+    if (connectedStars.length > 0) {
+      connectedStars[0].assignOwner(players[1].id, players[1].colorHex);
+    }
     
     // Update star colors after ownership change
     if (window.mapGenerator) {

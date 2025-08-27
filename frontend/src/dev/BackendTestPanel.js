@@ -443,6 +443,20 @@ export class BackendTestPanel {
          }
        }
      });
+     
+     // Add hasShips method to stars based on ships data
+     stateData.ships.forEach(ship => {
+       const star = stars.find(s => s.id === ship.location_star_id);
+       if (star) {
+         // Add hasShips method if not already present
+         if (!star.hasShips) {
+           star.hasShips = () => {
+             // Check if this star has any ships
+             return stateData.ships.some(s => s.location_star_id === star.id);
+           };
+         }
+       }
+     });
     
     // Generate map with backend data
     this.mapGenerator.generateMapFromModel(mapModel);
@@ -452,6 +466,15 @@ export class BackendTestPanel {
     
     // Update star colors to show ownership
     this.mapGenerator.updateStarColors([]);
+    
+    // Update fleet icons for stars with ships
+    if (this.mapGenerator.currentModel && this.mapGenerator.currentModel.stars) {
+      this.mapGenerator.currentModel.stars.forEach(star => {
+        if (star.hasShips) {
+          this.mapGenerator.updateFleetIconForStar(star);
+        }
+      });
+    }
     
     console.log('✅ Game state rendered from backend data');
   }

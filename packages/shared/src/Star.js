@@ -3,204 +3,66 @@ import { getUniqueGeneratedName } from './starNameGenerator.js';
 
 /**
  * Star - Represents a star system in the game
- * Contains resource value, optional economy, and ownership information
+ * Uses a data-centric approach with direct data assignment for maximum performance.
+ * All data is stored in a data object and methods operate on that data.
+ * No copying overhead - direct reference to input data.
  */
 export class Star {
   /**
    * Create a new Star instance
-   * @param {Object} options - Star configuration options
-   * @param {number} options.id - Unique identifier for the star
-   * @param {number} options.x - X coordinate
-   * @param {number} options.y - Y coordinate
-   * @param {number} options.z - Z coordinate
-   * @param {Object} options.sector - Sector this star belongs to
-   * @param {number} options.resourceValue - Natural resource abundance (0-100)
-   * @param {Object} options.owner - Player who owns this star (optional)
-   * @param {string} options.color - Visual color of the star (default: light gray)
-   * @param {boolean} options.hasEconomy - Whether to create an Economy instance (default: false)
+   * @param {Object} data - Star data object (direct reference, no copying)
+   * @param {string|number} data.id - Unique identifier for the star
+   * @param {string} data.name - Star name (optional, will be generated if not provided)
+   * @param {number} data.x - X coordinate
+   * @param {number} data.y - Y coordinate
+   * @param {number} data.z - Z coordinate
+   * @param {Object} data.sector - Sector this star belongs to {row, col}
+   * @param {number} data.resourceValue - Natural resource abundance (0-100)
+   * @param {string|null} data.owner - Player ID who owns this star (optional)
+   * @param {string} data.color - Visual color of the star (default: light gray)
+   * @param {Object|null} data.economy - Economy data object (optional)
+   * @param {Array} data.ships - Array of ship IDs at this star (optional)
+   * @param {Array} data.connectedStarIds - Array of connected star IDs (optional)
    */
-  constructor(options) {
-    // Required properties
-    this.id = options.id;
-    this.x = options.x;
-    this.y = options.y;
-    this.z = options.z;
-    this.sector = options.sector;
-    
-    // Resource and ownership properties
-    this.resourceValue = Math.max(0, Math.min(100, options.resourceValue || 0));
-    this.owner = options.owner || null;
-    this.color = options.color || '#CCCCCC';
-    
-    // Name property
-    this.name = options.name || null;
-    
-    // Connection state
-    this.connected = false;
-    
-    // List of connected stars (for pathfinding)
-    this.connectedStars = [];
-    
-    // List of ships at this star
-    this.ships = [];
-    
-    // Optional economy
-    this.economy = options.hasEconomy ? new Economy() : null;
+  constructor(data) {
+    // Direct assignment - no copying overhead
+    this.data = data;
+  }
+
+  // ===== DATA ACCESS METHODS =====
+
+  /**
+   * Get the star ID
+   * @returns {string|number} Star ID
+   */
+  getId() {
+    return this.data.id;
   }
 
   /**
-   * Assign ownership of this star to a player
-   * @param {Object} player - Player object to assign ownership to
+   * Get the star name
+   * @returns {string|null} Star name
    */
-  assignOwner(player) {
-    this.owner = player;
-    if (player && player.color) {
-      this.color = player.color;
+  getName() {
+    return this.data.name;
+  }
+
+  /**
+   * Set the star name
+   * @param {string} name - New name
+   */
+  setName(name) {
+    if (name && typeof name === 'string' && name.trim().length > 0) {
+      this.data.name = name.trim();
     }
   }
 
   /**
-   * Remove ownership from this star
+   * Check if star has a name
+   * @returns {boolean} True if star has a name
    */
-  removeOwner() {
-    this.owner = null;
-    this.color = '#CCCCCC'; // Reset to default light gray
-  }
-
-  /**
-   * Check if this star is owned by a player
-   * @returns {boolean} True if star has an owner
-   */
-  isOwned() {
-    return this.owner !== null;
-  }
-
-  /**
-   * Get the current owner of this star
-   * @returns {Object|null} Player object or null if unowned
-   */
-  getOwner() {
-    return this.owner;
-  }
-
-  /**
-   * Get the resource value of this star
-   * @returns {number} Resource value (0-100)
-   */
-  getResourceValue() {
-    return this.resourceValue;
-  }
-
-  /**
-   * Set the resource value of this star
-   * @param {number} value - New resource value (0-100)
-   */
-  setResourceValue(value) {
-    this.resourceValue = Math.max(0, Math.min(100, value));
-  }
-
-  /**
-   * Create an economy for this star if it doesn't have one
-   * @param {Object} economyOptions - Options to pass to Economy constructor
-   * @returns {Economy} The created or existing economy
-   */
-  createEconomy(economyOptions = {}) {
-    if (!this.economy) {
-      this.economy = new Economy(economyOptions);
-    }
-    return this.economy;
-  }
-
-  /**
-   * Get the economy of this star
-   * @returns {Economy|null} Economy instance or null if none exists
-   */
-  getEconomy() {
-    return this.economy;
-  }
-
-  /**
-   * Remove the economy from this star
-   */
-  removeEconomy() {
-    this.economy = null;
-  }
-
-  /**
-   * Check if this star has an economy
-   * @returns {boolean} True if star has an economy
-   */
-  hasEconomy() {
-    return this.economy !== null;
-  }
-
-  /**
-   * Get a summary of this star's current state
-   * @returns {Object} Star summary
-   */
-  getSummary() {
-    return {
-      id: this.id,
-      name: this.name,
-      position: { x: this.x, y: this.y, z: this.z },
-      sector: this.sector,
-      resourceValue: this.resourceValue,
-      owner: this.owner,
-      color: this.color,
-      connected: this.connected,
-      connectedStars: this.connectedStars.map(star => star.id),
-      connectionCount: this.getConnectionCount(),
-      ships: this.ships.map(ship => ship.getSummary ? ship.getSummary() : ship),
-      shipCount: this.getShipCount(),
-      totalShipPower: this.getTotalShipPower(),
-      totalShipDamage: this.getTotalShipDamage(),
-      hasEconomy: this.hasEconomy(),
-      economy: this.economy ? this.economy.getSummary() : null
-    };
-  }
-
-  /**
-   * Create a copy of this star
-   * @returns {Star} New Star instance with same values
-   */
-  clone() {
-    const clonedStar = new Star({
-      id: this.id,
-      x: this.x,
-      y: this.y,
-      z: this.z,
-      sector: this.sector,
-      resourceValue: this.resourceValue,
-      owner: this.owner,
-      color: this.color,
-      name: this.name,
-      hasEconomy: false // Don't clone economy by default
-    });
-    
-    // Copy connection state
-    clonedStar.connected = this.connected;
-    
-    // Note: connectedStars list is not cloned as it would create circular references
-    // The connections would need to be re-established after cloning all stars
-    
-    // Clone economy if it exists
-    if (this.economy) {
-      clonedStar.economy = this.economy.clone();
-    }
-    
-    return clonedStar;
-  }
-
-  /**
-   * Get the distance to another star
-   * @param {Star} otherStar - Star to calculate distance to
-   * @returns {number} Euclidean distance between stars
-   */
-  getDistanceTo(otherStar) {
-    const dx = this.x - otherStar.x;
-    const dy = this.y - otherStar.y;
-    const dz = this.z - otherStar.z;
-    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  hasName() {
+    return this.data.name !== null && this.data.name.trim().length > 0;
   }
 
   /**
@@ -209,180 +71,356 @@ export class Star {
    * @returns {string} Generated star name
    */
   generateName(seededRandom) {
-    if (!this.name) {
-      this.name = getUniqueGeneratedName(seededRandom);
+    if (!this.data.name) {
+      this.data.name = getUniqueGeneratedName(seededRandom);
     }
-    return this.name;
+    return this.data.name;
   }
 
   /**
-   * Get the name of this star
-   * @returns {string|null} Star name or null if not set
+   * Get star position
+   * @returns {Object} Position object {x, y, z}
    */
-  getName() {
-    return this.name;
+  getPosition() {
+    return {
+      x: this.data.x,
+      y: this.data.y,
+      z: this.data.z
+    };
   }
 
   /**
-   * Set a custom name for this star
-   * @param {string} name - Custom name to set
+   * Set star position
+   * @param {number} x - X coordinate
+   * @param {number} y - Y coordinate
+   * @param {number} z - Z coordinate
    */
-  setName(name) {
-    if (name && typeof name === 'string' && name.trim().length > 0) {
-      this.name = name.trim();
+  setPosition(x, y, z) {
+    this.data.x = x;
+    this.data.y = y;
+    this.data.z = z;
+  }
+
+  /**
+   * Get star sector
+   * @returns {Object} Sector object {row, col}
+   */
+  getSector() {
+    return { ...this.data.sector };
+  }
+
+  /**
+   * Set star sector
+   * @param {number} row - Sector row
+   * @param {number} col - Sector column
+   */
+  setSector(row, col) {
+    this.data.sector = { row, col };
+  }
+
+  /**
+   * Get resource value
+   * @returns {number} Resource value (0-100)
+   */
+  getResourceValue() {
+    return this.data.resourceValue;
+  }
+
+  /**
+   * Set resource value
+   * @param {number} value - New resource value (0-100)
+   */
+  setResourceValue(value) {
+    this.data.resourceValue = Math.max(0, Math.min(100, value));
+  }
+
+  /**
+   * Get star color
+   * @returns {string} Color hex value
+   */
+  getColor() {
+    return this.data.color;
+  }
+
+  /**
+   * Set star color
+   * @param {string} color - Color hex value
+   */
+  setColor(color) {
+    this.data.color = color;
+  }
+
+  // ===== OWNERSHIP METHODS =====
+
+  /**
+   * Get the owner ID
+   * @returns {string|null} Owner ID or null if unowned
+   */
+  getOwner() {
+    return this.data.owner;
+  }
+
+  /**
+   * Set the owner ID
+   * @param {string|null} ownerId - Owner ID or null to remove ownership
+   */
+  setOwner(ownerId) {
+    this.data.owner = ownerId;
+  }
+
+  /**
+   * Check if star is owned
+   * @returns {boolean} True if star has an owner
+   */
+  isOwned() {
+    return this.data.owner !== null;
+  }
+
+  /**
+   * Assign ownership with color
+   * @param {string} ownerId - Owner ID
+   * @param {string} color - Owner color
+   */
+  assignOwner(ownerId, color) {
+    this.data.owner = ownerId;
+    if (color) {
+      this.data.color = color;
     }
   }
 
   /**
-   * Check if this star has a name
-   * @returns {boolean} True if star has a name
+   * Remove ownership
    */
-  hasName() {
-    return this.name !== null && this.name.trim().length > 0;
+  removeOwner() {
+    this.data.owner = null;
+    this.data.color = '#CCCCCC'; // Reset to default
+  }
+
+  // ===== ECONOMY METHODS =====
+
+  /**
+   * Get economy data
+   * @returns {Object|null} Economy data object or null
+   */
+  getEconomy() {
+    return this.data.economy;
   }
 
   /**
-   * Add a star to the connected stars list
-   * @param {Star} star - Star to connect to
+   * Set economy data
+   * @param {Object|null} economyData - Economy data object or null
    */
-  addConnectedStar(star) {
-    if (star && star !== this && !this.connectedStars.includes(star)) {
-      this.connectedStars.push(star);
+  setEconomy(economyData) {
+    this.data.economy = economyData;
+  }
+
+  /**
+   * Check if star has economy
+   * @returns {boolean} True if star has economy
+   */
+  hasEconomy() {
+    return this.data.economy !== null;
+  }
+
+  /**
+   * Create economy data
+   * @param {Object} economyOptions - Economy options
+   * @returns {Object} Created economy data
+   */
+  createEconomy(economyOptions = {}) {
+    if (!this.data.economy) {
+      this.data.economy = new Economy(economyOptions).toJSON();
+    }
+    return this.data.economy;
+  }
+
+  /**
+   * Remove economy
+   */
+  removeEconomy() {
+    this.data.economy = null;
+  }
+
+  // ===== SHIP MANAGEMENT METHODS =====
+
+  /**
+   * Get ship IDs at this star
+   * @returns {Array} Array of ship IDs
+   */
+  getShipIds() {
+    return [...this.data.ships];
+  }
+
+  /**
+   * Add a ship ID to this star
+   * @param {string} shipId - Ship ID to add
+   */
+  addShip(shipId) {
+    if (shipId && !this.data.ships.includes(shipId)) {
+      this.data.ships.push(shipId);
     }
   }
 
   /**
-   * Remove a star from the connected stars list
-   * @param {Star} star - Star to disconnect from
+   * Remove a ship ID from this star
+   * @param {string} shipId - Ship ID to remove
    */
-  removeConnectedStar(star) {
-    const index = this.connectedStars.indexOf(star);
+  removeShip(shipId) {
+    const index = this.data.ships.indexOf(shipId);
     if (index !== -1) {
-      this.connectedStars.splice(index, 1);
+      this.data.ships.splice(index, 1);
     }
   }
 
   /**
-   * Get all connected stars
+   * Check if star has ships
+   * @returns {boolean} True if star has ships
+   */
+  hasShips() {
+    return this.data.ships.length > 0;
+  }
+
+  /**
+   * Get ship count
+   * @returns {number} Number of ships
+   */
+  getShipCount() {
+    return this.data.ships.length;
+  }
+
+  /**
+   * Clear all ships
+   */
+  clearShips() {
+    this.data.ships = [];
+  }
+
+  // ===== CONNECTION METHODS =====
+
+  /**
+   * Get connected star IDs
+   * @returns {Array} Array of connected star IDs
+   */
+  getConnectedStarIds() {
+    return [...this.data.connectedStarIds];
+  }
+
+  /**
+   * Get connected Star objects (requires a lookup function)
+   * @param {Function} lookupFn - Function to look up stars by ID (e.g., mapModel.getStarById)
    * @returns {Array} Array of connected Star objects
    */
-  getConnectedStars() {
-    return [...this.connectedStars]; // Return a copy to prevent external modification
+  getConnectedStars(lookupFn) {
+    if (!lookupFn || typeof lookupFn !== 'function') {
+      console.warn('getConnectedStars requires a lookup function');
+      return [];
+    }
+    return this.data.connectedStarIds
+      .map(id => lookupFn(id))
+      .filter(star => star !== null);
   }
 
   /**
-   * Check if this star is connected to another star
-   * @param {Star} star - Star to check connection with
+   * Add a connected star ID
+   * @param {string} starId - Star ID to connect to
+   */
+  addConnectedStar(starId) {
+    if (starId && starId !== this.data.id && !this.data.connectedStarIds.includes(starId)) {
+      this.data.connectedStarIds.push(starId);
+    }
+  }
+
+  /**
+   * Remove a connected star ID
+   * @param {string} starId - Star ID to disconnect from
+   */
+  removeConnectedStar(starId) {
+    const index = this.data.connectedStarIds.indexOf(starId);
+    if (index !== -1) {
+      this.data.connectedStarIds.splice(index, 1);
+    }
+  }
+
+  /**
+   * Check if connected to a star
+   * @param {string} starId - Star ID to check
    * @returns {boolean} True if connected
    */
-  isConnectedTo(star) {
-    return this.connectedStars.includes(star);
+  isConnectedTo(starId) {
+    return this.data.connectedStarIds.includes(starId);
   }
 
   /**
-   * Get the number of connected stars
-   * @returns {number} Number of connected stars
+   * Get connection count
+   * @returns {number} Number of connections
    */
   getConnectionCount() {
-    return this.connectedStars.length;
+    return this.data.connectedStarIds.length;
   }
 
   /**
    * Clear all connections
    */
   clearConnections() {
-    this.connectedStars = [];
-    this.connected = false;
+    this.data.connectedStarIds = [];
+  }
+
+  // ===== UTILITY METHODS =====
+
+  /**
+   * Calculate distance to another star
+   * @param {Star} otherStar - Star to calculate distance to
+   * @returns {number} Euclidean distance
+   */
+  getDistanceTo(otherStar) {
+    const otherPos = otherStar.getPosition();
+    const dx = this.data.x - otherPos.x;
+    const dy = this.data.y - otherPos.y;
+    const dz = this.data.z - otherPos.z;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
   }
 
   /**
-   * Add a ship to this star
-   * @param {Ship} ship - Ship to add
+   * Get a summary of this star's current state
+   * @returns {Object} Star summary
    */
-  addShip(ship) {
-    if (ship && !this.ships.includes(ship)) {
-      this.ships.push(ship);
-      // Set the ship's location to this star (but don't call setLocation to avoid circular reference)
-      if (ship.location !== this) {
-        ship.location = this;
-      }
-    }
+  getSummary() {
+    return {
+      id: this.data.id,
+      name: this.data.name,
+      position: this.getPosition(),
+      sector: this.getSector(),
+      resourceValue: this.data.resourceValue,
+      owner: this.data.owner,
+      color: this.data.color,
+      connectionCount: this.getConnectionCount(),
+      shipCount: this.getShipCount(),
+      hasEconomy: this.hasEconomy(),
+      economy: this.data.economy
+    };
   }
 
   /**
-   * Remove a ship from this star
-   * @param {Ship} ship - Ship to remove
+   * Create a copy of this star
+   * @returns {Star} New Star instance with same data
    */
-  removeShip(ship) {
-    const index = this.ships.indexOf(ship);
-    if (index !== -1) {
-      this.ships.splice(index, 1);
-      // Clear the ship's location (but don't call setLocation to avoid circular reference)
-      if (ship.location === this) {
-        ship.location = null;
-      }
-    }
+  clone() {
+    return new Star({ ...this.data });
   }
 
   /**
-   * Get all ships at this star
-   * @returns {Array} Array of Ship objects
+   * Return the current data state as JSON
+   * @returns {Object} Current data object (direct reference, no copying)
    */
-  getShips() {
-    return [...this.ships]; // Return a copy to prevent external modification
+  toJSON() {
+    return this.data;
   }
 
   /**
-   * Get ships belonging to a specific owner
-   * @param {Object} owner - Owner to filter by
-   * @returns {Array} Array of Ship objects belonging to the owner
+   * Get the raw data object (use with caution)
+   * @returns {Object} Raw data object
    */
-  getShipsByOwner(owner) {
-    return this.ships.filter(ship => ship.owner === owner);
-  }
-
-  /**
-   * Get the number of ships at this star
-   * @returns {number} Number of ships
-   */
-  getShipCount() {
-    return this.ships.length;
-  }
-
-  /**
-   * Get the total power of all ships at this star
-   * @returns {number} Total ship power
-   */
-  getTotalShipPower() {
-    return this.ships.reduce((total, ship) => total + (ship.power || 0), 0);
-  }
-
-  /**
-   * Get the total damage of all ships at this star
-   * @returns {number} Total ship damage
-   */
-  getTotalShipDamage() {
-    return this.ships.reduce((total, ship) => total + (ship.damage || 0), 0);
-  }
-
-  /**
-   * Check if this star has any ships
-   * @returns {boolean} True if star has ships
-   */
-  hasShips() {
-    return this.ships.length > 0;
-  }
-
-  /**
-   * Clear all ships from this star
-   */
-  clearShips() {
-    // Clear location for all ships (but don't call setLocation to avoid circular reference)
-    this.ships.forEach(ship => {
-      if (ship.location === this) {
-        ship.location = null;
-      }
-    });
-    this.ships = [];
+  getData() {
+    return this.data;
   }
 } 
