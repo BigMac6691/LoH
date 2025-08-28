@@ -396,15 +396,9 @@ export class UIController {
    * @param {Object} config - Configuration object
    */
   callGenerateMap(config) {
-    // This function will be called by the main application
-    // The actual implementation will be provided by the main.js
-    if (window.generateMap && typeof window.generateMap === 'function') {
-      window.generateMap(config);
-    } else {
-      console.log('Map generation config:', config);
-      // Fallback: show the config in console for now
-      alert(`Map generation called with:\nMap Size: ${config.mapSize}\nStar Density: ${config.starDensity}\nSeed: ${config.seed}`);
-    }
+    // Map generation is now handled by backend only
+    console.log('Map generation config:', config);
+    alert(`Map generation moved to backend.\nUse the BackendTestPanel to create games.\n\nConfig would have been:\nMap Size: ${config.mapSize}\nStar Density: ${config.starDensity}\nSeed: ${config.seed}`);
   }
 
   /**

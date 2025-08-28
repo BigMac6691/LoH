@@ -5,8 +5,10 @@ import { groupShipsByPowerAndDamage, getShipDisplayName, getShipHealthPercentage
  * MoveDialog - A draggable dialog for managing fleet movement
  * Shows connected stars for movement selection and hierarchical ship tree
  */
-export class MoveDialog {
-  constructor() {
+export class MoveDialog
+{
+  constructor()
+  {
     this.isVisible = false;
     this.currentStar = null;
     this.dialog = null;
@@ -22,79 +24,28 @@ export class MoveDialog {
     this.createDialog();
   }
 
-  createDialog() {
+  createDialog()
+  {
     this.dialog = document.createElement('div');
-    this.dialog.className = 'move-dialog';
-    this.dialog.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 800px;
-      background: #2a2a2a;
-      border: 2px solid #00ff88;
-      border-radius: 8px;
-      padding: 20px;
-      color: white;
-      font-family: Arial, sans-serif;
-      z-index: 2000;
-      display: none;
-      box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
-    `;
+    this.dialog.className = 'move-dialog dialog-base';
+    this.dialog.style.width = '800px';
 
     // Header for dragging
     const header = document.createElement('div');
-    header.style.cssText = `
-      cursor: move;
-      margin: -20px -20px 20px -20px;
-      padding: 15px 20px;
-      background: #333;
-      border-radius: 6px 6px 0 0;
-      border-bottom: 1px solid #444;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    `;
+    header.className = 'dialog-header';
 
     // Title
     const title = document.createElement('h2');
     title.textContent = 'Fleet Manager';
-    title.style.cssText = `
-      margin: 0;
-      color: #00ff88;
-      font-size: 18px;
-      flex: 1;
-      text-align: center;
-    `;
+    title.className = 'dialog-title';
 
     // Close button
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '×';
-    closeBtn.style.cssText = `
-      background: none;
-      border: none;
-      color: #fff;
-      font-size: 24px;
-      cursor: pointer;
-      padding: 0;
-      width: 30px;
-      height: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 4px;
-      transition: background-color 0.2s;
-    `;
+    closeBtn.className = 'dialog-close-btn';
     
-    closeBtn.addEventListener('mouseenter', () => {
-      closeBtn.style.background = '#ff4444';
-    });
-    
-    closeBtn.addEventListener('mouseleave', () => {
-      closeBtn.style.background = 'none';
-    });
-    
-    closeBtn.addEventListener('click', () => {
+    closeBtn.addEventListener('click', () =>
+    {
       this.hide();
     });
 
@@ -103,38 +54,20 @@ export class MoveDialog {
 
     // Star name
     this.starNameElement = document.createElement('div');
-    this.starNameElement.style.cssText = `
-      text-align: center;
-      font-size: 14px;
-      color: #ccc;
-      margin-bottom: 20px;
-    `;
+    this.starNameElement.className = 'star-name-display';
 
     // Content container
     const content = document.createElement('div');
-    content.style.cssText = `
-      display: flex;
-      gap: 20px;
-      height: 500px;
-      max-height: 70vh;
-    `;
+    content.className = 'dialog-content';
 
     // Left panel - Connected stars
     const leftPanel = document.createElement('div');
-    leftPanel.style.cssText = `
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    `;
+    leftPanel.className = 'dialog-panel';
     this.createConnectedStarsSection(leftPanel);
 
     // Right panel - Ship tree
     const rightPanel = document.createElement('div');
-    rightPanel.style.cssText = `
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    `;
+    rightPanel.className = 'dialog-panel';
     this.createShipTreeSection(rightPanel);
 
     content.appendChild(leftPanel);
@@ -156,52 +89,25 @@ export class MoveDialog {
   /**
    * Create the ship tree section
    */
-  createShipTreeSection(container) {
+  createShipTreeSection(container)
+  {
     const section = document.createElement('div');
-    section.style.cssText = `
-      margin-bottom: 20px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    `;
+    section.className = 'dialog-section';
 
     // Section title
     const title = document.createElement('h3');
     title.textContent = 'Fleet Selection';
-    title.style.cssText = `
-      margin: 0 0 15px 0;
-      color: #00ff88;
-      font-size: 16px;
-      text-align: center;
-    `;
+    title.className = 'dialog-section-title';
     section.appendChild(title);
 
     // Ship tree container
     this.shipTreeContainer = document.createElement('div');
-    this.shipTreeContainer.style.cssText = `
-      flex: 1;
-      overflow-y: auto;
-      border: 1px solid #444;
-      border-radius: 4px;
-      background: #333;
-      padding: 10px;
-      opacity: 0.5;
-      pointer-events: none;
-      max-height: 350px;
-    `;
+    this.shipTreeContainer.className = 'tree-container disabled';
     section.appendChild(this.shipTreeContainer);
 
     // Selection summary
     this.selectionSummary = document.createElement('div');
-    this.selectionSummary.style.cssText = `
-      margin-top: 10px;
-      padding: 8px;
-      background: #444;
-      border-radius: 4px;
-      font-size: 12px;
-      text-align: center;
-      color: #ccc;
-    `;
+    this.selectionSummary.className = 'selection-summary';
     this.selectionSummary.textContent = 'No ships selected';
     section.appendChild(this.selectionSummary);
 
@@ -211,111 +117,47 @@ export class MoveDialog {
   /**
    * Create the connected stars selection section
    */
-  createConnectedStarsSection(container) {
+  createConnectedStarsSection(container)
+  {
     const section = document.createElement('div');
-    section.style.cssText = `
-      margin-bottom: 20px;
-    `;
+    section.className = 'dialog-section';
 
     // Section title
     const title = document.createElement('h3');
     title.textContent = 'Connected Stars';
-    title.style.cssText = `
-      margin: 0 0 15px 0;
-      color: #00ff88;
-      font-size: 16px;
-      text-align: center;
-    `;
+    title.className = 'dialog-section-title';
     section.appendChild(title);
 
     // Stars list container
     this.starsListContainer = document.createElement('div');
-    this.starsListContainer.style.cssText = `
-      max-height: 300px;
-      overflow-y: auto;
-      border: 1px solid #444;
-      border-radius: 4px;
-      background: #333;
-    `;
+    this.starsListContainer.className = 'list-container';
     section.appendChild(this.starsListContainer);
 
     // Button container
     const buttonContainer = document.createElement('div');
-    buttonContainer.style.cssText = `
-      display: flex;
-      gap: 10px;
-      margin-top: 15px;
-    `;
+    buttonContainer.className = 'dialog-btn-container';
 
     // Submit button
     const submitButton = document.createElement('button');
     submitButton.textContent = 'Submit Order';
-    submitButton.style.cssText = `
-      flex: 1;
-      padding: 12px;
-      background: #00ff88;
-      color: #000;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      opacity: 0.5;
-      pointer-events: none;
-    `;
+    submitButton.className = 'dialog-btn';
     
     this.moveButton = submitButton;
     
-    submitButton.addEventListener('mouseenter', () => {
-      if (this.canSubmit()) {
-        submitButton.style.background = '#00cc6a';
-      }
-    });
-    
-    submitButton.addEventListener('mouseleave', () => {
-      if (this.canSubmit()) {
-        submitButton.style.background = '#00ff88';
-      }
-    });
-    
-    submitButton.addEventListener('click', () => {
+    submitButton.addEventListener('click', () =>
+    {
       this.moveFleet();
     });
 
     // Cancel button
     const cancelButton = document.createElement('button');
     cancelButton.textContent = 'Cancel Order';
-    cancelButton.style.cssText = `
-      flex: 1;
-      padding: 12px;
-      background: #ff4444;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      opacity: 0.5;
-      pointer-events: none;
-    `;
+    cancelButton.className = 'dialog-btn dialog-btn-danger';
     
     this.cancelButton = cancelButton;
     
-    cancelButton.addEventListener('mouseenter', () => {
-      if (this.canCancel()) {
-        cancelButton.style.background = '#cc3333';
-      }
-    });
-    
-    cancelButton.addEventListener('mouseleave', () => {
-      if (this.canCancel()) {
-        cancelButton.style.background = '#ff4444';
-      }
-    });
-    
-    cancelButton.addEventListener('click', () => {
+    cancelButton.addEventListener('click', () =>
+    {
       this.cancelOrder();
     });
     

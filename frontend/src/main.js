@@ -31,8 +31,6 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
-
-
 // Add lighting
 const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x999999, 0.3);
 scene.add(hemisphereLight);
@@ -46,21 +44,19 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
-
-
 // Animation loop
-function animate() {
+function animate()
+{
   requestAnimationFrame(animate);
   
   // Update OrbitControls
   controls.update();
-  
-
 
   renderer.render(scene, camera);
   
   // Render star labels if map generator exists
-  if (mapGenerator) {
+  if (mapGenerator)
+  {
     mapGenerator.renderLabels();
     // Update star interaction manager
     mapGenerator.updateStarInteraction(0.016); // Approximate delta time
@@ -68,13 +64,15 @@ function animate() {
 }
 
 // Handle window resize
-window.addEventListener('resize', () => {
+window.addEventListener('resize', () =>
+{
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   
   // Update label renderer size
-  if (mapGenerator) {
+  if (mapGenerator)
+  {
     mapGenerator.onWindowResize();
     mapGenerator.onStarInteractionResize();
   }
@@ -88,24 +86,26 @@ let playerSetupUI;
 
 let backendTestPanel;
 
-
-
 // Start loading assets immediately (before DOM ready)
 console.log('🎨 Starting asset loading...');
 assetManager.loadFont('fonts/helvetiker_regular.typeface.json')
-  .catch(error => {
+  .catch(error =>
+  {
     console.warn('⚠️ Could not load font for 3D labels:', error.message);
   });
 
 assetManager.loadGLTF('models/toy_rocket_4k_free_3d_model_gltf/scene.gltf')
-  .catch(error => {
+  .catch(error =>
+  {
     console.warn('⚠️ Could not load rocket model for fleet icons:', error.message);
   });
 
 // Remove loading screen and start animation
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () =>
+{
   const loadingElement = document.getElementById('loading');
-  if (loadingElement) {
+  if (loadingElement)
+  {
     loadingElement.style.display = 'none';
   }
   
@@ -114,11 +114,12 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize UI Controller and Map Generator
   uiController = new UIController();
-      mapGenerator = new MapViewGenerator(scene, camera);
+  mapGenerator = new MapViewGenerator(scene, camera);
   playerManager = new PlayerManager();
   
   // Initialize backend test panel if in dev mode
-  if (DEV_MODE > 0) {
+  if (DEV_MODE > 0)
+  {
     // Initialize backend test panel (includes all dev tools)
     backendTestPanel = new BackendTestPanel(scene, renderer, camera, mapGenerator);
     backendTestPanel.show(); // Show backend test panel by default in dev mode
@@ -131,64 +132,35 @@ document.addEventListener('DOMContentLoaded', () => {
   setupGameEventListeners();
   
   // Handle development mode vs normal flow
-  if (DEV_MODE === 2) {
+  if (DEV_MODE === 2)
+  {
     // Set up dev mode event listeners
     setupDevModeEventListeners(playerManager);
     
     // Start the development scenario immediately
     // Font loading will be handled by AssetManager events automatically
-    autoStartDevMode(generateMap);
-  } else {
+    autoStartDevMode();
+  } else
+  {
     // Show the map controls on load for normal flow
     uiController.showPanel();
   }
 });
 
 // Set up event listeners for game flow
-function setupGameEventListeners() {
+function setupGameEventListeners()
+{
   // Listen for game start event
-  eventBus.on('game:start', (players) => {
+  eventBus.on('game:start', (players) =>
+  {
     console.log('🎮 Game started with players:', players);
     onGameStart(players);
   });
 }
 
-// Map generation function
-function generateMap(config) {
-  console.log('Generating map with config:', config);
-  
-  // Generate the map using MapViewGenerator
-  mapGenerator.generateMap(config);
-  
-  // Get and display statistics
-  const stats = mapGenerator.getStats();
-  console.log('Map statistics:', stats);
-  
-  // Clear any existing players
-  playerManager.clearPlayers();
-  
-  // Emit map ready event with the data object (for backward compatibility)
-  const mapModelData = mapGenerator.getCurrentModel();
-  eventBus.emit('map:ready', mapModelData);
-  
-  // Show player setup screen (only in non-dev mode)
-  if (DEV_MODE === 0) {
-    if (playerSetupUI) {
-      playerSetupUI.destroy();
-    }
-    
-    // Pass the MapModel instance to PlayerSetupUI for better functionality
-    const mapModelInstance = mapGenerator.mapModelInstance;
-    playerSetupUI = new PlayerSetupUI(playerManager, mapModelInstance, (players) => {
-      // Emit players ready event
-      eventBus.emit('players:ready', players);
-    });
-    playerSetupUI.show();
-  }
-}
-
 // Game start function
-function onGameStart(players) {
+function onGameStart(players)
+{
   console.log('Game started with players:', players);
   
   // Update star colors to reflect player ownership
@@ -198,11 +170,8 @@ function onGameStart(players) {
   // No need to manually create them here
 }
 
-// Make generateMap available globally for the UIController
-window.generateMap = generateMap;
-
 // Make mapGenerator available globally for development scenarios
 window.mapGenerator = mapGenerator;
 
 // Export for potential use in other modules
-export { scene, camera, renderer, generateMap }; 
+export { scene, camera, renderer }; 

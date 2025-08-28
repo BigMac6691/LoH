@@ -6,7 +6,7 @@
 import { eventBus } from './eventBus.js';
 import { assetManager } from './engine/AssetManager.js';
 import { PlayerManager } from './PlayerManager.js';
-import { generateMap } from './main.js';
+
 import { Ship } from '@loh/shared';
 
 // Development mode flag
@@ -143,9 +143,8 @@ export function setupDevModeEventListeners(playerManager) {
 
 /**
  * Skip setup screens and auto-generate map and players
- * @param {Function} generateMap - Map generation function
  */
-export function autoStartDevMode(generateMap) {
+export function autoStartDevMode() {
   if (!DEV_MODE) {
     console.log('DEV_MODE is disabled - using normal setup flow');
     return;
@@ -153,8 +152,8 @@ export function autoStartDevMode(generateMap) {
   
   console.log('🔧 DEV MODE: Auto-starting development scenario...');
   
-  // Generate map with default config
-  generateMap(DEFAULT_MAP_CONFIG);
+  // Note: Map generation is now handled by backend only
+  console.log('🔧 DEV MODE: Map generation moved to backend - use BackendTestPanel to create games');
 }
 
 /**

@@ -6,6 +6,7 @@
 /* Import component-specific styles */
 @import './dev-panels.css';
 @import './ui-components.css';
+@import './dialogs.css';
 @import './test-pages.css';
 
 /* Global overrides and additional styles */

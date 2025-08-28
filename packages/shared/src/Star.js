@@ -7,7 +7,8 @@ import { getUniqueGeneratedName } from './starNameGenerator.js';
  * All data is stored in a data object and methods operate on that data.
  * No copying overhead - direct reference to input data.
  */
-export class Star {
+export class Star
+{
   /**
    * Create a new Star instance
    * @param {Object} data - Star data object (direct reference, no copying)
@@ -24,9 +25,16 @@ export class Star {
    * @param {Array} data.ships - Array of ship IDs at this star (optional)
    * @param {Array} data.connectedStarIds - Array of connected star IDs (optional)
    */
-  constructor(data) {
+  constructor(data)
+  {
     // Direct assignment - no copying overhead
     this.data = data;
+
+    this.owner = null; // Will be set after stars are created
+    this.color = '#cccccc'; // Default color
+    
+    // Initialize ships array to store Ship objects (not IDs)
+    this.ships = [];
   }
 
   // ===== DATA ACCESS METHODS =====
@@ -35,15 +43,17 @@ export class Star {
    * Get the star ID
    * @returns {string|number} Star ID
    */
-  getId() {
-    return this.data.id;
+  getId()
+  {
+    return this.data.star_id;
   }
 
   /**
    * Get the star name
    * @returns {string|null} Star name
    */
-  getName() {
+  getName()
+  {
     return this.data.name;
   }
 
@@ -51,17 +61,18 @@ export class Star {
    * Set the star name
    * @param {string} name - New name
    */
-  setName(name) {
-    if (name && typeof name === 'string' && name.trim().length > 0) {
+  setName(name)
+  {
+    if (name && typeof name === 'string' && name.trim().length > 0)
       this.data.name = name.trim();
-    }
   }
 
   /**
    * Check if star has a name
    * @returns {boolean} True if star has a name
    */
-  hasName() {
+  hasName()
+  {
     return this.data.name !== null && this.data.name.trim().length > 0;
   }
 
@@ -70,10 +81,10 @@ export class Star {
    * @param {Object} seededRandom - SeededRandom instance for deterministic generation
    * @returns {string} Generated star name
    */
-  generateName(seededRandom) {
-    if (!this.data.name) {
+  generateName(seededRandom)
+  {
+    if (!this.data.name)
       this.data.name = getUniqueGeneratedName(seededRandom);
-    }
     return this.data.name;
   }
 
@@ -81,12 +92,40 @@ export class Star {
    * Get star position
    * @returns {Object} Position object {x, y, z}
    */
-  getPosition() {
+  getPosition()
+  {
     return {
-      x: this.data.x,
-      y: this.data.y,
-      z: this.data.z
+      x: this.data.pos_x,
+      y: this.data.pos_y,
+      z: this.data.pos_z
     };
+  }
+
+  /**
+   * Get X coordinate
+   * @returns {number} X coordinate
+   */
+  getX()
+  {
+    return this.data.pos_x;
+  }
+
+  /**
+   * Get Y coordinate
+   * @returns {number} Y coordinate
+   */
+  getY()
+  {
+    return this.data.pos_y;
+  }
+
+  /**
+   * Get Z coordinate
+   * @returns {number} Z coordinate
+   */
+  getZ()
+  {
+    return this.data.pos_z;
   }
 
   /**
@@ -95,7 +134,8 @@ export class Star {
    * @param {number} y - Y coordinate
    * @param {number} z - Z coordinate
    */
-  setPosition(x, y, z) {
+  setPosition(x, y, z)
+  {
     this.data.x = x;
     this.data.y = y;
     this.data.z = z;
@@ -105,7 +145,8 @@ export class Star {
    * Get star sector
    * @returns {Object} Sector object {row, col}
    */
-  getSector() {
+  getSector()
+  {
     return { ...this.data.sector };
   }
 
@@ -114,7 +155,8 @@ export class Star {
    * @param {number} row - Sector row
    * @param {number} col - Sector column
    */
-  setSector(row, col) {
+  setSector(row, col)
+  {
     this.data.sector = { row, col };
   }
 
@@ -122,7 +164,8 @@ export class Star {
    * Get resource value
    * @returns {number} Resource value (0-100)
    */
-  getResourceValue() {
+  getResourceValue()
+  {
     return this.data.resourceValue;
   }
 
@@ -130,7 +173,8 @@ export class Star {
    * Set resource value
    * @param {number} value - New resource value (0-100)
    */
-  setResourceValue(value) {
+  setResourceValue(value)
+  {
     this.data.resourceValue = Math.max(0, Math.min(100, value));
   }
 
@@ -138,16 +182,18 @@ export class Star {
    * Get star color
    * @returns {string} Color hex value
    */
-  getColor() {
-    return this.data.color;
+  getColor()
+  {
+    return this.color;
   }
 
   /**
    * Set star color
    * @param {string} color - Color hex value
    */
-  setColor(color) {
-    this.data.color = color;
+  setColor(color)
+  {
+    this.color = color;
   }
 
   // ===== OWNERSHIP METHODS =====
@@ -156,24 +202,18 @@ export class Star {
    * Get the owner ID
    * @returns {string|null} Owner ID or null if unowned
    */
-  getOwner() {
-    return this.data.owner;
-  }
-
-  /**
-   * Set the owner ID
-   * @param {string|null} ownerId - Owner ID or null to remove ownership
-   */
-  setOwner(ownerId) {
-    this.data.owner = ownerId;
+  getOwner()
+  {
+    return this.owner;
   }
 
   /**
    * Check if star is owned
    * @returns {boolean} True if star has an owner
    */
-  isOwned() {
-    return this.data.owner !== null;
+  isOwned()
+  {
+    return this.owner !== null;
   }
 
   /**
@@ -181,19 +221,20 @@ export class Star {
    * @param {string} ownerId - Owner ID
    * @param {string} color - Owner color
    */
-  assignOwner(ownerId, color) {
-    this.data.owner = ownerId;
-    if (color) {
-      this.data.color = color;
-    }
+  assignOwner(owner)
+  {
+    this.owner = owner;
+    if (owner.color_hex)
+      this.color = owner.color_hex;
   }
 
   /**
    * Remove ownership
    */
-  removeOwner() {
-    this.data.owner = null;
-    this.data.color = '#CCCCCC'; // Reset to default
+  removeOwner()
+  {
+    this.owner = null;
+    this.color = '#CCCCCC'; // Reset to default
   }
 
   // ===== ECONOMY METHODS =====
@@ -202,7 +243,8 @@ export class Star {
    * Get economy data
    * @returns {Object|null} Economy data object or null
    */
-  getEconomy() {
+  getEconomy()
+  {
     return this.data.economy;
   }
 
@@ -210,7 +252,8 @@ export class Star {
    * Set economy data
    * @param {Object|null} economyData - Economy data object or null
    */
-  setEconomy(economyData) {
+  setEconomy(economyData)
+  {
     this.data.economy = economyData;
   }
 
@@ -218,7 +261,8 @@ export class Star {
    * Check if star has economy
    * @returns {boolean} True if star has economy
    */
-  hasEconomy() {
+  hasEconomy()
+  {
     return this.data.economy !== null;
   }
 
@@ -227,72 +271,122 @@ export class Star {
    * @param {Object} economyOptions - Economy options
    * @returns {Object} Created economy data
    */
-  createEconomy(economyOptions = {}) {
-    if (!this.data.economy) {
+  createEconomy(economyOptions = {})
+  {
+    if (!this.data.economy)
       this.data.economy = new Economy(economyOptions).getData();
-    }
     return this.data.economy;
   }
 
   /**
    * Remove economy
    */
-  removeEconomy() {
+  removeEconomy()
+  {
     this.data.economy = null;
   }
 
   // ===== SHIP MANAGEMENT METHODS =====
 
   /**
+   * Get ship objects at this star
+   * @returns {Array} Array of Ship objects
+   */
+  getShips()
+  {
+    return [...this.ships];
+  }
+
+  /**
    * Get ship IDs at this star
    * @returns {Array} Array of ship IDs
    */
-  getShipIds() {
-    return [...this.data.ships];
+  getShipIds()
+  {
+    return this.ships.map(ship => ship.id);
   }
 
   /**
-   * Add a ship ID to this star
-   * @param {string} shipId - Ship ID to add
+   * Add a Ship object to this star
+   * @param {Ship} ship - Ship object to add
    */
-  addShip(shipId) {
-    if (shipId && !this.data.ships.includes(shipId)) {
-      this.data.ships.push(shipId);
-    }
+  addShip(ship)
+  {
+    if (ship && !this.ships.includes(ship))
+      this.ships.push(ship);
   }
 
   /**
-   * Remove a ship ID from this star
-   * @param {string} shipId - Ship ID to remove
+   * Remove a Ship object from this star
+   * @param {Ship} ship - Ship object to remove
    */
-  removeShip(shipId) {
-    const index = this.data.ships.indexOf(shipId);
-    if (index !== -1) {
-      this.data.ships.splice(index, 1);
-    }
+  removeShip(ship)
+  {
+    const index = this.ships.indexOf(ship);
+    if (index !== -1)
+      this.ships.splice(index, 1);
   }
 
   /**
    * Check if star has ships
    * @returns {boolean} True if star has ships
    */
-  hasShips() {
-    return this.data.ships.length > 0;
+  hasShips()
+  {
+    return this.ships.length > 0;
   }
 
   /**
    * Get ship count
    * @returns {number} Number of ships
    */
-  getShipCount() {
-    return this.data.ships.length;
+  getShipCount()
+  {
+    return this.ships.length;
   }
 
   /**
    * Clear all ships
    */
-  clearShips() {
-    this.data.ships = [];
+  clearShips()
+  {
+    this.ships = [];
+  }
+
+  /**
+   * Add multiple ships at once
+   * @param {Array} ships - Array of Ship objects to add
+   */
+  addShips(ships)
+  {
+    if (Array.isArray(ships))
+    {
+      ships.forEach(ship =>
+      {
+        if (ship && !this.ships.includes(ship))
+          this.ships.push(ship);
+      });
+    }
+  }
+
+  /**
+   * Check if star has a specific ship
+   * @param {Ship} ship - Ship object to check
+   * @returns {boolean} True if star has this ship
+   */
+  hasShip(ship)
+  {
+    return this.ships.includes(ship);
+  }
+
+  /**
+   * Find a ship by ID
+   * @param {string} shipId - Ship ID to find
+   * @returns {Ship|null} Ship object or null if not found
+   */
+  findShipById(shipId)
+  {
+    return this.ships.find(ship => ship.id === shipId) || null;
   }
 
   // ===== CONNECTION METHODS =====
@@ -301,7 +395,8 @@ export class Star {
    * Get connected star IDs
    * @returns {Array} Array of connected star IDs
    */
-  getConnectedStarIds() {
+  getConnectedStarIds()
+  {
     return [...this.data.connectedStarIds];
   }
 
@@ -310,8 +405,10 @@ export class Star {
    * @param {Function} lookupFn - Function to look up stars by ID (e.g., mapModel.getStarById)
    * @returns {Array} Array of connected Star objects
    */
-  getConnectedStars(lookupFn) {
-    if (!lookupFn || typeof lookupFn !== 'function') {
+  getConnectedStars(lookupFn)
+  {
+    if (!lookupFn || typeof lookupFn !== 'function')
+    {
       console.warn('getConnectedStars requires a lookup function');
       return [];
     }
@@ -324,21 +421,21 @@ export class Star {
    * Add a connected star ID
    * @param {string} starId - Star ID to connect to
    */
-  addConnectedStar(starId) {
-    if (starId && starId !== this.data.id && !this.data.connectedStarIds.includes(starId)) {
+  addConnectedStar(starId)
+  {
+    if (starId && starId !== this.data.id && !this.data.connectedStarIds.includes(starId))
       this.data.connectedStarIds.push(starId);
-    }
   }
 
   /**
    * Remove a connected star ID
    * @param {string} starId - Star ID to disconnect from
    */
-  removeConnectedStar(starId) {
+  removeConnectedStar(starId)
+  {
     const index = this.data.connectedStarIds.indexOf(starId);
-    if (index !== -1) {
+    if (index !== -1)
       this.data.connectedStarIds.splice(index, 1);
-    }
   }
 
   /**
@@ -346,7 +443,8 @@ export class Star {
    * @param {string} starId - Star ID to check
    * @returns {boolean} True if connected
    */
-  isConnectedTo(starId) {
+  isConnectedTo(starId)
+  {
     return this.data.connectedStarIds.includes(starId);
   }
 
@@ -354,14 +452,16 @@ export class Star {
    * Get connection count
    * @returns {number} Number of connections
    */
-  getConnectionCount() {
+  getConnectionCount()
+  {
     return this.data.connectedStarIds.length;
   }
 
   /**
    * Clear all connections
    */
-  clearConnections() {
+  clearConnections()
+  {
     this.data.connectedStarIds = [];
   }
 
@@ -372,7 +472,8 @@ export class Star {
    * @param {Star} otherStar - Star to calculate distance to
    * @returns {number} Euclidean distance
    */
-  getDistanceTo(otherStar) {
+  getDistanceTo(otherStar)
+  {
     const otherPos = otherStar.getPosition();
     const dx = this.data.x - otherPos.x;
     const dy = this.data.y - otherPos.y;
@@ -384,7 +485,8 @@ export class Star {
    * Get a summary of this star's current state
    * @returns {Object} Star summary
    */
-  getSummary() {
+  getSummary()
+  {
     return {
       id: this.data.id,
       name: this.data.name,
@@ -404,7 +506,8 @@ export class Star {
    * Create a copy of this star
    * @returns {Star} New Star instance with same data
    */
-  clone() {
+  clone()
+  {
     return new Star({ ...this.data });
   }
 
@@ -412,7 +515,8 @@ export class Star {
    * Get the raw data object (use with caution)
    * @returns {Object} Raw data object
    */
-  getData() {
+  getData()
+  {
     return this.data;
   }
 } 

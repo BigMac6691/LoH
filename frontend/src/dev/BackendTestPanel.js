@@ -389,125 +389,78 @@ export class BackendTestPanel
     statusDiv.innerHTML = `<span class="status-success">✅ Game state loaded! Stars: ${stateData.counts.stars}, Edges: ${stateData.counts.wormholes}</span>`;
     
     // Render the game state
-    this.renderGameState(stateData);
+    await this.renderGameState(stateData);
   }
   
   /**
    * Render the game state from backend data
    */
-  renderGameState(stateData)
+  async renderGameState(stateData)
   {
     console.log('Rendering game state from backend:', stateData);
     
     // Clear existing map
     this.mapGenerator.clearMap();
     
-    // Convert backend data to frontend format
-    const stars = stateData.stars.map(star => ({
-      id: star.star_id, // Use star_id instead of id for frontend compatibility
-      name: star.name,
-      x: star.pos_x,
-      y: star.pos_y,
-      z: star.pos_z,
-      sectorX: star.sector_x,
-      sectorY: star.sector_y,
-      owner: null, // Will be set from starStates
-      // Add getName method for compatibility with MapViewGenerator
-      getName: () => star.name
-    }));
+    // Create a MapModel instance and populate it with backend data
+    const { MapModel } = await import('@loh/shared');
+    const mapModel = new MapModel('backend-generated');
     
-    const wormholes = stateData.wormholes.map(wormhole =>
-    {
-      // Find the actual star objects by ID
-      const star1 = stars.find(s => s.id === wormhole.star_a_id);
-      const star2 = stars.find(s => s.id === wormhole.star_b_id);
-      return {
-        star1: star1,
-        star2: star2
-      };
-    }).filter(wormhole => wormhole.star1 && wormhole.star2); // Only include wormholes where both stars exist
+    // Set stars in MapModel (this creates Star instances)
+    mapModel.setStars(stateData.stars);
     
-    const mapModel = {
-      stars: stars,
-      wormholes: wormholes,
-      config: {
-        mapSize: Math.sqrt(stateData.stars.length), // Approximate
-        seed: 'backend-generated'
-      }
-    };
+    // Set wormholes in MapModel (this creates wormhole objects with Star references)
+    mapModel.setWormholes(stateData.wormholes);
     
-    // Reconstruct sectors from star data for sector border rendering
-    const maxSectorX = Math.max(...stars.map(star => star.sectorX));
-    const maxSectorY = Math.max(...stars.map(star => star.sectorY));
-    const mapSize = Math.max(maxSectorX, maxSectorY) + 1;
-    
-    // Calculate sector size based on canvas size (same as original MapModel)
-    const canvasSize = Math.min(window.innerWidth, window.innerHeight);
-    const sectorSize = canvasSize / mapSize;
-    const offset = canvasSize / 2;
-    
-    // Create sectors array (2D array of sector objects)
-    mapModel.sectors = [];
-    for (let row = 0; row < mapSize; row++)
-    {
-      const sectorRow = [];
-      for (let col = 0; col < mapSize; col++)
-      {
-        sectorRow.push({
-          row,
-          col,
-          x: (col * sectorSize) - offset + (sectorSize / 2),
-          y: (row * sectorSize) - offset + (sectorSize / 2),
-          width: sectorSize,
-          height: sectorSize,
-          stars: []
-        });
-      }
-      mapModel.sectors.push(sectorRow);
-    }
+    // Build sectors from the stars
+    mapModel.buildSectors();
     
     // Apply ownership from starStates and set correct player colors
     stateData.starStates.forEach(starState =>
     {
-      const star = stars.find(s => s.id === starState.star_id);
+      const star = mapModel.getStarById(starState.star_id);
       if (star)
       {
-        star.owner = starState.owner_player;
-        // Add isOwned method for compatibility with MapViewGenerator
-        star.isOwned = () => star.owner !== null;
-        
         // Find the player who owns this star and set the correct color
         const ownerPlayer = stateData.players.find(p => p.id === starState.owner_player);
         if (ownerPlayer)
+          star.assignOwner(ownerPlayer);
+        else
         {
-          star.color = ownerPlayer.color_hex;
-        } else
-        {
-          star.color = '#ff0000'; // Fallback to red if player not found
+          star.setColor('#000000'); // Fallback to black if player not found, want it to stand out
+          console.error('Owning player not found:', starState.owner_player);
         }
       }
+      else
+        console.error('Star not found:', starState.star_id);
     });
     
-    // Add hasShips method to stars based on ships data
-    stateData.ships.forEach(ship =>
-    {
-      const star = stars.find(s => s.id === ship.location_star_id);
-      if (star)
-      {
-        // Add hasShips method if not already present
-        if (!star.hasShips)
-        {
-          star.hasShips = () =>
-          {
-            // Check if this star has any ships
-            return stateData.ships.some(s => s.location_star_id === star.id);
-          };
-        }
-      }
-    });
+         // Add ships to stars based on ships data
+     const { Ship } = await import('@loh/shared');
+     for (const shipData of stateData.ships)
+     {
+       const star = mapModel.getStarById(shipData.location_star_id);
+       if (star)
+       {
+         // Create Ship instance from backend data
+         const ship = new Ship({
+           id: shipData.id,
+           power: shipData.power,
+           damage: shipData.damage,
+           owner: stateData.players.find(p => p.id === shipData.owner_player) || null,
+           location: star
+         });
+         
+         // Add ship if not already present
+         if (!star.hasShip(ship))
+           star.addShip(ship);
+       }
+       else
+         console.error('Star not found for ship:', shipData.location_star_id);
+     }
     
-    // Generate map with backend data
-    this.mapGenerator.generateMapFromModel(mapModel);
+    // Generate map with the MapModel instance
+    await this.mapGenerator.generateMapFromModel(mapModel);
     
     // Update camera to fit the map
     this.mapGenerator.positionCameraToFitMap();
@@ -519,13 +472,11 @@ export class BackendTestPanel
     const starList = this.mapGenerator.getStars();
     starList.forEach(star =>
     {
-      if (star.hasShips)
-      {
+      if (star.hasShips())
         this.mapGenerator.updateFleetIconForStar(star);
-      }
     });
     
-    console.log('✅ Game state rendered from backend data');
+    console.log('✅ Game state rendered from backend data using MapModel');
   }
   
   /**
