@@ -468,13 +468,12 @@ export class BackendTestPanel {
     this.mapGenerator.updateStarColors([]);
     
     // Update fleet icons for stars with ships
-    if (this.mapGenerator.currentModel && this.mapGenerator.currentModel.stars) {
-      this.mapGenerator.currentModel.stars.forEach(star => {
-        if (star.hasShips) {
-          this.mapGenerator.updateFleetIconForStar(star);
-        }
-      });
-    }
+    const starList = this.mapGenerator.getStars();
+    starList.forEach(star => {
+      if (star.hasShips) {
+        this.mapGenerator.updateFleetIconForStar(star);
+      }
+    });
     
     console.log('✅ Game state rendered from backend data');
   }

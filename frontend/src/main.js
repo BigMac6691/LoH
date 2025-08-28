@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
   playerManager = new PlayerManager();
   
   // Initialize backend test panel if in dev mode
-  if (DEV_MODE) {
+  if (DEV_MODE > 0) {
     // Initialize backend test panel (includes all dev tools)
     backendTestPanel = new BackendTestPanel(scene, renderer, camera, mapGenerator);
     backendTestPanel.show(); // Show backend test panel by default in dev mode
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupGameEventListeners();
   
   // Handle development mode vs normal flow
-  if (DEV_MODE) {
+  if (DEV_MODE === 2) {
     // Set up dev mode event listeners
     setupDevModeEventListeners(playerManager);
     
@@ -218,17 +218,19 @@ function generateMap(config) {
   // Clear any existing players
   playerManager.clearPlayers();
   
-  // Emit map ready event
-  const mapModel = mapGenerator.getCurrentModel();
-  eventBus.emit('map:ready', mapModel);
+  // Emit map ready event with the data object (for backward compatibility)
+  const mapModelData = mapGenerator.getCurrentModel();
+  eventBus.emit('map:ready', mapModelData);
   
   // Show player setup screen (only in non-dev mode)
-  if (!DEV_MODE) {
+  if (DEV_MODE === 0) {
     if (playerSetupUI) {
       playerSetupUI.destroy();
     }
     
-    playerSetupUI = new PlayerSetupUI(playerManager, mapModel, (players) => {
+    // Pass the MapModel instance to PlayerSetupUI for better functionality
+    const mapModelInstance = mapGenerator.mapModelInstance;
+    playerSetupUI = new PlayerSetupUI(playerManager, mapModelInstance, (players) => {
       // Emit players ready event
       eventBus.emit('players:ready', players);
     });

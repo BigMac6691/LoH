@@ -24,6 +24,7 @@ export class MapViewGenerator {
     this.wormholes = [];
     this.sectorBorders = [];
     this.currentModel = null;
+    this.mapModelInstance = null; // Store MapModel instance for accessing stars
     // this.labelRenderer = null; // No longer needed - using 3D labels
     // this.starLabels = []; // No longer needed - using 3D labels
     this.mapSize = 0; // Track map size for label visibility calculations
@@ -89,41 +90,7 @@ export class MapViewGenerator {
     console.log('🎨 Assets ready event received, but individual assets already processed');
   }
 
-  /**
-   * Generate and render a complete map based on configuration
-   * @param {Object} config - Map configuration
-   * @param {number} config.mapSize - Grid size (2-9)
-   * @param {number} config.minStarDensity - Minimum star density (0-9)
-   * @param {number} config.maxStarDensity - Maximum star density (0-9)
-   * @param {number} config.seed - Random seed
-   */
-  generateMap(config) {
-    console.log('Generating map with config:', config);
-    
-    // Clear existing map
-    this.clearMap();
-    
-    // Generate map model using MapModel class
-    const mapModel = new MapModel(config.seed);
-    this.currentModel = mapModel.generateMapModel(config);
-    
-    // Calculate map size for label visibility
-    this.calculateMapSize();
-    
-    // CSS2D label renderer no longer needed - using 3D labels
-    // this.initializeLabelRenderer();
-    
-    // Build static map components (stars, wormholes, sectors)
-    this.buildStaticMap(this.currentModel);
-    
-    // Initialize star interaction system
-    this.initializeStarInteraction();
-    
-    // Position camera to fit the entire map
-    this.positionCameraToFitMap();
-    
-    console.log(`Map generated: ${this.currentModel.stars.length} stars, ${this.currentModel.wormholes.length} wormholes`);
-  }
+
 
   /**
    * Generate and render a map from existing model data (e.g., from backend)
@@ -150,7 +117,9 @@ export class MapViewGenerator {
     // Position camera to fit the entire map
     this.positionCameraToFitMap();
     
-    console.log(`Map generated from model: ${this.currentModel.stars.length} stars, ${this.currentModel.wormholes.length} wormholes`);
+    const starCount = this.mapModelInstance ? this.mapModelInstance.getStars().length : this.currentModel.stars.length;
+    const wormholeCount = this.mapModelInstance ? this.mapModelInstance.getWormholes().length : this.currentModel.wormholes.length;
+    console.log(`Map generated from model: ${starCount} stars, ${wormholeCount} wormholes`);
   }
 
   /**
@@ -170,7 +139,8 @@ export class MapViewGenerator {
     
     // Remove existing objects from scene (MemoryManager handles disposal)
     if (this.currentModel) {
-      this.currentModel.stars.forEach(star => {
+      const stars = this.mapModelInstance ? this.mapModelInstance.getStars() : this.currentModel.stars;
+      stars.forEach(star => {
         if (star.group) {
           this.scene.remove(star.group);
         }
@@ -189,6 +159,7 @@ export class MapViewGenerator {
     this.wormholes.length = 0;
     this.sectorBorders.length = 0;
     this.starLookup.clear();
+    this.mapModelInstance = null; // Reset MapModel instance
     
     // Clear star interaction
     if (this.starInteractionManager) {
@@ -221,7 +192,8 @@ export class MapViewGenerator {
    * Position camera to fit the entire map in view
    */
   positionCameraToFitMap() {
-    if (!this.currentModel || !this.currentModel.sectors.length) return;
+    const sectors = this.mapModelInstance ? this.mapModelInstance.getSectors() : (this.currentModel ? this.currentModel.sectors : []);
+    if (!this.currentModel || !sectors.length) return;
     
     // Calculate map bounds
     const bounds = this.calculateMapBounds();
@@ -250,7 +222,8 @@ export class MapViewGenerator {
    * @returns {Object} Object with min/max coordinates
    */
   calculateMapBounds() {
-    if (!this.currentModel || !this.currentModel.stars.length) {
+    const stars = this.mapModelInstance ? this.mapModelInstance.getStars() : (this.currentModel ? this.currentModel.stars : []);
+    if (!this.currentModel || !stars.length) {
       return { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
     }
     
@@ -258,7 +231,7 @@ export class MapViewGenerator {
     let minY = Infinity, maxY = -Infinity;
     let minZ = Infinity, maxZ = -Infinity;
     
-    this.currentModel.stars.forEach(star => {
+    stars.forEach(star => {
       minX = Math.min(minX, star.x);
       maxX = Math.max(maxX, star.x);
       minY = Math.min(minY, star.y);
@@ -282,8 +255,11 @@ export class MapViewGenerator {
     // Create star lookup for efficient access
     this.starLookup = new Map();
     
+    // Get stars from MapModel instance if available, otherwise use model.stars
+    const stars = this.mapModelInstance ? this.mapModelInstance.getStars() : model.stars;
+    
     // Build stars - base meshes only
-    model.stars.forEach(star => {
+    stars.forEach(star => {
       // Create star group if it doesn't exist
       if (!star.group) {
         star.group = new THREE.Group();
@@ -362,12 +338,17 @@ export class MapViewGenerator {
       // }
     });
     
+    // Get wormholes and sectors from MapModel instance if available, otherwise use model
+    const wormholes = this.mapModelInstance ? this.mapModelInstance.getWormholes() : model.wormholes;
+    const sectors = this.mapModelInstance ? this.mapModelInstance.getSectors() : model.sectors;
+    
+    console.log('wormhole radius', wormholeRadius);
     // Build wormholes
-    this.buildWormholes(model.wormholes, wormholeRadius);
+    this.buildWormholes(wormholes, wormholeRadius);
     
     // Build sector borders if debug mode is enabled
     if (DEBUG_SHOW_SECTOR_BORDERS) {
-      this.renderSectorBorders(model.sectors);
+      this.renderSectorBorders(sectors);
     }
     
     // Check if font is already loaded and apply 3D labels
@@ -667,7 +648,8 @@ export class MapViewGenerator {
    * Calculate the map size for label visibility calculations
    */
   calculateMapSize() {
-    if (!this.currentModel || !this.currentModel.stars.length) {
+    const stars = this.mapModelInstance ? this.mapModelInstance.getStars() : (this.currentModel ? this.currentModel.stars : []);
+    if (!this.currentModel || !stars.length) {
       this.mapSize = 0;
       return;
     }
@@ -911,10 +893,11 @@ export class MapViewGenerator {
       this.starInteractionManager.dispose();
     }
     
+    const stars = this.mapModelInstance ? this.mapModelInstance.getStars() : this.currentModel.stars;
     this.starInteractionManager = new StarInteractionManager(
       this.scene, 
       this.camera, 
-      this.currentModel.stars
+      stars
     );
     
     // Create radial menu instance
@@ -964,5 +947,29 @@ export class MapViewGenerator {
    */
   getCurrentModel() {
     return this.currentModel;
+  }
+
+  /**
+   * Get all stars from the current map
+   * @returns {Array} Array of all star objects
+   */
+  getStars() {
+    return this.mapModelInstance ? this.mapModelInstance.getStars() : (this.currentModel ? this.currentModel.stars : []);
+  }
+
+  /**
+   * Get all wormholes from the current map
+   * @returns {Array} Array of all wormhole objects
+   */
+  getWormholes() {
+    return this.mapModelInstance ? this.mapModelInstance.getWormholes() : (this.currentModel ? this.currentModel.wormholes : []);
+  }
+
+  /**
+   * Get all sectors from the current map
+   * @returns {Array} 2D array of sector objects
+   */
+  getSectors() {
+    return this.mapModelInstance ? this.mapModelInstance.getSectors() : (this.currentModel ? this.currentModel.sectors : []);
   }
 } 

@@ -185,8 +185,11 @@ export class PlayerManager {
   findAvailableSector(mapModel) {
     const availableSectors = [];
     
+    // Get sectors from mapModel (handle both old and new formats)
+    const sectors = mapModel.getSectors ? mapModel.getSectors() : mapModel.sectors;
+    
     // Find all sectors that are not occupied and have stars
-    for (const sector of mapModel.sectors.flat()) {
+    for (const sector of sectors.flat()) {
       if (sector.stars.length > 0 && !this.isSectorOccupied(sector)) {
         availableSectors.push(sector);
       }

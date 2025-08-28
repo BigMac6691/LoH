@@ -10,7 +10,7 @@ import { generateMap } from './main.js';
 import { Ship } from '@loh/shared';
 
 // Development mode flag
-export const DEV_MODE = true; // Set to false for production
+export const DEV_MODE = 1; // Set to 0 for production
 
 /**
  * Default map configuration for development testing
@@ -41,11 +41,12 @@ export const DEFAULT_PLAYERS = [
 /**
  * Generate a development scenario with default values
  * @param {Object} playerManager - Player manager instance
- * @param {Object} mapModel - Map model instance
+ * @param {Object} mapModel - Map model instance or data object
  * @returns {Array} Array of configured players
  */
 export function generateDevScenario(playerManager, mapModel) {
   console.log('🔧 DEV MODE: Generating development scenario...');
+  console.log('🔧 DEV MODE: MapModel type:', mapModel?.getStarById ? 'MapModel instance' : 'data object');
   
   // Clear any existing players
   playerManager.clearPlayers();
@@ -106,12 +107,16 @@ export function setupDevModeEventListeners(playerManager) {
   
   // Listen for map ready event
   eventBus.once('map:ready', (mapModel) => {
-    console.log('🔧 DEV MODE: Map ready, generating test players...');
-    const players = generateDevScenario(playerManager, mapModel);
+    console.log('🔧 DEV MODE: Map ready, generating test players...', mapModel);
+    
+    // Get the actual MapModel instance from the mapGenerator
+    const mapModelInstance = window.mapGenerator?.mapModelInstance;
+    console.log('🔧 DEV MODE: MapModel instance:', mapModelInstance?.getStarById ? 'available' : 'not available');
+    
+    const players = generateDevScenario(playerManager, mapModelInstance || mapModel);
 
     // make sure there is a connection between the two players
-    // const mapModel = window.mapGenerator?.currentModel;
-    const connectedStars = players[0].star.getConnectedStars(mapModel?.getStarById);
+    const connectedStars = players[0].star.getConnectedStars(mapModelInstance?.getStarById);
     if (connectedStars.length > 0) {
       connectedStars[0].assignOwner(players[1].id, players[1].colorHex);
     }
