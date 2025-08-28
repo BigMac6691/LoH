@@ -229,7 +229,7 @@ export class Star {
    */
   createEconomy(economyOptions = {}) {
     if (!this.data.economy) {
-      this.data.economy = new Economy(economyOptions).toJSON();
+      this.data.economy = new Economy(economyOptions).getData();
     }
     return this.data.economy;
   }
@@ -406,14 +406,6 @@ export class Star {
    */
   clone() {
     return new Star({ ...this.data });
-  }
-
-  /**
-   * Return the current data state as JSON
-   * @returns {Object} Current data object (direct reference, no copying)
-   */
-  toJSON() {
-    return this.data;
   }
 
   /**

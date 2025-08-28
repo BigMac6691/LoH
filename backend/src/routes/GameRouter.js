@@ -5,13 +5,16 @@ import { listPlayers } from '../repos/playersRepo.js';
 import { listGames } from '../repos/gamesRepo.js';
 import { pool } from '../db/pool.js';
 
-export class GameRouter {
-  constructor() {
+export class GameRouter
+{
+  constructor()
+  {
     this.router = express.Router();
     this.setupRoutes();
   }
 
-  setupRoutes() {
+  setupRoutes()
+  {
     // POST /api/games - Create a new game
     this.router.post('/', this.createGame.bind(this));
     
@@ -32,23 +35,23 @@ export class GameRouter {
    * POST /api/games
    * Create a new game from seed with provided configuration
    */
-  async createGame(req, res) {
-    try {
-      const { seed, mapSize, densityMin, densityMax, title, description, players } = req.body;
+  async createGame(req, res)
+  {
+    try
+    {
+      const { seed, mapSize, densityMin, densityMax, title, description, players, ownerId } = req.body;
       
       // Debug logging
       console.log('Received request body:', req.body);
-      console.log('Extracted values:', { seed, mapSize, densityMin, densityMax, title, description, players });
+      console.log('Extracted values:', { seed, mapSize, densityMin, densityMax, title, description, players, ownerId });
       
       // Validate required parameters
-      if (!seed || !mapSize || densityMin === undefined || densityMax === undefined || !title || !description || !players) {
+      if (!seed || !mapSize || densityMin === undefined || densityMax === undefined || !title || !description || !players || !ownerId)
+      {
         return res.status(400).json({
-          error: 'Missing required parameters: seed, mapSize, densityMin, densityMax, title, description, players'
+          error: 'Missing required parameters: seed, mapSize, densityMin, densityMax, title, description, players, ownerId'
         });
       }
-      
-      // TODO: Add proper owner ID handling - for now using development fallback
-      const ownerId = "a109d369-0df3-4e73-b262-62c793ad743f";
       
       const result = await startGameFromSeed({
         ownerId,
@@ -69,7 +72,8 @@ export class GameRouter {
         counts: result.modelSummary
       });
       
-    } catch (error) {
+    } catch (error)
+    {
       console.error('Error starting game:', error);
       res.status(500).json({
         error: 'Failed to start game',
@@ -82,11 +86,14 @@ export class GameRouter {
    * GET /api/games
    * List all games
    */
-  async listGames(req, res) {
-    try {
+  async listGames(req, res)
+  {
+    try
+    {
       const games = await listGames();
       res.json(games);
-    } catch (error) {
+    } catch (error)
+    {
       console.error('Error getting games list:', error);
       res.status(500).json({
         error: 'Failed to get games list',
@@ -99,8 +106,10 @@ export class GameRouter {
    * GET /api/games/:gameId
    * Get specific game by ID
    */
-  async getGame(req, res) {
-    try {
+  async getGame(req, res)
+  {
+    try
+    {
       const { gameId } = req.params;
       
       // TODO: Implement getGame service
@@ -109,12 +118,14 @@ export class GameRouter {
         [gameId]
       );
       
-      if (rows.length === 0) {
+      if (rows.length === 0)
+      {
         return res.status(404).json({ error: 'Game not found' });
       }
       
       res.json(rows[0]);
-    } catch (error) {
+    } catch (error)
+    {
       console.error('Error getting game:', error);
       res.status(500).json({
         error: 'Failed to get game',
@@ -127,11 +138,14 @@ export class GameRouter {
    * GET /api/games/:gameId/state
    * Get complete game state including stars, wormholes, star states, and ships
    */
-  async getGameState(req, res) {
-    try {
+  async getGameState(req, res)
+  {
+    try
+    {
       const { gameId } = req.params;
       
-      if (!gameId) {
+      if (!gameId)
+      {
         return res.status(400).json({ error: 'gameId parameter is required' });
       }
       
@@ -180,7 +194,8 @@ export class GameRouter {
         }
       });
       
-    } catch (error) {
+    } catch (error)
+    {
       console.error('Error getting game state:', error);
       res.status(500).json({
         error: 'Failed to get game state',
@@ -193,14 +208,17 @@ export class GameRouter {
    * GET /api/games/current/latest
    * Get the latest game with open turn and players (for development)
    */
-  async getCurrentGame(req, res) {
-    try {
+  async getCurrentGame(req, res)
+  {
+    try
+    {
       // Get the most recently created game
       const { rows: games } = await pool.query(
         `SELECT * FROM game ORDER BY created_at DESC LIMIT 1`
       );
       
-      if (games.length === 0) {
+      if (games.length === 0)
+      {
         return res.status(404).json({ error: 'No games found' });
       }
       
@@ -214,7 +232,8 @@ export class GameRouter {
         players
       });
       
-    } catch (error) {
+    } catch (error)
+    {
       console.error('Error getting current game:', error);
       res.status(500).json({
         error: 'Failed to get current game',
@@ -223,7 +242,8 @@ export class GameRouter {
     }
   }
 
-  getRouter() {
+  getRouter()
+  {
     return this.router;
   }
 }

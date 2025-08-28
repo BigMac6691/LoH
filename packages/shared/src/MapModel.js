@@ -30,8 +30,6 @@ export class MapModel {
     });
   }
 
-
-
   /**
    * Get all stars in the map
    * @returns {Array} Array of all star objects

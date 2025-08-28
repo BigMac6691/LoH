@@ -31,14 +31,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
-// Create a spinning cube
-const geometry = new THREE.BoxGeometry(1, 1, 1);
-const material = new THREE.MeshPhongMaterial({ 
-  color: 0x00ff88,
-  shininess: 100
-});
-const cube = new THREE.Mesh(geometry, material);
-scene.add(cube);
+
 
 // Add lighting
 const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x999999, 0.3);
@@ -53,26 +46,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
-// Add some additional cubes for visual interest
-const cubeGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-const cubeMaterial = new THREE.MeshPhongMaterial({ color: 0xff6b6b });
 
-const demoCubes = [];
-for (let i = 0; i < 5; i++) {
-  const smallCube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-  smallCube.position.set(
-    (Math.random() - 0.5) * 10,
-    (Math.random() - 0.5) * 10,
-    (Math.random() - 0.5) * 10
-  );
-  smallCube.rotation.set(
-    Math.random() * Math.PI,
-    Math.random() * Math.PI,
-    Math.random() * Math.PI
-  );
-  scene.add(smallCube);
-  demoCubes.push(smallCube);
-}
 
 // Animation loop
 function animate() {
@@ -81,15 +55,7 @@ function animate() {
   // Update OrbitControls
   controls.update();
   
-  // Rotate the main cube
-  cube.rotation.x += 0.01;
-  cube.rotation.y += 0.01;
-  
-  // Rotate demo cubes
-  demoCubes.forEach(demoCube => {
-    demoCube.rotation.x += 0.005;
-    demoCube.rotation.y += 0.005;
-  });
+
 
   renderer.render(scene, camera);
   
@@ -122,21 +88,7 @@ let playerSetupUI;
 
 let backendTestPanel;
 
-// Function to remove demo objects when generating map
-function removeDemoObjects() {
-  // Remove main cube
-  scene.remove(cube);
-  cube.geometry.dispose();
-  cube.material.dispose();
-  
-  // Remove demo cubes
-  demoCubes.forEach(demoCube => {
-    scene.remove(demoCube);
-    demoCube.geometry.dispose();
-    demoCube.material.dispose();
-  });
-  demoCubes.length = 0; // Clear the array
-}
+
 
 // Start loading assets immediately (before DOM ready)
 console.log('🎨 Starting asset loading...');
@@ -205,10 +157,7 @@ function setupGameEventListeners() {
 function generateMap(config) {
   console.log('Generating map with config:', config);
   
-  // Remove demo objects (spinning cubes) to show only the star map
-  removeDemoObjects();
-  
-      // Generate the map using MapViewGenerator
+  // Generate the map using MapViewGenerator
   mapGenerator.generateMap(config);
   
   // Get and display statistics
@@ -256,4 +205,4 @@ window.generateMap = generateMap;
 window.mapGenerator = mapGenerator;
 
 // Export for potential use in other modules
-export { scene, camera, renderer, cube, generateMap }; 
+export { scene, camera, renderer, generateMap }; 

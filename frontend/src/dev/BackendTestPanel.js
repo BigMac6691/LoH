@@ -3,8 +3,10 @@
  * Only available in DEV_MODE
  */
 
-export class BackendTestPanel {
-  constructor(scene, renderer, camera, mapGenerator) {
+export class BackendTestPanel
+{
+  constructor(scene, renderer, camera, mapGenerator)
+  {
     this.scene = scene;
     this.renderer = renderer;
     this.camera = camera;
@@ -24,7 +26,8 @@ export class BackendTestPanel {
   /**
    * Create the backend test panel DOM element
    */
-  createPanel() {
+  createPanel()
+  {
     this.panel = document.createElement('div');
     this.panel.id = 'backend-test-panel';
     this.panel.className = 'panel';
@@ -129,32 +132,39 @@ export class BackendTestPanel {
   /**
    * Set up event listeners
    */
-  setupEventListeners() {
+  setupEventListeners()
+  {
     // Form submission
     const form = this.panel.querySelector('#game-form');
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', (e) =>
+    {
       e.preventDefault();
       this.startGame();
     });
     
     // Game select dropdown
     const gameSelect = this.panel.querySelector('#game-select');
-    gameSelect.addEventListener('change', (e) => {
+    gameSelect.addEventListener('change', (e) =>
+    {
       this.onGameSelect(e.target.value);
     });
     
     // Toggle panel button
     const toggleBtn = this.panel.querySelector('#toggle-panel-btn');
-    toggleBtn.addEventListener('click', () => {
+    toggleBtn.addEventListener('click', () =>
+    {
       this.toggle();
     });
     
     // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'b' || e.key === 'B') {
+    document.addEventListener('keydown', (e) =>
+    {
+      if (e.key === 'b' || e.key === 'B')
+      {
         this.toggle();
       }
-      else if (e.key === 'm' || e.key === 'M') {
+      else if (e.key === 'm' || e.key === 'M')
+      {
         this.runMemoryTest();
       }
     });
@@ -164,15 +174,18 @@ export class BackendTestPanel {
     const memoryLogBtn = this.panel.querySelector('#memory-log-btn');
     const moveOrdersBtn = this.panel.querySelector('#move-orders-btn');
     
-    memoryTestBtn.addEventListener('click', () => {
+    memoryTestBtn.addEventListener('click', () =>
+    {
       this.runMemoryTest();
     });
     
-    memoryLogBtn.addEventListener('click', () => {
+    memoryLogBtn.addEventListener('click', () =>
+    {
       this.logMemoryUsage();
     });
     
-    moveOrdersBtn.addEventListener('click', () => {
+    moveOrdersBtn.addEventListener('click', () =>
+    {
       this.logMoveOrders();
     });
   }
@@ -180,9 +193,12 @@ export class BackendTestPanel {
   /**
    * Set up dragging functionality
    */
-  setupDragging() {
-    this.panel.addEventListener('mousedown', (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') {
+  setupDragging()
+  {
+    this.panel.addEventListener('mousedown', (e) =>
+    {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT')
+      {
         return; // Don't drag when clicking on form elements
       }
       
@@ -193,7 +209,8 @@ export class BackendTestPanel {
       this.panel.style.cursor = 'grabbing';
     });
     
-    document.addEventListener('mousemove', (e) => {
+    document.addEventListener('mousemove', (e) =>
+    {
       if (!this.isDragging) return;
       
       const x = e.clientX - this.dragOffset.x;
@@ -208,8 +225,10 @@ export class BackendTestPanel {
       this.panel.style.right = 'auto';
     });
     
-    document.addEventListener('mouseup', () => {
-      if (this.isDragging) {
+    document.addEventListener('mouseup', () =>
+    {
+      if (this.isDragging)
+      {
         this.isDragging = false;
         this.panel.style.cursor = 'move';
       }
@@ -219,12 +238,15 @@ export class BackendTestPanel {
   /**
    * Run memory test
    */
-  runMemoryTest() {
+  runMemoryTest()
+  {
     console.log('🧪 Running memory test...');
     // Import and run the memory test
-    import('./MemoryTest.js').then(module => {
+    import('./MemoryTest.js').then(module =>
+    {
       module.runMemoryTest();
-    }).catch(error => {
+    }).catch(error =>
+    {
       console.error('Failed to run memory test:', error);
     });
   }
@@ -232,12 +254,15 @@ export class BackendTestPanel {
   /**
    * Log memory usage
    */
-  logMemoryUsage() {
+  logMemoryUsage()
+  {
     console.log('📊 Logging memory usage...');
     // Import and run the memory usage logging
-    import('./MemoryTest.js').then(module => {
+    import('./MemoryTest.js').then(module =>
+    {
       module.logMemoryUsage();
-    }).catch(error => {
+    }).catch(error =>
+    {
       console.error('Failed to log memory usage:', error);
     });
   }
@@ -245,13 +270,16 @@ export class BackendTestPanel {
   /**
    * Start a new game or view existing game via backend API
    */
-  async startGame() {
+  async startGame()
+  {
     const statusDiv = this.panel.querySelector('#status');
     const gameSelect = this.panel.querySelector('#game-select');
     const selectedGameId = gameSelect.value;
     
-    try {
-      if (!selectedGameId) {
+    try
+    {
+      if (!selectedGameId)
+      {
         // Creating a new game
         statusDiv.innerHTML = '<span class="status-loading">⏳ Starting game...</span>';
         
@@ -271,11 +299,13 @@ export class BackendTestPanel {
         console.log('Form values extracted:', { title, description, seed, mapSize, densityMin, densityMax, player1Name, player1Color, player2Name, player2Color });
         
         // Validate inputs
-        if (!title || !description || !seed || !player1Name || !player2Name) {
+        if (!title || !description || !seed || !player1Name || !player2Name)
+        {
           throw new Error('Please fill in all required fields');
         }
         
-        if (densityMin > densityMax) {
+        if (densityMin > densityMax)
+        {
           throw new Error('Density Min cannot be greater than Density Max');
         }
         
@@ -287,6 +317,7 @@ export class BackendTestPanel {
           mapSize,
           densityMin,
           densityMax,
+          ownerId: "a109d369-0df3-4e73-b262-62c793ad743f", // Using the same ownerId as GameRouter
           players: [
             { name: player1Name, colorHex: player1Color },
             { name: player2Name, colorHex: player2Color }
@@ -306,7 +337,8 @@ export class BackendTestPanel {
           body: JSON.stringify(requestBody)
         });
         
-        if (!startResponse.ok) {
+        if (!startResponse.ok)
+        {
           const errorData = await startResponse.json();
           throw new Error(`Failed to start game: ${errorData.error || startResponse.statusText}`);
         }
@@ -321,13 +353,15 @@ export class BackendTestPanel {
         // Load and render the game state
         await this.loadAndRenderGameState(startData.gameId);
         
-      } else {
+      } else
+      {
         // Viewing an existing game
         statusDiv.innerHTML = '<span class="status-loading">⏳ Loading game...</span>';
         await this.loadAndRenderGameState(selectedGameId);
       }
       
-    } catch (error) {
+    } catch (error)
+    {
       console.error('Error with game:', error);
       statusDiv.innerHTML = `<span class="status-error">❌ Error: ${error.message}</span>`;
     }
@@ -337,14 +371,16 @@ export class BackendTestPanel {
    * Load and render game state for a given game ID
    * @param {string} gameId - Game ID to load
    */
-  async loadAndRenderGameState(gameId) {
+  async loadAndRenderGameState(gameId)
+  {
     const statusDiv = this.panel.querySelector('#status');
     
     statusDiv.innerHTML = '<span class="status-loading">⏳ Loading game state...</span>';
     
     const stateResponse = await fetch(`/api/dev/state?gameId=${gameId}`);
     
-    if (!stateResponse.ok) {
+    if (!stateResponse.ok)
+    {
       const errorData = await stateResponse.json();
       throw new Error(`Failed to load game state: ${errorData.error || stateResponse.statusText}`);
     }
@@ -359,27 +395,29 @@ export class BackendTestPanel {
   /**
    * Render the game state from backend data
    */
-  renderGameState(stateData) {
+  renderGameState(stateData)
+  {
     console.log('Rendering game state from backend:', stateData);
     
     // Clear existing map
     this.mapGenerator.clearMap();
     
-         // Convert backend data to frontend format
-     const stars = stateData.stars.map(star => ({
-       id: star.star_id, // Use star_id instead of id for frontend compatibility
-       name: star.name,
-       x: star.pos_x,
-       y: star.pos_y,
-       z: star.pos_z,
-       sectorX: star.sector_x,
-       sectorY: star.sector_y,
-       owner: null, // Will be set from starStates
-       // Add getName method for compatibility with MapViewGenerator
-       getName: () => star.name
-     }));
+    // Convert backend data to frontend format
+    const stars = stateData.stars.map(star => ({
+      id: star.star_id, // Use star_id instead of id for frontend compatibility
+      name: star.name,
+      x: star.pos_x,
+      y: star.pos_y,
+      z: star.pos_z,
+      sectorX: star.sector_x,
+      sectorY: star.sector_y,
+      owner: null, // Will be set from starStates
+      // Add getName method for compatibility with MapViewGenerator
+      getName: () => star.name
+    }));
     
-    const wormholes = stateData.wormholes.map(wormhole => {
+    const wormholes = stateData.wormholes.map(wormhole =>
+    {
       // Find the actual star objects by ID
       const star1 = stars.find(s => s.id === wormhole.star_a_id);
       const star2 = stars.find(s => s.id === wormhole.star_b_id);
@@ -410,9 +448,11 @@ export class BackendTestPanel {
     
     // Create sectors array (2D array of sector objects)
     mapModel.sectors = [];
-    for (let row = 0; row < mapSize; row++) {
+    for (let row = 0; row < mapSize; row++)
+    {
       const sectorRow = [];
-      for (let col = 0; col < mapSize; col++) {
+      for (let col = 0; col < mapSize; col++)
+      {
         sectorRow.push({
           row,
           col,
@@ -426,37 +466,45 @@ export class BackendTestPanel {
       mapModel.sectors.push(sectorRow);
     }
     
-         // Apply ownership from starStates and set correct player colors
-     stateData.starStates.forEach(starState => {
-       const star = stars.find(s => s.id === starState.star_id);
-       if (star) {
-         star.owner = starState.owner_player;
-         // Add isOwned method for compatibility with MapViewGenerator
-         star.isOwned = () => star.owner !== null;
-         
-         // Find the player who owns this star and set the correct color
-         const ownerPlayer = stateData.players.find(p => p.id === starState.owner_player);
-         if (ownerPlayer) {
-           star.color = ownerPlayer.color_hex;
-         } else {
-           star.color = '#ff0000'; // Fallback to red if player not found
-         }
-       }
-     });
-     
-     // Add hasShips method to stars based on ships data
-     stateData.ships.forEach(ship => {
-       const star = stars.find(s => s.id === ship.location_star_id);
-       if (star) {
-         // Add hasShips method if not already present
-         if (!star.hasShips) {
-           star.hasShips = () => {
-             // Check if this star has any ships
-             return stateData.ships.some(s => s.location_star_id === star.id);
-           };
-         }
-       }
-     });
+    // Apply ownership from starStates and set correct player colors
+    stateData.starStates.forEach(starState =>
+    {
+      const star = stars.find(s => s.id === starState.star_id);
+      if (star)
+      {
+        star.owner = starState.owner_player;
+        // Add isOwned method for compatibility with MapViewGenerator
+        star.isOwned = () => star.owner !== null;
+        
+        // Find the player who owns this star and set the correct color
+        const ownerPlayer = stateData.players.find(p => p.id === starState.owner_player);
+        if (ownerPlayer)
+        {
+          star.color = ownerPlayer.color_hex;
+        } else
+        {
+          star.color = '#ff0000'; // Fallback to red if player not found
+        }
+      }
+    });
+    
+    // Add hasShips method to stars based on ships data
+    stateData.ships.forEach(ship =>
+    {
+      const star = stars.find(s => s.id === ship.location_star_id);
+      if (star)
+      {
+        // Add hasShips method if not already present
+        if (!star.hasShips)
+        {
+          star.hasShips = () =>
+          {
+            // Check if this star has any ships
+            return stateData.ships.some(s => s.location_star_id === star.id);
+          };
+        }
+      }
+    });
     
     // Generate map with backend data
     this.mapGenerator.generateMapFromModel(mapModel);
@@ -469,8 +517,10 @@ export class BackendTestPanel {
     
     // Update fleet icons for stars with ships
     const starList = this.mapGenerator.getStars();
-    starList.forEach(star => {
-      if (star.hasShips) {
+    starList.forEach(star =>
+    {
+      if (star.hasShips)
+      {
         this.mapGenerator.updateFleetIconForStar(star);
       }
     });
@@ -481,7 +531,8 @@ export class BackendTestPanel {
   /**
    * Show the panel
    */
-  show() {
+  show()
+  {
     this.panel.style.display = 'block';
     this.isVisible = true;
   }
@@ -489,7 +540,8 @@ export class BackendTestPanel {
   /**
    * Hide the panel
    */
-  hide() {
+  hide()
+  {
     this.panel.style.display = 'none';
     this.isVisible = false;
   }
@@ -497,10 +549,13 @@ export class BackendTestPanel {
   /**
    * Toggle panel visibility
    */
-  toggle() {
-    if (this.isVisible) {
+  toggle()
+  {
+    if (this.isVisible)
+    {
       this.hide();
-    } else {
+    } else
+    {
       this.show();
     }
   }
@@ -508,8 +563,10 @@ export class BackendTestPanel {
   /**
    * Clean up the panel
    */
-  destroy() {
-    if (this.panel && this.panel.parentNode) {
+  destroy()
+  {
+    if (this.panel && this.panel.parentNode)
+    {
       this.panel.parentNode.removeChild(this.panel);
     }
   }
@@ -517,16 +574,20 @@ export class BackendTestPanel {
   /**
    * Load games from the backend
    */
-  async loadGames() {
-    try {
+  async loadGames()
+  {
+    try
+    {
       const response = await fetch('/api/dev/games');
-      if (!response.ok) {
+      if (!response.ok)
+      {
         throw new Error(`Failed to load games: ${response.statusText}`);
       }
       
       this.games = await response.json();
       this.populateGameSelect();
-    } catch (error) {
+    } catch (error)
+    {
       console.error('Error loading games:', error);
     }
   }
@@ -534,14 +595,16 @@ export class BackendTestPanel {
   /**
    * Populate the game select dropdown
    */
-  populateGameSelect() {
+  populateGameSelect()
+  {
     const gameSelect = this.panel.querySelector('#game-select');
     
     // Clear existing options except the first one
     gameSelect.innerHTML = '<option value="">CREATE NEW</option>';
     
     // Add games to the dropdown
-    this.games.forEach(game => {
+    this.games.forEach(game =>
+    {
       const option = document.createElement('option');
       option.value = game.id;
       option.textContent = game.title;
@@ -553,8 +616,10 @@ export class BackendTestPanel {
    * Handle game selection from dropdown
    * @param {string} gameId - Selected game ID or empty string for "CREATE NEW"
    */
-  onGameSelect(gameId) {
-    if (!gameId) {
+  onGameSelect(gameId)
+  {
+    if (!gameId)
+    {
       // CREATE NEW selected - clear form and enable inputs
       this.clearForm();
       this.enableForm();
@@ -563,7 +628,8 @@ export class BackendTestPanel {
     
     // Find the selected game
     const selectedGame = this.games.find(game => game.id === gameId);
-    if (!selectedGame) {
+    if (!selectedGame)
+    {
       console.error('Selected game not found:', gameId);
       return;
     }
@@ -576,7 +642,8 @@ export class BackendTestPanel {
   /**
    * Clear the form
    */
-  clearForm() {
+  clearForm()
+  {
     this.panel.querySelector('#title-input').value = 'Test Game';
     this.panel.querySelector('#description-input').value = 'A test game for development';
     this.panel.querySelector('#seed-input').value = '12345';
@@ -593,7 +660,8 @@ export class BackendTestPanel {
    * Populate form with game data
    * @param {Object} game - Game object
    */
-  populateForm(game) {
+  populateForm(game)
+  {
     this.panel.querySelector('#title-input').value = game.title;
     this.panel.querySelector('#description-input').value = game.description;
     this.panel.querySelector('#seed-input').value = game.seed;
@@ -605,9 +673,11 @@ export class BackendTestPanel {
   /**
    * Enable form inputs
    */
-  enableForm() {
+  enableForm()
+  {
     const inputs = this.panel.querySelectorAll('input, select');
-    inputs.forEach(input => {
+    inputs.forEach(input =>
+    {
       input.disabled = false;
     });
     this.panel.querySelector('#start-game-btn').textContent = '🚀 START GAME';
@@ -616,9 +686,11 @@ export class BackendTestPanel {
   /**
    * Disable form inputs (when viewing existing game)
    */
-  disableForm() {
+  disableForm()
+  {
     const inputs = this.panel.querySelectorAll('input');
-    inputs.forEach(input => {
+    inputs.forEach(input =>
+    {
       input.disabled = true;
     });
     this.panel.querySelector('#start-game-btn').textContent = '👁️ VIEW GAME';
