@@ -136,7 +136,7 @@ export class MapFactory {
         let tooClose = false;
         
         for (const existingStar of placedStars) {
-          const distance = this.getDistance({ x, y, z }, existingStar);
+          const distance = this.getDistance({ x, y, z }, existingStar.getPosition());
           if (distance < minDistance) {
             tooClose = true;
             break;
@@ -225,7 +225,7 @@ export class MapFactory {
         // Check distance to each connected star
         for (const connectedStar of connected)
         {
-          const distance = this.getDistance(connectedStar, unconnectedStar);
+          const distance = this.getDistance(connectedStar.getPosition(), unconnectedStar.getPosition());
           if (distance < nearestDistance)
           {
             nearestDistance = distance;
@@ -301,7 +301,7 @@ export class MapFactory {
     
     for (const star1 of sector1.stars) {
       for (const star2 of sector2.stars) {
-        const distance = this.getDistance(star1, star2);
+        const distance = this.getDistance(star1.getPosition(), star2.getPosition());
         if (distance < closestDistance) {
           closestDistance = distance;
           closestPair = [star1, star2];
@@ -327,23 +327,13 @@ export class MapFactory {
 
 
   /**
-   * Calculate distance between two stars
-   * @param {Object} star1 - First star
-   * @param {Object} star2 - Second star
+   * Calculate distance between two positions
+   * @param {Object} pos1 - First position {x, y, z}
+   * @param {Object} pos2 - Second position {x, y, z}
    * @returns {number} Distance
    */
-  getDistance(star1, star2)
+  getDistance(pos1, pos2)
   {
-    // Use Star class method if available, otherwise fall back to manual calculation
-    if (star1.getDistanceTo && typeof star1.getDistanceTo === 'function')
-    {
-      return star1.getDistanceTo(star2);
-    }
-    
-    // Fall back to manual calculation using getter methods
-    const pos1 = star1.getPosition ? star1.getPosition() : { x: star1.x, y: star1.y, z: star1.z };
-    const pos2 = star2.getPosition ? star2.getPosition() : { x: star2.x, y: star2.y, z: star2.z };
-    
     return Math.sqrt(
       Math.pow(pos1.x - pos2.x, 2) + 
       Math.pow(pos1.y - pos2.y, 2) + 

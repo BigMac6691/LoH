@@ -41,21 +41,22 @@ export class IndustryDialog
     const title = document.createElement('h2');
     title.textContent = 'Industry Manager';
     title.className = 'dialog-title';
-    header.appendChild(title);
-
-    // Star name
-    this.starNameElement = document.createElement('div');
-    this.starNameElement.className = 'star-name-display';
-    header.appendChild(this.starNameElement);
 
     // Close button
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '×';
     closeBtn.className = 'dialog-close-btn';
     closeBtn.onclick = () => this.hide();
+
+    header.appendChild(title);
     header.appendChild(closeBtn);
 
+    // Star name
+    this.starNameElement = document.createElement('div');
+    this.starNameElement.className = 'star-name-display';
+
     this.dialog.appendChild(header);
+    this.dialog.appendChild(this.starNameElement);
 
     // Content area
     const content = document.createElement('div');
@@ -460,7 +461,7 @@ export class IndustryDialog
     this.updateSpendingConstraints();
     this.updateTotalSpending();
 
-    console.log('🏭 IndustryDialog: Opened for star:', starName, hasSavedOrders ? '(with saved orders)' : '(new orders)');
+    console.log('🏭 IndustryDialog: Opened for star:', star.getName(), hasSavedOrders ? '(with saved orders)' : '(new orders)');
   }
 
   /**

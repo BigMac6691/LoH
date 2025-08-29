@@ -132,8 +132,8 @@ export class MapModel
     // Assign stars to sectors
     stars.forEach(star =>
     {
-      const sectorX = Math.floor((star.x - bounds.minX) / sectorSize);
-      const sectorY = Math.floor((star.y - bounds.minY) / sectorSize);
+      const sectorX = Math.floor((star.getX() - bounds.minX) / sectorSize);
+      const sectorY = Math.floor((star.getY() - bounds.minY) / sectorSize);
       
       if (sectorY >= 0 && sectorY < this.sectors.length && 
           sectorX >= 0 && sectorX < this.sectors[sectorY].length)
@@ -161,12 +161,12 @@ export class MapModel
     
     stars.forEach(star =>
     {
-      minX = Math.min(minX, star.x);
-      maxX = Math.max(maxX, star.x);
-      minY = Math.min(minY, star.y);
-      maxY = Math.max(maxY, star.y);
-      minZ = Math.min(minZ, star.z);
-      maxZ = Math.max(maxZ, star.z);
+      minX = Math.min(minX, star.getX());
+      maxX = Math.max(maxX, star.getX());
+      minY = Math.min(minY, star.getY());
+      maxY = Math.max(maxY, star.getY());
+      minZ = Math.min(minZ, star.getZ());
+      maxZ = Math.max(maxZ, star.getZ());
     });
     
     return { minX, maxX, minY, maxY, minZ, maxZ };

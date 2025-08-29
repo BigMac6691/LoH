@@ -82,11 +82,17 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
         // Pick a random star from this sector
         const star = sector.stars[Math.floor(Math.random() * sector.stars.length)];
         
+        // Update the star's resource value to 100 for fairness
+        await client.query(
+          `UPDATE star SET resource = 100 WHERE game_id = $1 AND star_id = $2`,
+          [game.id, star.getId()]
+        );
+        
         await upsertStarState({
           gameId: game.id,
           starId: star.getId(),
           ownerPlayer: pl.id,
-          economy: { industry: 0 },
+          economy: { industry: 100, available: 100, technology: 100 },
           damage: {}
         }, client);
 
