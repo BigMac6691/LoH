@@ -1,5 +1,4 @@
 import { Economy } from './Economy.js';
-import { getUniqueGeneratedName } from './starNameGenerator.js';
 
 /**
  * Star - Represents a star system in the game
@@ -12,13 +11,13 @@ export class Star
   /**
    * Create a new Star instance
    * @param {Object} data - Star data object (direct reference, no copying)
-   * @param {string|number} data.id - Unique identifier for the star
+   * @param {string|number} data.star_id - Unique identifier for the star
    * @param {string} data.name - Star name (optional, will be generated if not provided)
-   * @param {number} data.x - X coordinate
-   * @param {number} data.y - Y coordinate
-   * @param {number} data.z - Z coordinate
+   * @param {number} data.pos_x - X coordinate
+   * @param {number} data.pos_y - Y coordinate
+   * @param {number} data.pos_z - Z coordinate
    * @param {Object} data.sector - Sector this star belongs to {row, col}
-   * @param {number} data.resourceValue - Natural resource abundance (0-100)
+   * @param {number} data.resource - Natural resource abundance (0-100)
    * @param {string|null} data.owner - Player ID who owns this star (optional)
    * @param {string} data.color - Visual color of the star (default: light gray)
    * @param {Object|null} data.economy - Economy data object (optional)
@@ -76,17 +75,7 @@ export class Star
     return this.data.name !== null && this.data.name.trim().length > 0;
   }
 
-  /**
-   * Generate a unique name for this star
-   * @param {Object} seededRandom - SeededRandom instance for deterministic generation
-   * @returns {string} Generated star name
-   */
-  generateName(seededRandom)
-  {
-    if (!this.data.name)
-      this.data.name = getUniqueGeneratedName(seededRandom);
-    return this.data.name;
-  }
+
 
   /**
    * Get star position
@@ -136,9 +125,9 @@ export class Star
    */
   setPosition(x, y, z)
   {
-    this.data.x = x;
-    this.data.y = y;
-    this.data.z = z;
+    this.data.pos_x = x;
+    this.data.pos_y = y;
+    this.data.pos_z = z;
   }
 
   /**
@@ -166,7 +155,7 @@ export class Star
    */
   getResourceValue()
   {
-    return this.data.resourceValue;
+    return this.data.resource;
   }
 
   /**
@@ -175,7 +164,7 @@ export class Star
    */
   setResourceValue(value)
   {
-    this.data.resourceValue = Math.max(0, Math.min(100, value));
+    this.data.resource = Math.max(0, Math.min(100, value));
   }
 
   /**
@@ -423,47 +412,11 @@ export class Star
    */
   addConnectedStar(starId)
   {
-    if (starId && starId !== this.data.id && !this.data.connectedStarIds.includes(starId))
+    if (starId && starId !== this.data.star_id && !this.data.connectedStarIds.includes(starId))
       this.data.connectedStarIds.push(starId);
   }
 
-  /**
-   * Remove a connected star ID
-   * @param {string} starId - Star ID to disconnect from
-   */
-  removeConnectedStar(starId)
-  {
-    const index = this.data.connectedStarIds.indexOf(starId);
-    if (index !== -1)
-      this.data.connectedStarIds.splice(index, 1);
-  }
 
-  /**
-   * Check if connected to a star
-   * @param {string} starId - Star ID to check
-   * @returns {boolean} True if connected
-   */
-  isConnectedTo(starId)
-  {
-    return this.data.connectedStarIds.includes(starId);
-  }
-
-  /**
-   * Get connection count
-   * @returns {number} Number of connections
-   */
-  getConnectionCount()
-  {
-    return this.data.connectedStarIds.length;
-  }
-
-  /**
-   * Clear all connections
-   */
-  clearConnections()
-  {
-    this.data.connectedStarIds = [];
-  }
 
   // ===== UTILITY METHODS =====
 
@@ -475,9 +428,9 @@ export class Star
   getDistanceTo(otherStar)
   {
     const otherPos = otherStar.getPosition();
-    const dx = this.data.x - otherPos.x;
-    const dy = this.data.y - otherPos.y;
-    const dz = this.data.z - otherPos.z;
+    const dx = this.data.pos_x - otherPos.x;
+    const dy = this.data.pos_y - otherPos.y;
+    const dz = this.data.pos_z - otherPos.z;
     return Math.sqrt(dx * dx + dy * dy + dz * dz);
   }
 
@@ -492,10 +445,10 @@ export class Star
       name: this.data.name,
       position: this.getPosition(),
       sector: this.getSector(),
-      resourceValue: this.data.resourceValue,
+      resource: this.data.resource,
       owner: this.data.owner,
       color: this.data.color,
-      connectionCount: this.getConnectionCount(),
+      connectionCount: this.data.connectedStarIds.length,
       shipCount: this.getShipCount(),
       hasEconomy: this.hasEconomy(),
       economy: this.data.economy

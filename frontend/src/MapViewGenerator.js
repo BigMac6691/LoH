@@ -458,7 +458,6 @@ export class MapViewGenerator
   {
     wormholes.forEach(wormhole =>
     {
-      console.log('wormhole', wormhole);
       // Check if this wormhole already exists
       const existingWormhole = this.wormholes.find(w => 
         (w.star1 === wormhole.star1 && w.star2 === wormhole.star2) ||
@@ -627,7 +626,6 @@ export class MapViewGenerator
   createWormholeMesh(star1, star2, radius)
   {
     const distance = this.getDistance(star1, star2);
-    console.log('distance', distance, 'radius', radius);
     
     // Create cylinder geometry for wormhole
     const geometry = new THREE.CylinderGeometry(radius, radius, distance, 8);

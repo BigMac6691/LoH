@@ -227,9 +227,6 @@ export class PlayerManager {
     const randomIndex = Math.floor(Math.random() * availableStars.length);
     const selectedStar = availableStars[randomIndex];
     
-    // Set star resource level to 10
-    selectedStar.setResourceValue(10);
-    
     // Create an economy with initial values
     selectedStar.createEconomy({
       techLevel: 10,

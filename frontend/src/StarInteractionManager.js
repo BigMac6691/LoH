@@ -65,14 +65,12 @@ export class StarInteractionManager {
     // Debug logging
     if (intersects.length > 0) {
       console.log('🎯 StarInteractionManager: Found intersection with', intersects.length, 'objects');
-    }
-    
-    if (intersects.length > 0) {
       const intersectedObject = intersects[0].object;
       // Find the star by checking if the intersected object is part of a star's group
       const star = this.stars.find(s => s.group && s.group.children.includes(intersectedObject));
       
       if (star && star !== this.hoveredStar) {
+        console.log('🎯 StarInteractionManager: Found star', star);
         this.onStarHover(star);
       }
     } else {
@@ -128,8 +126,7 @@ export class StarInteractionManager {
   onStarHover(star) {
     // Only emit event for owned stars
     if (star.isOwned && star.isOwned()) {
-      const starName = star.getName ? star.getName() : `Star ${star.id}`;
-      console.log(`Hovering over owned star: ${starName}`);
+      console.log(`Hovering over owned star:`, star);
       
       // Emit star hover event
       eventBus.emit(STAR_EVENTS.HOVER, {

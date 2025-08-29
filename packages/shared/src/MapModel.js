@@ -81,9 +81,19 @@ export class MapModel
   /**
    * Build sectors from existing stars (temporary method)
    * Creates a 2D array of sector objects based on star positions
+   * @param {number} originalMapSize - Original map size from game creation (required)
    */
-  buildSectors()
+  buildSectors(originalMapSize)
   {
+    // Fail catastrophically if originalMapSize is missing - this indicates a bug
+    if (originalMapSize === null || originalMapSize === undefined)
+    {
+      console.error('❌ CRITICAL ERROR: buildSectors() called without originalMapSize parameter');
+      console.error('This indicates a bug in the calling code - gameInfo.map_size should be available');
+      console.error('Calling code should ensure gameInfo is loaded from the backend before calling buildSectors()');
+      throw new Error('buildSectors() requires originalMapSize parameter - this indicates a bug in the calling code');
+    }
+    
     const stars = this.getStars();
     if (stars.length === 0)
     {
@@ -95,8 +105,8 @@ export class MapModel
     const bounds = this.calculateMapBounds(stars);
     const mapSize = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
     
-    // Determine sector grid size (approximate based on star count)
-    const sectorCount = Math.ceil(Math.sqrt(stars.length));
+    // Use the original map size (no fallback - this is the correct value)
+    const sectorCount = originalMapSize;
     const sectorSize = mapSize / sectorCount;
     
     // Create sectors array (2D array of sector objects)

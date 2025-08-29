@@ -8,9 +8,11 @@ import { addShip } from '../repos/shipsRepo.js';
 import { logEvent } from '../repos/eventsRepo.js';
 import { generateMap } from '../MapFactory.js';
 
-export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, densityMax, title, description, players }) {
+export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, densityMax, title, description, players })
+{
   const client = await pool.connect();
-  try {
+  try
+  {
     await client.query('BEGIN');
 
     const game = await createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, params: {} }, client);
@@ -20,17 +22,19 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
 
     // insert stars
     const stars = model.getStars();
-    for (const s of stars) {
+    for (const s of stars)
+    {
       await client.query(
-        `INSERT INTO star (id, game_id, star_id, name, sector_x, sector_y, pos_x, pos_y, pos_z)
-         VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8)`,
-        [game.id, s.getId(), s.getName(), s.getSector().col, s.getSector().row, s.getPosition().x, s.getPosition().y, s.getPosition().z]
+        `INSERT INTO star (id, game_id, star_id, name, sector_x, sector_y, pos_x, pos_y, pos_z, resource)
+         VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [game.id, s.getId(), s.getName(), s.getSector().col, s.getSector().row, s.getPosition().x, s.getPosition().y, s.getPosition().z, s.getResourceValue()]
       );
     }
 
     // insert wormholes (ensure a<b for uniqueness)
     const wormholes = model.getWormholes();
-    for (const w of wormholes) {
+    for (const w of wormholes)
+    {
       const a = w.star1.getId();
       const b = w.star2.getId();
       const aId = a < b ? a : b;
@@ -45,7 +49,8 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
 
     // add players as provided
     const playersInserted = [];
-    for (const p of players) {
+    for (const p of players)
+    {
       const row = await addPlayer({
         gameId: game.id,
         userId: p.userId ?? null,
@@ -58,20 +63,22 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
 
     // deterministic initial ownership & ships using corner placements
     const sectors = model.getSectors();
-    const mapSize = sectors.length;
+    const sectorCount = sectors.length;
     const cornerSectors = [
       { sectorX: 0, sectorY: 0 },
-      { sectorX: mapSize - 1, sectorY: 0 },
-      { sectorX: 0, sectorY: mapSize - 1 },
-      { sectorX: mapSize - 1, sectorY: mapSize - 1 }
+      { sectorX: sectorCount - 1, sectorY: 0 },
+      { sectorX: 0, sectorY: sectorCount - 1 },
+      { sectorX: sectorCount - 1, sectorY: sectorCount - 1 }
     ];
     
-    for (let i = 0; i < playersInserted.length && i < cornerSectors.length; i++) {
+    for (let i = 0; i < playersInserted.length && i < cornerSectors.length; i++)
+    {
       const pl = playersInserted[i];
       const corner = cornerSectors[i];
       const sector = sectors[corner.sectorY][corner.sectorX];
       
-      if (sector.stars.length > 0) {
+      if (sector.stars.length > 0)
+      {
         // Pick a random star from this sector
         const star = sector.stars[Math.floor(Math.random() * sector.stars.length)];
         
@@ -79,7 +86,7 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
           gameId: game.id,
           starId: star.getId(),
           ownerPlayer: pl.id,
-          economy: { resource: 2, industry: 0 },
+          economy: { industry: 0 },
           damage: {}
         }, client);
 
@@ -104,10 +111,14 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
 
     await client.query('COMMIT');
     return { game, turn, players: playersInserted, modelSummary: { stars: model.getStars().length, edges: model.getWormholes().length } };
-  } catch (e) {
+  }
+  catch (e)
+  {
     await client.query('ROLLBACK');
     throw e;
-  } finally {
+  }
+  finally
+  {
     client.release();
   }
 }

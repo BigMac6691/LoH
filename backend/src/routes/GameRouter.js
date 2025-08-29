@@ -179,12 +179,29 @@ export class GameRouter
         [gameId]
       );
       
+      // Get game info (including map size)
+      const { rows: games } = await pool.query(
+        `SELECT map_size, seed, density_min, density_max FROM game WHERE id = $1`,
+        [gameId]
+      );
+      
+      const gameInfo = games.length > 0 ? games[0] : { map_size: 5, seed: 'default', density_min: 3, density_max: 7 };
+      
+      // Log the first few stars to inspect resource values
+      console.log('🔍 Game State - Sample Stars with Resource Values:');
+      stars.slice(0, 5).forEach((star, index) => {
+        console.log(`  Star ${index + 1}: ID=${star.star_id}, Name=${star.name}, Resource=${star.resource}`);
+      });
+      console.log(`  Total stars: ${stars.length}`);
+      console.log(`  Game map size: ${gameInfo.map_size}`);
+
       res.json({
         stars,
         wormholes,
         starStates,
         ships,
         players,
+        gameInfo,
         counts: {
           stars: stars.length,
           wormholes: wormholes.length,

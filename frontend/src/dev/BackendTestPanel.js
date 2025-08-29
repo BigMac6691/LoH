@@ -412,8 +412,10 @@ export class BackendTestPanel
     // Set wormholes in MapModel (this creates wormhole objects with Star references)
     mapModel.setWormholes(stateData.wormholes);
     
-    // Build sectors from the stars
-    mapModel.buildSectors();
+    // Build sectors from the stars using the original map size
+    const originalMapSize = stateData.gameInfo ? stateData.gameInfo.map_size : null;
+    console.log('🔧 BackendTestPanel: Building sectors with original map size:', originalMapSize);
+    mapModel.buildSectors(originalMapSize);
     
     // Apply ownership from starStates and set correct player colors
     stateData.starStates.forEach(starState =>

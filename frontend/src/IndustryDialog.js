@@ -84,6 +84,10 @@ export class IndustryDialog
     const section = document.createElement('div');
     section.className = 'dialog-section';
 
+    // Resource (from star, not economy)
+    const resourceRow = this.createValueRow('Resource', 'resource');
+    section.appendChild(resourceRow);
+
     // Capacity
     const capacityRow = this.createValueRow('Capacity', 'capacity');
     section.appendChild(capacityRow);
@@ -432,8 +436,7 @@ export class IndustryDialog
     this.dialog.style.display = 'block';
 
     // Update star name
-    const starName = star.getName ? star.getName() : `Star ${star.id}`;
-    this.starNameElement.textContent = starName;
+    this.starNameElement.textContent = star.getName();
 
     // Try to load saved orders for this star
     const hasSavedOrders = this.loadSavedOrders(star.id);
@@ -465,33 +468,58 @@ export class IndustryDialog
    */
   updateEconomyValues()
   {
-    if (!this.currentStar || !this.currentStar.economy)
+    if (!this.currentStar)
     {
-      console.warn('IndustryDialog: Star has no economy');
+      console.warn('IndustryDialog: No star provided');
       return;
     }
 
-    const economy = this.currentStar.economy;
-    
-    // Update capacity
-    const capacityElement = this.dialog.querySelector('.value-capacity');
-    if (capacityElement)
+    // Update resource (from star, not economy)
+    const resourceElement = this.dialog.querySelector('.value-resource');
+    if (resourceElement)
     {
-      capacityElement.textContent = economy.capacity || 0;
+      const resourceValue = this.currentStar.getResourceValue() || 0;
+      resourceElement.textContent = resourceValue;
+      console.log('🏭 IndustryDialog: Resource value from star:', resourceValue);
     }
 
-    // Update available
-    const availableElement = this.dialog.querySelector('.value-available');
-    if (availableElement)
+    // Update economy values if star has economy
+    if (this.currentStar.economy)
     {
-      availableElement.textContent = economy.available || 0;
-    }
+      const economy = this.currentStar.economy;
+      
+      // Update capacity
+      const capacityElement = this.dialog.querySelector('.value-capacity');
+      if (capacityElement)
+      {
+        capacityElement.textContent = economy.capacity || 0;
+      }
 
-    // Update tech level
-    const techLevelElement = this.dialog.querySelector('.value-techLevel');
-    if (techLevelElement)
+      // Update available
+      const availableElement = this.dialog.querySelector('.value-available');
+      if (availableElement)
+      {
+        availableElement.textContent = economy.available || 0;
+      }
+
+      // Update tech level
+      const techLevelElement = this.dialog.querySelector('.value-techLevel');
+      if (techLevelElement)
+      {
+        techLevelElement.textContent = economy.techLevel || 0;
+      }
+    }
+    else
     {
-      techLevelElement.textContent = economy.techLevel || 0;
+      // Set default values if no economy
+      const capacityElement = this.dialog.querySelector('.value-capacity');
+      if (capacityElement) capacityElement.textContent = '0';
+      
+      const availableElement = this.dialog.querySelector('.value-available');
+      if (availableElement) availableElement.textContent = '0';
+      
+      const techLevelElement = this.dialog.querySelector('.value-techLevel');
+      if (techLevelElement) techLevelElement.textContent = '0';
     }
 
     // Update spending constraints when economy values change
