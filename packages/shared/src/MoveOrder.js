@@ -1,5 +1,5 @@
 /**
- * MoveOrder - Represents a fleet movement order
+ * MoveOrder - Represents a fleet movement order for ships
  * Contains origin star, destination star, and selected ship IDs
  */
 export class MoveOrder {
@@ -20,7 +20,8 @@ export class MoveOrder {
    * Get the origin star ID
    * @returns {string|null} Origin star ID
    */
-  getOriginStarId() {
+  getOriginStarId() 
+  {
     return this.originStarId;
   }
 

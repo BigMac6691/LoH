@@ -2,12 +2,22 @@
   "name": "loh-monorepo",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*", "backend", "frontend"],
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "frontend"
+  ],
   "scripts": {
     "postinstall": "npm -w @loh/shared run build || true",
     "dev:api": "npm -w loh-backend run dev",
     "start:api": "npm -w loh-backend start",
     "migrate": "npm -w loh-backend run migrate",
-    "dev:web": "npm -w loh-frontend run dev"
+    "dev:web": "npm -w loh-frontend run dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.0.0",
+    "prettier-plugin-brace-style": "^0.8.1"
   }
 }
