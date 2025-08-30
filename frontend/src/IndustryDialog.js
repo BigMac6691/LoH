@@ -9,18 +9,18 @@ export class IndustryDialog
     this.currentStar = null;
     this.dialog = null;
     this.isDragging = false;
-    this.dragOffset = { x: 0, y: 0 };
-    
+    this.dragOffset = {x: 0, y: 0};
+
     // Spending orders tracking
     this.spendingOrders = {
       expand: 0,
       research: 0,
-      build: 0
+      build: 0,
     };
-    
+
     // In-memory storage for saved orders per star
     this.savedOrders = new Map(); // starId -> spendingOrders
-    
+
     this.createDialog();
   }
 
@@ -163,13 +163,13 @@ export class IndustryDialog
     const submitButton = document.createElement('button');
     submitButton.textContent = 'Submit Order';
     submitButton.className = 'dialog-btn';
-    
+
     // Click handler
     submitButton.addEventListener('click', () =>
     {
       this.submitOrder();
     });
-    
+
     section.appendChild(submitButton);
 
     container.appendChild(section);
@@ -215,10 +215,10 @@ export class IndustryDialog
     {
       this.spendingControls = {};
     }
-    this.spendingControls[key] = { slider, numberInput };
+    this.spendingControls[key] = {slider, numberInput};
 
     // Link slider and number input
-    slider.addEventListener('input', (e) =>
+    slider.addEventListener('input', e =>
     {
       const value = parseInt(e.target.value);
       numberInput.value = value;
@@ -227,7 +227,7 @@ export class IndustryDialog
       this.updateTotalSpending();
     });
 
-    numberInput.addEventListener('input', (e) =>
+    numberInput.addEventListener('input', e =>
     {
       const value = parseInt(e.target.value) || 0;
       slider.value = value;
@@ -250,7 +250,10 @@ export class IndustryDialog
     if (!this.currentStar || !this.currentStar.economy) return;
 
     const available = this.currentStar.economy.available || 0;
-    const currentTotal = Object.values(this.spendingOrders).reduce((sum, val) => sum + val, 0);
+    const currentTotal = Object.values(this.spendingOrders).reduce(
+      (sum, val) => sum + val,
+      0
+    );
 
     // If total exceeds available, we need to constrain the inputs
     if (currentTotal > available)
@@ -277,13 +280,15 @@ export class IndustryDialog
     }
 
     // Update max values for all inputs
-    const remaining = available - Object.values(this.spendingOrders).reduce((sum, val) => sum + val, 0);
-    
+    const remaining =
+      available -
+      Object.values(this.spendingOrders).reduce((sum, val) => sum + val, 0);
+
     for (const [key, controls] of Object.entries(this.spendingControls))
     {
       const currentValue = this.spendingOrders[key];
       const maxForThisInput = currentValue + remaining;
-      
+
       controls.slider.max = maxForThisInput;
       controls.numberInput.max = maxForThisInput;
     }
@@ -296,7 +301,10 @@ export class IndustryDialog
   {
     if (!this.totalSpendingElement) return;
 
-    const total = Object.values(this.spendingOrders).reduce((sum, val) => sum + val, 0);
+    const total = Object.values(this.spendingOrders).reduce(
+      (sum, val) => sum + val,
+      0
+    );
     this.totalSpendingElement.textContent = total;
   }
 
@@ -316,14 +324,19 @@ export class IndustryDialog
       expand: this.spendingOrders.expand,
       research: this.spendingOrders.research,
       build: this.spendingOrders.build,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     // Save the order to memory
     this.savedOrders.set(starId, orderData);
 
-    console.log('🏭 IndustryDialog: Order submitted for star', starId, ':', orderData);
-    
+    console.log(
+      '🏭 IndustryDialog: Order submitted for star',
+      starId,
+      ':',
+      orderData
+    );
+
     // Show confirmation (optional - could be a toast notification)
     this.showOrderConfirmation();
   }
@@ -361,9 +374,9 @@ export class IndustryDialog
       this.spendingOrders = {
         expand: savedOrder.expand,
         research: savedOrder.research,
-        build: savedOrder.build
+        build: savedOrder.build,
       };
-      
+
       // Update the UI controls
       if (this.spendingControls)
       {
@@ -374,8 +387,13 @@ export class IndustryDialog
           controls.numberInput.value = value;
         }
       }
-      
-      console.log('🏭 IndustryDialog: Loaded saved orders for star', starId, ':', this.spendingOrders);
+
+      console.log(
+        '🏭 IndustryDialog: Loaded saved orders for star',
+        starId,
+        ':',
+        this.spendingOrders
+      );
       return true;
     }
     return false;
@@ -386,7 +404,7 @@ export class IndustryDialog
    */
   setupDragHandlers(header)
   {
-    header.addEventListener('mousedown', (e) =>
+    header.addEventListener('mousedown', e =>
     {
       this.isDragging = true;
       const rect = this.dialog.getBoundingClientRect();
@@ -395,20 +413,20 @@ export class IndustryDialog
       e.preventDefault();
     });
 
-    document.addEventListener('mousemove', (e) =>
+    document.addEventListener('mousemove', e =>
     {
       if (this.isDragging)
       {
         const x = e.clientX - this.dragOffset.x;
         const y = e.clientY - this.dragOffset.y;
-        
+
         // Keep dialog within viewport bounds
         const maxX = window.innerWidth - this.dialog.offsetWidth;
         const maxY = window.innerHeight - this.dialog.offsetHeight;
-        
+
         const clampedX = Math.max(0, Math.min(x, maxX));
         const clampedY = Math.max(0, Math.min(y, maxY));
-        
+
         this.dialog.style.left = clampedX + 'px';
         this.dialog.style.top = clampedY + 'px';
         this.dialog.style.transform = 'none';
@@ -441,11 +459,11 @@ export class IndustryDialog
 
     // Try to load saved orders for this star
     const hasSavedOrders = this.loadSavedOrders(star.id);
-    
+
     // If no saved orders, reset to defaults
     if (!hasSavedOrders)
     {
-      this.spendingOrders = { expand: 0, research: 0, build: 0 };
+      this.spendingOrders = {expand: 0, research: 0, build: 0};
       if (this.spendingControls)
       {
         for (const [key, controls] of Object.entries(this.spendingControls))
@@ -461,7 +479,12 @@ export class IndustryDialog
     this.updateSpendingConstraints();
     this.updateTotalSpending();
 
-    console.log('🏭 IndustryDialog: Opened for star:', star.getName(), hasSavedOrders ? '(with saved orders)' : '(new orders)');
+    console.log(
+      '🏭 IndustryDialog: Opened for star:',
+      star.getName(),
+      hasSavedOrders ? '(with saved orders)' : '(new orders)',
+      star
+    );
   }
 
   /**
@@ -481,14 +504,17 @@ export class IndustryDialog
     {
       const resourceValue = this.currentStar.getResourceValue() || 0;
       resourceElement.textContent = resourceValue;
-      console.log('🏭 IndustryDialog: Resource value from star:', resourceValue);
+      console.log(
+        '🏭 IndustryDialog: Resource value from star:',
+        resourceValue
+      );
     }
 
     // Update economy values if star has economy
     if (this.currentStar.economy)
     {
       const economy = this.currentStar.economy;
-      
+
       // Update capacity
       const capacityElement = this.dialog.querySelector('.value-capacity');
       if (capacityElement)
@@ -515,10 +541,10 @@ export class IndustryDialog
       // Set default values if no economy
       const capacityElement = this.dialog.querySelector('.value-capacity');
       if (capacityElement) capacityElement.textContent = '0';
-      
+
       const availableElement = this.dialog.querySelector('.value-available');
       if (availableElement) availableElement.textContent = '0';
-      
+
       const techLevelElement = this.dialog.querySelector('.value-techLevel');
       if (techLevelElement) techLevelElement.textContent = '0';
     }
@@ -534,10 +560,10 @@ export class IndustryDialog
   {
     this.isVisible = false;
     this.currentStar = null;
-    
+
     // Reset spending orders
-    this.spendingOrders = { expand: 0, research: 0, build: 0 };
-    
+    this.spendingOrders = {expand: 0, research: 0, build: 0};
+
     this.dialog.style.display = 'none';
     console.log('🏭 IndustryDialog: Closed');
   }
@@ -593,8 +619,8 @@ export class IndustryDialog
     {
       this.dialog.parentNode.removeChild(this.dialog);
     }
-    
+
     // Clear saved orders on dispose
     this.clearAllSavedOrders();
   }
-} 
+}

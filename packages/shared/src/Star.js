@@ -1,4 +1,4 @@
-import { Economy } from './Economy.js';
+import {Economy} from './Economy.js';
 
 /**
  * Star - Represents a star system in the game
@@ -31,7 +31,7 @@ export class Star
 
     this.owner = null; // Will be set after stars are created
     this.color = '#cccccc'; // Default color
-    
+
     // Initialize ships array to store Ship objects (not IDs)
     this.ships = [];
   }
@@ -75,8 +75,6 @@ export class Star
     return this.data.name !== null && this.data.name.trim().length > 0;
   }
 
-
-
   /**
    * Get star position
    * @returns {Object} Position object {x, y, z}
@@ -86,7 +84,7 @@ export class Star
     return {
       x: this.data.pos_x,
       y: this.data.pos_y,
-      z: this.data.pos_z
+      z: this.data.pos_z,
     };
   }
 
@@ -136,7 +134,7 @@ export class Star
    */
   getSector()
   {
-    return { ...this.data.sector };
+    return {...this.data.sector};
   }
 
   /**
@@ -146,7 +144,7 @@ export class Star
    */
   setSector(row, col)
   {
-    this.data.sector = { row, col };
+    this.data.sector = {row, col};
   }
 
   /**
@@ -213,8 +211,7 @@ export class Star
   assignOwner(owner)
   {
     this.owner = owner;
-    if (owner.color_hex)
-      this.color = owner.color_hex;
+    if (owner.color_hex) this.color = owner.color_hex;
   }
 
   /**
@@ -255,26 +252,6 @@ export class Star
     return this.data.economy !== null;
   }
 
-  /**
-   * Create economy data
-   * @param {Object} economyOptions - Economy options
-   * @returns {Object} Created economy data
-   */
-  createEconomy(economyOptions = {})
-  {
-    if (!this.data.economy)
-      this.data.economy = new Economy(economyOptions).getData();
-    return this.data.economy;
-  }
-
-  /**
-   * Remove economy
-   */
-  removeEconomy()
-  {
-    this.data.economy = null;
-  }
-
   // ===== SHIP MANAGEMENT METHODS =====
 
   /**
@@ -301,8 +278,7 @@ export class Star
    */
   addShip(ship)
   {
-    if (ship && !this.ships.includes(ship))
-      this.ships.push(ship);
+    if (ship && !this.ships.includes(ship)) this.ships.push(ship);
   }
 
   /**
@@ -312,8 +288,7 @@ export class Star
   removeShip(ship)
   {
     const index = this.ships.indexOf(ship);
-    if (index !== -1)
-      this.ships.splice(index, 1);
+    if (index !== -1) this.ships.splice(index, 1);
   }
 
   /**
@@ -352,8 +327,7 @@ export class Star
     {
       ships.forEach(ship =>
       {
-        if (ship && !this.ships.includes(ship))
-          this.ships.push(ship);
+        if (ship && !this.ships.includes(ship)) this.ships.push(ship);
       });
     }
   }
@@ -412,11 +386,13 @@ export class Star
    */
   addConnectedStar(starId)
   {
-    if (starId && starId !== this.data.star_id && !this.data.connectedStarIds.includes(starId))
+    if (
+      starId &&
+      starId !== this.data.star_id &&
+      !this.data.connectedStarIds.includes(starId)
+    )
       this.data.connectedStarIds.push(starId);
   }
-
-
 
   // ===== UTILITY METHODS =====
 
@@ -451,7 +427,7 @@ export class Star
       connectionCount: this.data.connectedStarIds.length,
       shipCount: this.getShipCount(),
       hasEconomy: this.hasEconomy(),
-      economy: this.data.economy
+      economy: this.data.economy,
     };
   }
 
@@ -461,7 +437,7 @@ export class Star
    */
   clone()
   {
-    return new Star({ ...this.data });
+    return new Star({...this.data});
   }
 
   /**
@@ -472,4 +448,4 @@ export class Star
   {
     return this.data;
   }
-} 
+}
