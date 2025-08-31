@@ -145,7 +145,7 @@ export class MapFactory {
         
         if (!tooClose) {
           // Generate a random resource value for this star
-          const resourceValue = this.seededRandom.nextInt(0, 100);
+          const resourceValue = this.seededRandom.nextInt(0, 10);
           
           const star = new Star({
             star_id: this.nextStarId++,

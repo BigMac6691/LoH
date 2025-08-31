@@ -50,6 +50,10 @@ export class RadialMenu {
     this.industryDialog = new IndustryDialog();
     this.moveDialog = new MoveDialog();
     
+    // Game context
+    this.gameId = null;
+    this.playerId = null;
+    
     // Set up event listeners
     this.setupEventListeners();
     
@@ -250,6 +254,10 @@ export class RadialMenu {
           
           // Handle specific actions
           if (config.action === 'industry') {
+            // Set game context before showing dialog
+            if (this.gameId && this.playerId) {
+              this.industryDialog.setGameContext(this.gameId, this.playerId);
+            }
             this.industryDialog.show(star);
           } else if (config.action === 'move') {
             this.moveDialog.show(star);
@@ -333,6 +341,18 @@ export class RadialMenu {
       const projectedRadius = this.getProjectedRadius(this.currentStar.mesh, this.currentWorldPosition, this.camera, this.canvas);
       this.dynamicMenuRadius = projectedRadius + 30; // 30 pixels beyond star edge
     }
+  }
+
+  /**
+   * Set game context for dialogs
+   * @param {string} gameId - Game ID
+   * @param {string} playerId - Player ID
+   */
+  setGameContext(gameId, playerId)
+  {
+    this.gameId = gameId;
+    this.playerId = playerId;
+    console.log('🎯 RadialMenu: Game context set:', { gameId, playerId });
   }
 
   /**

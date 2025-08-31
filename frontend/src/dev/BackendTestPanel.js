@@ -423,13 +423,15 @@ export class BackendTestPanel
     statusDiv.innerHTML = `<span class="status-success">✅ Game state loaded! Stars: ${stateData.counts.stars}, Edges: ${stateData.counts.wormholes}</span>`;
 
     // Render the game state
-    await this.renderGameState(stateData);
+    await this.renderGameState(stateData, gameId);
   }
 
   /**
    * Render the game state from backend data
+   * @param {Object} stateData - Game state data
+   * @param {string} gameId - Game ID
    */
-  async renderGameState(stateData)
+  async renderGameState(stateData, gameId)
   {
     console.log('Rendering game state from backend:', stateData);
 
@@ -474,7 +476,7 @@ export class BackendTestPanel
           if (starState.economy)
           {
             const economy = new Economy(starState.economy);
-            star.setEconomy(economy.getData());
+            star.setEconomy(economy);
           }
         }
         else
@@ -521,6 +523,16 @@ export class BackendTestPanel
     {
       if (star.hasShips()) this.mapGenerator.updateFleetIconForStar(star);
     });
+
+    // Set game context in RadialMenu for order persistence
+    if (this.mapGenerator.radialMenu && stateData.players && stateData.players.length > 0)
+    {
+      // Use the first player as the current player for now
+      // In a real implementation, this would be the logged-in user
+      const currentPlayer = stateData.players[0];
+      this.mapGenerator.radialMenu.setGameContext(gameId, currentPlayer.id);
+      console.log('🎯 BackendTestPanel: Set game context for RadialMenu:', { gameId, playerId: currentPlayer.id });
+    }
 
     console.log('✅ Game state rendered from backend data using MapModel');
   }

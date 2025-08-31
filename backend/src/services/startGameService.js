@@ -82,9 +82,9 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
         // Pick a random star from this sector
         const star = sector.stars[Math.floor(Math.random() * sector.stars.length)];
         
-        // Update the star's resource value to 100 for fairness
+        // Update the star's resource value to 10 for fairness
         await client.query(
-          `UPDATE star SET resource = 100 WHERE game_id = $1 AND star_id = $2`,
+          `UPDATE star SET resource = 10 WHERE game_id = $1 AND star_id = $2`,
           [game.id, star.getId()]
         );
         
@@ -92,7 +92,7 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
           gameId: game.id,
           starId: star.getId(),
           ownerPlayer: pl.id,
-          economy: { industry: 100, available: 100, technology: 100 },
+          economy: { industry: 10, available: 10, technology: 3 },
           damage: {}
         }, client);
 
@@ -101,9 +101,9 @@ export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, de
           gameId: game.id,
           ownerPlayer: pl.id,
           locationStarId: star.getId(),
-          hp: 100,
-          power: 10 - i, // deterministic variance
-          details: { seed }
+          hp: 3,
+          power: 3, // deterministic variance
+          details: {}
         }, client);
       }
     }

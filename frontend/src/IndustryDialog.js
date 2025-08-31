@@ -18,8 +18,9 @@ export class IndustryDialog
       build: 0,
     };
 
-    // In-memory storage for saved orders per star
-    this.savedOrders = new Map(); // starId -> spendingOrders
+    // Game context for backend communication
+    this.gameId = null;
+    this.playerId = null;
 
     this.createDialog();
   }
@@ -165,9 +166,9 @@ export class IndustryDialog
     submitButton.className = 'dialog-btn';
 
     // Click handler
-    submitButton.addEventListener('click', () =>
+    submitButton.addEventListener('click', async () =>
     {
-      this.submitOrder();
+      await this.submitOrder();
     });
 
     section.appendChild(submitButton);
@@ -311,7 +312,7 @@ export class IndustryDialog
   /**
    * Submit the current spending order
    */
-  submitOrder()
+  async submitOrder()
   {
     if (!this.currentStar)
     {
@@ -319,26 +320,60 @@ export class IndustryDialog
       return;
     }
 
-    const starId = this.currentStar.id;
+    if (!this.gameId || !this.playerId)
+    {
+      console.error('IndustryDialog: Game context not set. Call setGameContext() first.');
+      return;
+    }
+
+    const starId = this.currentStar.getId();
     const orderData = {
       expand: this.spendingOrders.expand,
       research: this.spendingOrders.research,
       build: this.spendingOrders.build,
-      timestamp: Date.now(),
+      timestamp: Date.now()
     };
 
-    // Save the order to memory
-    this.savedOrders.set(starId, orderData);
+    try
+    {
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gameId: this.gameId,
+          starId: starId,
+          playerId: this.playerId,
+          orderType: 'build',
+          payload: orderData
+        }),
+      });
 
-    console.log(
-      '🏭 IndustryDialog: Order submitted for star',
-      starId,
-      ':',
-      orderData
-    );
+      if (!response.ok)
+      {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to submit order');
+      }
 
-    // Show confirmation (optional - could be a toast notification)
-    this.showOrderConfirmation();
+      const result = await response.json();
+      console.log(
+        '🏭 IndustryDialog: Order submitted for star',
+        starId,
+        ':',
+        orderData,
+        'Result:',
+        result
+      );
+
+      // Show confirmation
+      this.showOrderConfirmation();
+    }
+    catch (error)
+    {
+      console.error('🏭 IndustryDialog: Error submitting order:', error);
+      this.showOrderError(error.message);
+    }
   }
 
   /**
@@ -364,39 +399,89 @@ export class IndustryDialog
   }
 
   /**
+   * Show order error feedback
+   */
+  showOrderError(message)
+  {
+    // Create a temporary error message
+    const error = document.createElement('div');
+    error.textContent = `Error: ${message}`;
+    error.className = 'confirmation-message error';
+
+    document.body.appendChild(error);
+
+    // Remove after 3 seconds
+    setTimeout(() =>
+    {
+      if (error.parentNode)
+      {
+        error.parentNode.removeChild(error);
+      }
+    }, 3000);
+  }
+
+  /**
    * Load saved orders for a star
    */
-  loadSavedOrders(starId)
+  async loadSavedOrders(starId)
   {
-    const savedOrder = this.savedOrders.get(starId);
-    if (savedOrder)
+    if (!this.gameId || !this.playerId)
     {
-      this.spendingOrders = {
-        expand: savedOrder.expand,
-        research: savedOrder.research,
-        build: savedOrder.build,
-      };
+      console.error('IndustryDialog: Game context not set. Call setGameContext() first.');
+      return false;
+    }
 
-      // Update the UI controls
-      if (this.spendingControls)
+    try
+    {
+      const response = await fetch(`/api/orders/star/${starId}?gameId=${this.gameId}&playerId=${this.playerId}`);
+      
+      if (!response.ok)
       {
-        for (const [key, controls] of Object.entries(this.spendingControls))
-        {
-          const value = this.spendingOrders[key];
-          controls.slider.value = value;
-          controls.numberInput.value = value;
-        }
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to load orders');
       }
 
-      console.log(
-        '🏭 IndustryDialog: Loaded saved orders for star',
-        starId,
-        ':',
-        this.spendingOrders
-      );
-      return true;
+      const result = await response.json();
+      const orders = result.orders;
+
+      if (orders && orders.length > 0)
+      {
+        // Get the latest order (first in the array since they're ordered by created_at DESC)
+        const latestOrder = orders[0];
+        const payload = latestOrder.payload;
+
+        this.spendingOrders = {
+          expand: payload.expand || 0,
+          research: payload.research || 0,
+          build: payload.build || 0,
+        };
+
+        // Update the UI controls
+        if (this.spendingControls)
+        {
+          for (const [key, controls] of Object.entries(this.spendingControls))
+          {
+            const value = this.spendingOrders[key];
+            controls.slider.value = value;
+            controls.numberInput.value = value;
+          }
+        }
+
+        console.log(
+          '🏭 IndustryDialog: Loaded saved orders for star',
+          starId,
+          ':',
+          this.spendingOrders
+        );
+        return true;
+      }
+      return false;
     }
-    return false;
+    catch (error)
+    {
+      console.error('🏭 IndustryDialog: Error loading orders:', error);
+      return false;
+    }
   }
 
   /**
@@ -440,9 +525,21 @@ export class IndustryDialog
   }
 
   /**
+   * Set game context for backend communication
+   * @param {string} gameId - Game ID
+   * @param {string} playerId - Player ID
+   */
+  setGameContext(gameId, playerId)
+  {
+    this.gameId = gameId;
+    this.playerId = playerId;
+    console.log('🏭 IndustryDialog: Game context set:', { gameId, playerId });
+  }
+
+  /**
    * Show the dialog for a specific star
    */
-  show(star)
+  async show(star)
   {
     if (!star)
     {
@@ -458,7 +555,7 @@ export class IndustryDialog
     this.starNameElement.textContent = star.getName();
 
     // Try to load saved orders for this star
-    const hasSavedOrders = this.loadSavedOrders(star.id);
+    const hasSavedOrders = await this.loadSavedOrders(star.getId());
 
     // If no saved orders, reset to defaults
     if (!hasSavedOrders)

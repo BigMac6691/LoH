@@ -9,11 +9,11 @@ export class Economy {
    * @param {number} options.techLevel - Initial technology level (default: 0)
    */
   constructor(options = {}) {
-    this.techLevel = options.technology || 0;
+    this.techLevel = options.technology;
     
     // Economic capacity and availability
-    this.capacity = options.capacity || 100;
-    this.available = options.available || 100;
+    this.capacity = options.industry;
+    this.available = options.available;
   }
 
   /**

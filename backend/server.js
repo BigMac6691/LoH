@@ -4,6 +4,7 @@ import cors from 'cors';
 import { randomUUID } from 'crypto';
 import { pool } from './src/db/pool.js';
 import { GameRouter } from './src/routes/GameRouter.js';
+import { OrdersRouter } from './src/routes/OrdersRouter.js';
 
 const app = express();
 app.use(cors());
@@ -23,7 +24,9 @@ app.get('/api/health', async (_req, res) => {
 
 // Production routes
 const gameRouter = new GameRouter();
+const ordersRouter = new OrdersRouter();
 app.use('/api/games', gameRouter.getRouter());
+app.use('/api/orders', ordersRouter.getRouter());
 
 // DEV-only routes (for backward compatibility during transition)
 if (process.env.NODE_ENV !== 'production') {
