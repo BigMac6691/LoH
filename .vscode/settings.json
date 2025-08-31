@@ -1,43 +1,9 @@
 {
-  "editor.formatOnSave": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": false,
   "editor.formatOnPaste": false,
   "editor.formatOnType": false,
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "never"
-  },
-  "prettier.bracketSameLine": false,
-  "prettier.bracketSpacing": false,
-  "prettier.singleQuote": true,
-  "prettier.trailingComma": "es5",
-  "prettier.printWidth": 80,
-  "prettier.tabWidth": 2,
-  "prettier.useTabs": false,
-  "prettier.semi": true,
-  "prettier.arrowParens": "avoid",
-  "prettier.endOfLine": "lf",
-  "prettier.quoteProps": "as-needed",
-  "prettier.jsxSingleQuote": false,
-  "prettier.proseWrap": "preserve",
-  "prettier.htmlWhitespaceSensitivity": "css",
-  "prettier.vueIndentScriptAndStyle": false,
-  "prettier.embeddedLanguageFormatting": "auto",
-  "prettier.singleAttributePerLine": false,
-  "[javascript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnSave": true
-  },
-  "[javascriptreact]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnSave": true
-  },
-  "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnSave": true
-  },
-  "[typescriptreact]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnSave": true
   },
   "files.watcherExclude": {
     "**/node_modules/**": true,

@@ -14,15 +14,15 @@ export class BackendTestPanel
     this.panel = null;
     this.isVisible = false;
     this.isDragging = false;
-    this.dragOffset = { x: 0, y: 0 };
+    this.dragOffset = {x: 0, y: 0};
     this.games = [];
-    
+
     this.createPanel();
     this.setupEventListeners();
     this.setupDragging();
     this.loadGames();
   }
-  
+
   /**
    * Create the backend test panel DOM element
    */
@@ -32,7 +32,7 @@ export class BackendTestPanel
     this.panel.id = 'backend-test-panel';
     this.panel.className = 'panel';
     this.panel.id = 'backend-test-panel';
-    
+
     this.panel.innerHTML = `
       <div class="backend-test-panel-header">
         🗄️ BACKEND TEST PANEL
@@ -125,10 +125,10 @@ export class BackendTestPanel
         Drag to move panel
       </div>
     `;
-    
+
     document.body.appendChild(this.panel);
   }
-  
+
   /**
    * Set up event listeners
    */
@@ -136,28 +136,28 @@ export class BackendTestPanel
   {
     // Form submission
     const form = this.panel.querySelector('#game-form');
-    form.addEventListener('submit', (e) =>
+    form.addEventListener('submit', e =>
     {
       e.preventDefault();
       this.startGame();
     });
-    
+
     // Game select dropdown
     const gameSelect = this.panel.querySelector('#game-select');
-    gameSelect.addEventListener('change', (e) =>
+    gameSelect.addEventListener('change', e =>
     {
       this.onGameSelect(e.target.value);
     });
-    
+
     // Toggle panel button
     const toggleBtn = this.panel.querySelector('#toggle-panel-btn');
     toggleBtn.addEventListener('click', () =>
     {
       this.toggle();
     });
-    
+
     // Keyboard shortcuts
-    document.addEventListener('keydown', (e) =>
+    document.addEventListener('keydown', e =>
     {
       if (e.key === 'b' || e.key === 'B')
       {
@@ -168,63 +168,67 @@ export class BackendTestPanel
         this.runMemoryTest();
       }
     });
-    
+
     // Dev tools buttons
     const memoryTestBtn = this.panel.querySelector('#memory-test-btn');
     const memoryLogBtn = this.panel.querySelector('#memory-log-btn');
     const moveOrdersBtn = this.panel.querySelector('#move-orders-btn');
-    
+
     memoryTestBtn.addEventListener('click', () =>
     {
       this.runMemoryTest();
     });
-    
+
     memoryLogBtn.addEventListener('click', () =>
     {
       this.logMemoryUsage();
     });
-    
+
     moveOrdersBtn.addEventListener('click', () =>
     {
       this.logMoveOrders();
     });
   }
-  
+
   /**
    * Set up dragging functionality
    */
   setupDragging()
   {
-    this.panel.addEventListener('mousedown', (e) =>
+    this.panel.addEventListener('mousedown', e =>
     {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT')
+      if (
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'BUTTON' ||
+        e.target.tagName === 'SELECT'
+      )
       {
         return; // Don't drag when clicking on form elements
       }
-      
+
       this.isDragging = true;
       const rect = this.panel.getBoundingClientRect();
       this.dragOffset.x = e.clientX - rect.left;
       this.dragOffset.y = e.clientY - rect.top;
       this.panel.style.cursor = 'grabbing';
     });
-    
-    document.addEventListener('mousemove', (e) =>
+
+    document.addEventListener('mousemove', e =>
     {
       if (!this.isDragging) return;
-      
+
       const x = e.clientX - this.dragOffset.x;
       const y = e.clientY - this.dragOffset.y;
-      
+
       // Keep panel within viewport bounds
       const maxX = window.innerWidth - this.panel.offsetWidth;
       const maxY = window.innerHeight - this.panel.offsetHeight;
-      
+
       this.panel.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
       this.panel.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
       this.panel.style.right = 'auto';
     });
-    
+
     document.addEventListener('mouseup', () =>
     {
       if (this.isDragging)
@@ -234,7 +238,7 @@ export class BackendTestPanel
       }
     });
   }
-  
+
   /**
    * Run memory test
    */
@@ -242,15 +246,17 @@ export class BackendTestPanel
   {
     console.log('🧪 Running memory test...');
     // Import and run the memory test
-    import('./MemoryTest.js').then(module =>
-    {
-      module.runMemoryTest();
-    }).catch(error =>
-    {
-      console.error('Failed to run memory test:', error);
-    });
+    import('./MemoryTest.js')
+      .then(module =>
+      {
+        module.runMemoryTest();
+      })
+      .catch(error =>
+      {
+        console.error('Failed to run memory test:', error);
+      });
   }
-  
+
   /**
    * Log memory usage
    */
@@ -258,15 +264,17 @@ export class BackendTestPanel
   {
     console.log('📊 Logging memory usage...');
     // Import and run the memory usage logging
-    import('./MemoryTest.js').then(module =>
-    {
-      module.logMemoryUsage();
-    }).catch(error =>
-    {
-      console.error('Failed to log memory usage:', error);
-    });
+    import('./MemoryTest.js')
+      .then(module =>
+      {
+        module.logMemoryUsage();
+      })
+      .catch(error =>
+      {
+        console.error('Failed to log memory usage:', error);
+      });
   }
-  
+
   /**
    * Start a new game or view existing game via backend API
    */
@@ -275,40 +283,59 @@ export class BackendTestPanel
     const statusDiv = this.panel.querySelector('#status');
     const gameSelect = this.panel.querySelector('#game-select');
     const selectedGameId = gameSelect.value;
-    
+
     try
     {
       if (!selectedGameId)
       {
         // Creating a new game
-        statusDiv.innerHTML = '<span class="status-loading">⏳ Starting game...</span>';
-        
+        statusDiv.innerHTML =
+          '<span class="status-loading">⏳ Starting game...</span>';
+
         // Get form values
         const title = this.panel.querySelector('#title-input').value;
-        const description = this.panel.querySelector('#description-input').value;
+        const description =
+          this.panel.querySelector('#description-input').value;
         const seed = this.panel.querySelector('#seed-input').value;
-        const mapSize = parseInt(this.panel.querySelector('#map-size-input').value);
-        const densityMin = parseInt(this.panel.querySelector('#density-min-input').value);
-        const densityMax = parseInt(this.panel.querySelector('#density-max-input').value);
+        const mapSize = parseInt(
+          this.panel.querySelector('#map-size-input').value
+        );
+        const densityMin = parseInt(
+          this.panel.querySelector('#density-min-input').value
+        );
+        const densityMax = parseInt(
+          this.panel.querySelector('#density-max-input').value
+        );
         const player1Name = this.panel.querySelector('#player1-name').value;
         const player1Color = this.panel.querySelector('#player1-color').value;
         const player2Name = this.panel.querySelector('#player2-name').value;
         const player2Color = this.panel.querySelector('#player2-color').value;
-        
+
         // Debug logging
-        console.log('Form values extracted:', { title, description, seed, mapSize, densityMin, densityMax, player1Name, player1Color, player2Name, player2Color });
-        
+        console.log('Form values extracted:', {
+          title,
+          description,
+          seed,
+          mapSize,
+          densityMin,
+          densityMax,
+          player1Name,
+          player1Color,
+          player2Name,
+          player2Color,
+        });
+
         // Validate inputs
         if (!title || !description || !seed || !player1Name || !player2Name)
         {
           throw new Error('Please fill in all required fields');
         }
-        
+
         if (densityMin > densityMax)
         {
           throw new Error('Density Min cannot be greater than Density Max');
         }
-        
+
         // Prepare request body
         const requestBody = {
           title,
@@ -317,56 +344,60 @@ export class BackendTestPanel
           mapSize,
           densityMin,
           densityMax,
-          ownerId: "a109d369-0df3-4e73-b262-62c793ad743f", // Using the same ownerId as GameRouter
+          ownerId: 'a109d369-0df3-4e73-b262-62c793ad743f', // Using the same ownerId as GameRouter
           players: [
-            { name: player1Name, colorHex: player1Color },
-            { name: player2Name, colorHex: player2Color }
-          ]
+            {name: player1Name, colorHex: player1Color},
+            {name: player2Name, colorHex: player2Color},
+          ],
         };
 
         console.log('requestBody', requestBody);
-        
-        statusDiv.innerHTML = '<span class="status-loading">⏳ Creating game...</span>';
-        
+
+        statusDiv.innerHTML =
+          '<span class="status-loading">⏳ Creating game...</span>';
+
         // POST to start game
         const startResponse = await fetch('/api/dev/start-game', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(requestBody)
+          body: JSON.stringify(requestBody),
         });
-        
+
         if (!startResponse.ok)
         {
           const errorData = await startResponse.json();
-          throw new Error(`Failed to start game: ${errorData.error || startResponse.statusText}`);
+          throw new Error(
+            `Failed to start game: ${errorData.error || startResponse.statusText}`
+          );
         }
-        
+
         const startData = await startResponse.json();
         statusDiv.innerHTML = `<span class="status-success">✅ Game created! ID: ${startData.gameId}</span>`;
-        
+
         // Reload games list and select the new game
         await this.loadGames();
         gameSelect.value = startData.gameId;
-        
+
         // Load and render the game state
         await this.loadAndRenderGameState(startData.gameId);
-        
-      } else
+      }
+      else
       {
         // Viewing an existing game
-        statusDiv.innerHTML = '<span class="status-loading">⏳ Loading game...</span>';
+        statusDiv.innerHTML =
+          '<span class="status-loading">⏳ Loading game...</span>';
         await this.loadAndRenderGameState(selectedGameId);
       }
-      
-    } catch (error)
+    }
+    catch (error)
     {
       console.error('Error with game:', error);
       statusDiv.innerHTML = `<span class="status-error">❌ Error: ${error.message}</span>`;
     }
   }
-  
+
   /**
    * Load and render game state for a given game ID
    * @param {string} gameId - Game ID to load
@@ -374,49 +405,57 @@ export class BackendTestPanel
   async loadAndRenderGameState(gameId)
   {
     const statusDiv = this.panel.querySelector('#status');
-    
-    statusDiv.innerHTML = '<span class="status-loading">⏳ Loading game state...</span>';
-    
+
+    statusDiv.innerHTML =
+      '<span class="status-loading">⏳ Loading game state...</span>';
+
     const stateResponse = await fetch(`/api/dev/state?gameId=${gameId}`);
-    
+
     if (!stateResponse.ok)
     {
       const errorData = await stateResponse.json();
-      throw new Error(`Failed to load game state: ${errorData.error || stateResponse.statusText}`);
+      throw new Error(
+        `Failed to load game state: ${errorData.error || stateResponse.statusText}`
+      );
     }
-    
+
     const stateData = await stateResponse.json();
     statusDiv.innerHTML = `<span class="status-success">✅ Game state loaded! Stars: ${stateData.counts.stars}, Edges: ${stateData.counts.wormholes}</span>`;
-    
+
     // Render the game state
     await this.renderGameState(stateData);
   }
-  
+
   /**
    * Render the game state from backend data
    */
   async renderGameState(stateData)
   {
     console.log('Rendering game state from backend:', stateData);
-    
+
     // Clear existing map
     this.mapGenerator.clearMap();
-    
-    // Create a MapModel instance and populate it with backend data
-    const { MapModel } = await import('@loh/shared');
+
+    // Import shared classes
+    const {MapModel, Ship, Economy} = await import('@loh/shared');
     const mapModel = new MapModel('backend-generated');
-    
+
     // Set stars in MapModel (this creates Star instances)
     mapModel.setStars(stateData.stars);
-    
+
     // Set wormholes in MapModel (this creates wormhole objects with Star references)
     mapModel.setWormholes(stateData.wormholes);
-    
+
     // Build sectors from the stars using the original map size
-    const originalMapSize = stateData.gameInfo ? stateData.gameInfo.map_size : null;
-    console.log('🔧 BackendTestPanel: Building sectors with original map size:', originalMapSize);
+    const originalMapSize = stateData.gameInfo
+      ? stateData.gameInfo.map_size
+      : null;
+    console.log(
+      '🔧 BackendTestPanel: Building sectors with original map size:',
+      originalMapSize
+    );
     mapModel.buildSectors(originalMapSize);
-    
+
     // Apply ownership from starStates and set correct player colors
     stateData.starStates.forEach(starState =>
     {
@@ -424,63 +463,68 @@ export class BackendTestPanel
       if (star)
       {
         // Find the player who owns this star and set the correct color
-        const ownerPlayer = stateData.players.find(p => p.id === starState.owner_player);
+        const ownerPlayer = stateData.players.find(
+          p => p.id === starState.owner_player
+        );
         if (ownerPlayer)
-          star.assignOwner(ownerPlayer);
-        else
         {
-          star.setColor('#000000'); // Fallback to black if player not found, want it to stand out
-          console.error('Owning player not found:', starState.owner_player);
+          star.assignOwner(ownerPlayer);
+          
+          // Create economy if starState has economy data
+          if (starState.economy)
+          {
+            const economy = new Economy(starState.economy);
+            star.setEconomy(economy.getData());
+          }
         }
+        else
+          throw new Error('Owning player not found:', starState.owner_player);
+      }
+      else 
+        throw new Error('Star not found:', starState.star_id);
+    });
+
+    for (const shipData of stateData.ships)
+    {
+      const star = mapModel.getStarById(shipData.location_star_id);
+      if (star)
+      {
+        // Create Ship instance from backend data
+        const ship = new Ship({
+          id: shipData.id,
+          power: shipData.power,
+          damage: shipData.damage,
+          owner:
+            stateData.players.find(p => p.id === shipData.owner_player) || null,
+          location: star,
+        });
+
+        // Add ship if not already present
+        if (!star.hasShip(ship)) star.addShip(ship);
       }
       else
-        console.error('Star not found:', starState.star_id);
-    });
-    
-         // Add ships to stars based on ships data
-     const { Ship } = await import('@loh/shared');
-     for (const shipData of stateData.ships)
-     {
-       const star = mapModel.getStarById(shipData.location_star_id);
-       if (star)
-       {
-         // Create Ship instance from backend data
-         const ship = new Ship({
-           id: shipData.id,
-           power: shipData.power,
-           damage: shipData.damage,
-           owner: stateData.players.find(p => p.id === shipData.owner_player) || null,
-           location: star
-         });
-         
-         // Add ship if not already present
-         if (!star.hasShip(ship))
-           star.addShip(ship);
-       }
-       else
-         console.error('Star not found for ship:', shipData.location_star_id);
-     }
-    
+        console.error('Star not found for ship:', shipData.location_star_id);
+    }
+
     // Generate map with the MapModel instance
     await this.mapGenerator.generateMapFromModel(mapModel);
-    
+
     // Update camera to fit the map
     this.mapGenerator.positionCameraToFitMap();
-    
+
     // Update star colors to show ownership
     this.mapGenerator.updateStarColors([]);
-    
+
     // Update fleet icons for stars with ships
     const starList = this.mapGenerator.getStars();
     starList.forEach(star =>
     {
-      if (star.hasShips())
-        this.mapGenerator.updateFleetIconForStar(star);
+      if (star.hasShips()) this.mapGenerator.updateFleetIconForStar(star);
     });
-    
+
     console.log('✅ Game state rendered from backend data using MapModel');
   }
-  
+
   /**
    * Show the panel
    */
@@ -489,7 +533,7 @@ export class BackendTestPanel
     this.panel.style.display = 'block';
     this.isVisible = true;
   }
-  
+
   /**
    * Hide the panel
    */
@@ -498,7 +542,7 @@ export class BackendTestPanel
     this.panel.style.display = 'none';
     this.isVisible = false;
   }
-  
+
   /**
    * Toggle panel visibility
    */
@@ -507,12 +551,13 @@ export class BackendTestPanel
     if (this.isVisible)
     {
       this.hide();
-    } else
+    }
+    else
     {
       this.show();
     }
   }
-  
+
   /**
    * Clean up the panel
    */
@@ -536,25 +581,26 @@ export class BackendTestPanel
       {
         throw new Error(`Failed to load games: ${response.statusText}`);
       }
-      
+
       this.games = await response.json();
       this.populateGameSelect();
-    } catch (error)
+    }
+    catch (error)
     {
       console.error('Error loading games:', error);
     }
   }
-  
+
   /**
    * Populate the game select dropdown
    */
   populateGameSelect()
   {
     const gameSelect = this.panel.querySelector('#game-select');
-    
+
     // Clear existing options except the first one
     gameSelect.innerHTML = '<option value="">CREATE NEW</option>';
-    
+
     // Add games to the dropdown
     this.games.forEach(game =>
     {
@@ -564,7 +610,7 @@ export class BackendTestPanel
       gameSelect.appendChild(option);
     });
   }
-  
+
   /**
    * Handle game selection from dropdown
    * @param {string} gameId - Selected game ID or empty string for "CREATE NEW"
@@ -578,7 +624,7 @@ export class BackendTestPanel
       this.enableForm();
       return;
     }
-    
+
     // Find the selected game
     const selectedGame = this.games.find(game => game.id === gameId);
     if (!selectedGame)
@@ -586,19 +632,20 @@ export class BackendTestPanel
       console.error('Selected game not found:', gameId);
       return;
     }
-    
+
     // Populate form with game data
     this.populateForm(selectedGame);
     this.disableForm();
   }
-  
+
   /**
    * Clear the form
    */
   clearForm()
   {
     this.panel.querySelector('#title-input').value = 'Test Game';
-    this.panel.querySelector('#description-input').value = 'A test game for development';
+    this.panel.querySelector('#description-input').value =
+      'A test game for development';
     this.panel.querySelector('#seed-input').value = '12345';
     this.panel.querySelector('#map-size-input').value = '5';
     this.panel.querySelector('#density-min-input').value = '3';
@@ -608,7 +655,7 @@ export class BackendTestPanel
     this.panel.querySelector('#player2-name').value = 'Blue Player';
     this.panel.querySelector('#player2-color').value = '#0000ff';
   }
-  
+
   /**
    * Populate form with game data
    * @param {Object} game - Game object
@@ -622,7 +669,7 @@ export class BackendTestPanel
     this.panel.querySelector('#density-min-input').value = game.density_min;
     this.panel.querySelector('#density-max-input').value = game.density_max;
   }
-  
+
   /**
    * Enable form inputs
    */
@@ -635,7 +682,7 @@ export class BackendTestPanel
     });
     this.panel.querySelector('#start-game-btn').textContent = '🚀 START GAME';
   }
-  
+
   /**
    * Disable form inputs (when viewing existing game)
    */

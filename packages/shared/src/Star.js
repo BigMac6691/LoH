@@ -20,9 +20,10 @@ export class Star
    * @param {number} data.resource - Natural resource abundance (0-100)
    * @param {string|null} data.owner - Player ID who owns this star (optional)
    * @param {string} data.color - Visual color of the star (default: light gray)
-   * @param {Object|null} data.economy - Economy data object (optional)
    * @param {Array} data.ships - Array of ship IDs at this star (optional)
    * @param {Array} data.connectedStarIds - Array of connected star IDs (optional)
+   * 
+   * Note: Economy is handled separately via setEconomy() method, not stored in data object
    */
   constructor(data)
   {
@@ -31,6 +32,7 @@ export class Star
 
     this.owner = null; // Will be set after stars are created
     this.color = '#cccccc'; // Default color
+    this.economy = null; // Separate economy instance
 
     // Initialize ships array to store Ship objects (not IDs)
     this.ships = [];
@@ -231,7 +233,7 @@ export class Star
    */
   getEconomy()
   {
-    return this.data.economy;
+    return this.economy;
   }
 
   /**
@@ -240,7 +242,7 @@ export class Star
    */
   setEconomy(economyData)
   {
-    this.data.economy = economyData;
+    this.economy = economyData;
   }
 
   /**
@@ -249,7 +251,7 @@ export class Star
    */
   hasEconomy()
   {
-    return this.data.economy !== null;
+    return this.economy !== null;
   }
 
   // ===== SHIP MANAGEMENT METHODS =====
@@ -427,7 +429,7 @@ export class Star
       connectionCount: this.data.connectedStarIds.length,
       shipCount: this.getShipCount(),
       hasEconomy: this.hasEconomy(),
-      economy: this.data.economy,
+      economy: this.economy,
     };
   }
 

@@ -9,38 +9,11 @@ export class Economy {
    * @param {number} options.techLevel - Initial technology level (default: 0)
    */
   constructor(options = {}) {
-    this.techLevel = options.techLevel || 0;
+    this.techLevel = options.technology || 0;
     
     // Economic capacity and availability
     this.capacity = options.capacity || 100;
     this.available = options.available || 100;
-    
-    // Future expansion properties
-    this.tradeValue = 0;
-    this.infrastructureValue = 0;
-    this.productionCapacity = 0;
-  }
-
-  /**
-   * Invest resources to increase capacity
-   * @param {number} amount - Amount to invest
-   * @returns {number} New capacity after investment
-   */
-  invest(amount) {
-    if (amount <= 0) {
-      throw new Error('Investment amount must be positive');
-    }
-    
-    this.capacity += amount;
-    return this.capacity;
-  }
-
-  /**
-   * Get the total economic value (sum of all economic metrics)
-   * @returns {number} Total economic value
-   */
-  getTotalValue() {
-    return this.capacity + this.techLevel + this.tradeValue + this.infrastructureValue + this.productionCapacity;
   }
 
   /**
@@ -51,24 +24,8 @@ export class Economy {
     return {
       techLevel: this.techLevel,
       capacity: this.capacity,
-      available: this.available,
-      tradeValue: this.tradeValue,
-      infrastructureValue: this.infrastructureValue,
-      productionCapacity: this.productionCapacity,
-      totalValue: this.getTotalValue()
+      available: this.available
     };
-  }
-
-  /**
-   * Reset the economy to initial state
-   */
-  reset() {
-    this.techLevel = 0;
-    this.capacity = 100;
-    this.available = 100;
-    this.tradeValue = 0;
-    this.infrastructureValue = 0;
-    this.productionCapacity = 0;
   }
 
   /**
@@ -91,10 +48,7 @@ export class Economy {
     return {
       techLevel: this.techLevel,
       capacity: this.capacity,
-      available: this.available,
-      tradeValue: this.tradeValue,
-      infrastructureValue: this.infrastructureValue,
-      productionCapacity: this.productionCapacity
+      available: this.available
     };
   }
 } 
