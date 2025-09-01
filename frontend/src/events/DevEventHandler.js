@@ -2,7 +2,7 @@
  * Development Event Handler - Manages development-specific events
  * Handles scenario loading, testing, and other development workflows
  */
-import { eventBus } from './eventBus.js';
+import { eventBus } from '../eventBus.js';
 
 export class DevEventHandler {
   constructor() {

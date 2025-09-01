@@ -171,18 +171,20 @@ export class RadialMenu {
 
   /**
    * Handle star hover event
+   * @param {Object} context - Current system context
    * @param {Object} data - Event data containing star and position
    */
-  onStarHover(data) {
+  onStarHover(context, data) {
     const starName = data.star.getName ? data.star.getName() : `Star ${data.star.id}`;
     this.show(data.position, data.star);
   }
 
   /**
    * Handle star unhover event
+   * @param {Object} context - Current system context
    * @param {Object} data - Event data containing star
    */
-  onStarUnhover(data) {
+  onStarUnhover(context, data) {
     // Only hide if the unhovered star is the one we're showing for
     if (this.currentStar === data.star) {
       this.hide();

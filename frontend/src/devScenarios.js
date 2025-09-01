@@ -96,9 +96,10 @@ export function setupDevModeEventListeners(playerManager)
   console.log('🔧 DEV MODE: Setting up event listeners...');
 
   // Listen for map ready event
-  eventBus.once('map:ready', mapModel =>
+  eventBus.once('map:ready', (context, mapModel) =>
   {
     console.log('🔧 DEV MODE: Map ready, generating test players...', mapModel);
+    console.log('🔧 DEV MODE: Context:', context);
 
     // Get the actual MapModel instance from the mapGenerator
     const mapModelInstance = window.mapGenerator?.mapModelInstance;
@@ -117,9 +118,10 @@ export function setupDevModeEventListeners(playerManager)
   });
 
   // Listen for players ready event
-  eventBus.once('players:ready', players =>
+  eventBus.once('players:ready', (context, players) =>
   {
     console.log('🔧 DEV MODE: Players ready, starting game...');
+    console.log('🔧 DEV MODE: Context:', context);
 
     // Emit game start event
     eventBus.emit('game:start', players);
@@ -143,7 +145,7 @@ export function autoStartDevMode()
 
   // Note: Map generation is now handled by backend only
   console.log(
-    '🔧 DEV MODE: Map generation moved to backend - use BackendTestPanel to create games'
+    '🔧 DEV MODE: Map generation moved to backend - use DevPanel to create games'
   );
 }
 

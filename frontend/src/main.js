@@ -7,10 +7,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DEV_MODE, autoStartDevMode, logDevModeStatus, setupDevModeEventListeners } from './devScenarios.js';
 import { eventBus } from './eventBus.js';
 import { assetManager } from './engine/AssetManager.js';
-import { SystemEventHandler } from './SystemEventHandler.js';
-import { DevEventHandler } from './DevEventHandler.js';
+import { SystemEventHandler, GameEventHandler, DevEventHandler } from './events/index.js';
 
-import { BackendTestPanel } from './dev/BackendTestPanel.js';
+import { DevPanel } from './dev/DevPanel.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -86,9 +85,10 @@ let mapGenerator;
 let playerManager;
 let playerSetupUI;
 let systemEventHandler;
+let gameEventHandler;
 let devEventHandler;
 
-let backendTestPanel;
+let devPanel;
 
 // Start loading assets immediately (before DOM ready)
 console.log('🎨 Starting asset loading...');
@@ -124,15 +124,18 @@ document.addEventListener('DOMContentLoaded', () =>
   // Initialize system event handler
   systemEventHandler = new SystemEventHandler();
   
+  // Initialize game event handler
+  gameEventHandler = new GameEventHandler();
+  
   // Initialize development event handler
   devEventHandler = new DevEventHandler();
   
-  // Initialize backend test panel if in dev mode
+  // Initialize dev panel if in dev mode
   if (DEV_MODE > 0)
   {
-    // Initialize backend test panel (includes all dev tools)
-    backendTestPanel = new BackendTestPanel(scene, renderer, camera, mapGenerator);
-    backendTestPanel.show(); // Show backend test panel by default in dev mode
+    // Initialize dev panel (includes all dev tools)
+    devPanel = new DevPanel(scene, renderer, camera, mapGenerator);
+    devPanel.show(); // Show dev panel by default in dev mode
   }
   
   // Start animation
@@ -161,9 +164,10 @@ document.addEventListener('DOMContentLoaded', () =>
 function setupGameEventListeners()
 {
   // Listen for game start event
-  eventBus.on('game:start', (players) =>
+  eventBus.on('game:start', (context, players) =>
   {
     console.log('🎮 Game started with players:', players);
+    console.log('🎮 Game context:', context);
     onGameStart(players);
   });
 }

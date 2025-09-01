@@ -398,7 +398,7 @@ export class UIController {
   callGenerateMap(config) {
     // Map generation is now handled by backend only
     console.log('Map generation config:', config);
-    alert(`Map generation moved to backend.\nUse the BackendTestPanel to create games.\n\nConfig would have been:\nMap Size: ${config.mapSize}\nStar Density: ${config.starDensity}\nSeed: ${config.seed}`);
+    alert(`Map generation moved to backend.\nUse the DevPanel to create games.\n\nConfig would have been:\nMap Size: ${config.mapSize}\nStar Density: ${config.starDensity}\nSeed: ${config.seed}`);
   }
 
   /**
