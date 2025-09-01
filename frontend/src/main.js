@@ -7,6 +7,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DEV_MODE, autoStartDevMode, logDevModeStatus, setupDevModeEventListeners } from './devScenarios.js';
 import { eventBus } from './eventBus.js';
 import { assetManager } from './engine/AssetManager.js';
+import { SystemEventHandler } from './SystemEventHandler.js';
+import { DevEventHandler } from './DevEventHandler.js';
 
 import { BackendTestPanel } from './dev/BackendTestPanel.js';
 
@@ -83,6 +85,8 @@ let uiController;
 let mapGenerator;
 let playerManager;
 let playerSetupUI;
+let systemEventHandler;
+let devEventHandler;
 
 let backendTestPanel;
 
@@ -116,6 +120,12 @@ document.addEventListener('DOMContentLoaded', () =>
   uiController = new UIController();
   mapGenerator = new MapViewGenerator(scene, camera);
   playerManager = new PlayerManager();
+  
+  // Initialize system event handler
+  systemEventHandler = new SystemEventHandler();
+  
+  // Initialize development event handler
+  devEventHandler = new DevEventHandler();
   
   // Initialize backend test panel if in dev mode
   if (DEV_MODE > 0)
