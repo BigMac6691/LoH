@@ -8,14 +8,37 @@ import { addShip } from '../repos/shipsRepo.js';
 import { logEvent } from '../repos/eventsRepo.js';
 import { generateMap } from '../MapFactory.js';
 
-export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, densityMax, title, description, players })
+export async function createEmptyGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, status })
 {
   const client = await pool.connect();
   try
   {
     await client.query('BEGIN');
 
-    const game = await createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, params: {} }, client);
+    const game = await createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, params: {}, status }, client);
+
+    await client.query('COMMIT');
+    return { game };
+  }
+  catch (e)
+  {
+    await client.query('ROLLBACK');
+    throw e;
+  }
+  finally
+  {
+    client.release();
+  }
+}
+
+export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, densityMax, title, description, players, status = 'lobby' })
+{
+  const client = await pool.connect();
+  try
+  {
+    await client.query('BEGIN');
+
+    const game = await createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, params: {}, status }, client);
     const turn = await openTurn({ gameId: game.id, number: 1 }, client);
 
     const model = await generateMap({ seed, mapSize, densityMin, densityMax });

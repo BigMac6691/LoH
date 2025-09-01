@@ -1,5 +1,5 @@
 import express from 'express';
-import { startGameFromSeed } from '../services/startGameService.js';
+import { startGameFromSeed, createEmptyGame } from '../services/startGameService.js';
 import { getOpenTurn } from '../repos/turnsRepo.js';
 import { listPlayers } from '../repos/playersRepo.js';
 import { listGames } from '../repos/gamesRepo.js';
@@ -39,21 +39,21 @@ export class GameRouter
   {
     try
     {
-      const { seed, mapSize, densityMin, densityMax, title, description, players, ownerId } = req.body;
+      const { seed, mapSize, densityMin, densityMax, title, description, status, ownerId } = req.body;
       
       // Debug logging
       console.log('Received request body:', req.body);
-      console.log('Extracted values:', { seed, mapSize, densityMin, densityMax, title, description, players, ownerId });
+      console.log('Extracted values:', { seed, mapSize, densityMin, densityMax, title, description, status, ownerId });
       
       // Validate required parameters
-      if (!seed || !mapSize || densityMin === undefined || densityMax === undefined || !title || !description || !players || !ownerId)
+      if (!seed || !mapSize || densityMin === undefined || densityMax === undefined || !title || !description || !status || !ownerId)
       {
         return res.status(400).json({
-          error: 'Missing required parameters: seed, mapSize, densityMin, densityMax, title, description, players, ownerId'
+          error: 'Missing required parameters: seed, mapSize, densityMin, densityMax, title, description, status, ownerId'
         });
       }
       
-      const result = await startGameFromSeed({
+      const result = await createEmptyGame({
         ownerId,
         seed,
         mapSize,
@@ -61,15 +61,12 @@ export class GameRouter
         densityMax,
         title,
         description,
-        players
+        status
       });
       
       res.json({
         success: true,
-        gameId: result.game.id,
-        turnId: result.turn.id,
-        playerIds: result.players.map(p => p.id),
-        counts: result.modelSummary
+        gameId: result.game.id
       });
       
     } catch (error)

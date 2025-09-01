@@ -44,7 +44,7 @@ export class DevPanel
           </select>
         </div>
         
-        <button type="submit" id="start-game-btn" class="start-game-btn">🚀 START GAME</button>
+        <button type="submit" id="start-game-btn" class="start-game-btn">🚀 Load Scenario</button>
       </form>
       
       <div id="status" class="status-display"></div>
@@ -140,6 +140,66 @@ export class DevPanel
     {
       this.logMoveOrders();
     });
+
+    // Listen for dev:scenarioStatus events
+    eventBus.on('dev:scenarioStatus', this.handleScenarioStatus.bind(this));
+  }
+
+  /**
+   * Handle scenario status updates
+   * @param {Object} context - Current context
+   * @param {Object} statusData - Status data with type and other info
+   */
+  handleScenarioStatus(context, statusData) {
+    const statusDiv = this.panel.querySelector('#status');
+    const { type, scenario, gameTitle, playerName, reason } = statusData;
+    
+    let statusText = '';
+    let statusClass = 'status-info';
+    
+    switch (type) {
+      case 'creatingGame':
+        statusText = `⏳ Creating game for scenario: ${scenario}`;
+        statusClass = 'status-loading';
+        break;
+      case 'gameCreated':
+        statusText = `✅ Game created: ${gameTitle}`;
+        statusClass = 'status-success';
+        break;
+      case 'addingPlayers':
+        statusText = `👥 Adding player: ${playerName} to ${scenario}`;
+        statusClass = 'status-loading';
+        break;
+      case 'playerAdded':
+        statusText = `✅ Player added: ${playerName} to ${scenario}`;
+        statusClass = 'status-success';
+        break;
+      case 'applyingSpecialRules':
+        statusText = `🔧 Applying special rules for: ${scenario}`;
+        statusClass = 'status-loading';
+        break;
+      case 'loadingGame':
+        statusText = `🚀 Loading game: ${scenario}`;
+        statusClass = 'status-loading';
+        break;
+      case 'gameLoaded':
+        statusText = `🎮 Game loaded: ${scenario}`;
+        statusClass = 'status-success';
+        break;
+      case 'error':
+        if (reason === 'duplicateGames') {
+          statusText = `❌ Error: Multiple games found for scenario: ${scenario}`;
+        } else {
+          statusText = `❌ Error: ${reason || 'Unknown error'} for scenario: ${scenario}`;
+        }
+        statusClass = 'status-error';
+        break;
+      default:
+        statusText = `ℹ️ ${type}: ${scenario || ''}`;
+        statusClass = 'status-info';
+    }
+    
+    statusDiv.innerHTML = `<span class="${statusClass}">${statusText}</span>`;
   }
 
   /**
@@ -247,8 +307,6 @@ export class DevPanel
 
       // Emit dev:loadScenario event
       eventBus.emit('dev:loadScenario', selectedScenario);
-
-      statusDiv.innerHTML = `<span class="status-success">✅ Scenario loaded: ${selectedScenario}</span>`;
     }
     catch (error)
     {

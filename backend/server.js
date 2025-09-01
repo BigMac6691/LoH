@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { pool } from './src/db/pool.js';
 import { GameRouter } from './src/routes/GameRouter.js';
 import { OrdersRouter } from './src/routes/OrdersRouter.js';
+import { DevRouter } from './src/routes/DevRouter.js';
 
 const app = express();
 app.use(cors());
@@ -25,25 +26,27 @@ app.get('/api/health', async (_req, res) => {
 // Production routes
 const gameRouter = new GameRouter();
 const ordersRouter = new OrdersRouter();
+const devRouter = new DevRouter();
 app.use('/api/games', gameRouter.getRouter());
 app.use('/api/orders', ordersRouter.getRouter());
+app.use('/api/dev', devRouter.router);
 
 // DEV-only routes (for backward compatibility during transition)
 if (process.env.NODE_ENV !== 'production') {
-  const devRouter = express.Router();
+  const legacyDevRouter = express.Router();
   
   // Redirect old dev routes to new production routes
-  devRouter.post('/start-game', async (req, res) => {
+  legacyDevRouter.post('/start-game', async (req, res) => {
     // Forward to production endpoint
     return gameRouter.createGame(req, res);
   });
   
-  devRouter.get('/current', async (req, res) => {
+  legacyDevRouter.get('/current', async (req, res) => {
     // Forward to production endpoint
     return gameRouter.getCurrentGame(req, res);
   });
   
-  devRouter.get('/state', async (req, res) => {
+  legacyDevRouter.get('/state', async (req, res) => {
     // Forward to production endpoint
     const { gameId } = req.query;
     if (!gameId) {
@@ -53,13 +56,13 @@ if (process.env.NODE_ENV !== 'production') {
     return gameRouter.getGameState(req, res);
   });
   
-  devRouter.get('/games', async (req, res) => {
+  legacyDevRouter.get('/games', async (req, res) => {
     // Forward to production endpoint
     return gameRouter.listGames(req, res);
   });
   
-  app.use('/api/dev', devRouter);
-  console.log('🔧 DEV routes enabled at /api/dev (forwarding to production routes)');
+  app.use('/api/dev-legacy', legacyDevRouter);
+  console.log('🔧 Legacy DEV routes enabled at /api/dev-legacy (forwarding to production routes)');
 }
 
 app.listen(port, () => {

@@ -82,3 +82,20 @@ export async function listGames(client = null) {
   
   return rows;
 }
+
+/**
+ * Get games by title
+ * @param {string} title - Game title to search for
+ * @param {Object} [client] - Optional database client for transactions
+ * @returns {Promise<Array>} Array of games with matching title
+ */
+export async function getGamesByTitle(title, client = null) {
+  const dbClient = client || pool;
+  
+  const { rows } = await dbClient.query(
+    `SELECT * FROM game WHERE title = $1 ORDER BY created_at DESC`,
+    [title]
+  );
+  
+  return rows;
+}
