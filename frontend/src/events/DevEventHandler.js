@@ -55,7 +55,20 @@ export class DevEventHandler
     ]);
 
     // Initialize ship data map (empty for now)
-    this.shipData.set("simple-two-player", []);
+    this.shipData.set("simple-two-player", [
+      {
+        owner_player: "7a0fc466-218e-49cf-9235-7a3d0d197b96",
+        location_star_id: "X",
+        hp: 3,
+        power: 3
+      },
+      {
+        owner_player: "93046edf-11c1-4e70-83a2-afebb209a343",
+        location_star_id: "X",
+        hp: 3,
+        power: 3
+      }
+    ]);
   }
 
   /**
@@ -100,7 +113,7 @@ export class DevEventHandler
         if (gameInfo.status === 'lobby')
         {
           // Game exists but is in lobby, add players
-          this.gameTracker.set(gameInfo.gameId, scenario);
+          this.gameTracker.set(gameInfo.gameId, { scenario: scenario, currentPlayers: [] });
           eventBus.emit('dev:addPlayers', { scenario, gameId: gameInfo.gameId });
           return;
         }
@@ -109,12 +122,18 @@ export class DevEventHandler
       // No game found, create one
       if (gameInfo)
       {
-        this.gameTracker.set(gameInfo.gameId, scenario);
+        this.gameTracker.set(gameInfo.gameId, { scenario: scenario, currentPlayers: [] });
       }
       eventBus.emit('dev:createGame', { scenario });
     }).catch(error => {
       console.error('🧪 DevEventHandler: Error in loadScenario:', error);
-      eventBus.emit('dev:scenarioStatus', { type: 'error', reason: 'gameNotFound', scenario });
+      
+      // Emit error event with simplified format
+      eventBus.emit('dev:scenarioStatus', { 
+        type: 'error', 
+        message: error.message || 'Failed to load scenario',
+        scenario: scenario
+      });
     });
   }
 
@@ -139,11 +158,11 @@ export class DevEventHandler
           const errorData = await response.json();
           console.error('🧪 DevEventHandler: Duplicate games found:', errorData);
           
-          // Emit error status
+          // Emit error status with simplified format
           eventBus.emit('dev:scenarioStatus', { 
             type: 'error', 
-            reason: 'duplicateGames', 
-            scenario: scenario 
+            message: `Multiple games found with title: ${scenario}`,
+            scenario: scenario
           });
           
           // Throw exception as requested
@@ -206,23 +225,42 @@ export class DevEventHandler
   /**
    * Get a list of players currently added to a given game
    * @param {string} gameId - Game ID to check
-   * @returns {Array} List of current players
+   * @returns {Promise<Array>} List of current players
    */
-  listGamePlayers(gameId)
+  async listGamePlayers(gameId)
   {
-    // TODO: This should query the database
-    // For now, return empty array to simulate no existing players
     console.log('🧪 DevEventHandler: Listing players for game:', gameId);
-    const currentPlayers = [];
     
-    // Add to tracking map
-    if (!this.gameTracker.has(gameId))
+    try
     {
-      this.gameTracker.set(gameId, { currentPlayers: [] });
+      // Get players from the backend API
+      const response = await fetch(`/api/dev/games/${encodeURIComponent(gameId)}/players`);
+      
+      if (!response.ok)
+      {
+        const errorData = await response.json();
+        console.error('🧪 DevEventHandler: Error getting game players:', errorData);
+        throw new Error(`Failed to get game players: ${errorData.error || 'Unknown error'}`);
+      }
+      
+      const data = await response.json();
+      const players = data.players || [];
+      
+      console.log('🧪 DevEventHandler: Found players for game:', players);
+      
+      // Update the gameTracker with the current players
+      const gameTracker = this.gameTracker.get(gameId);
+      gameTracker.currentPlayers = players;
+      
+      return players;      
     }
-    this.gameTracker.get(gameId).currentPlayers = currentPlayers;
-    
-    return currentPlayers;
+    catch (error)
+    {
+      console.error('🧪 DevEventHandler: Error in listGamePlayers:', error);
+      
+      // Always throw on API failures - we need to distinguish between no players and request failures
+      throw error;
+    }
   }
 
   /**
@@ -231,21 +269,31 @@ export class DevEventHandler
    * @param {string} data.scenario - Scenario name
    * @param {string} data.gameId - Game ID
    */
-  addPlayers(context, data)
-  {
+  async addPlayers(context, data) {
     const { scenario, gameId } = data;
     console.log('🧪 DevEventHandler: Adding players for scenario:', scenario, 'game:', gameId);
     
     // Get current players
-    const currentPlayers = this.listGamePlayers(gameId);
+    const currentPlayers = await this.listGamePlayers(gameId);
     
     // Get required players from the map
     const requiredPlayers = this.playerData.get(scenario) || [];
-    
+
+    if(currentPlayers.length === requiredPlayers.length)
+    {
+      console.log('🧪 DevEventHandler: All players added for scenario:', scenario);
+      eventBus.emit('dev:scenarioStatus', { type: 'allPlayersAdded', scenario });
+      eventBus.emit('dev:applySpecials', { scenario, gameId });
+
+      return;
+    }
+
     // Loop through required players and add missing ones
     requiredPlayers.forEach(player => {
-      if (!currentPlayers.find(cp => cp.userId === player.userId))
+      if (!currentPlayers.find(cp => cp.user_id === player.userId))
       {
+
+        console.log('cp.user_id', cp.user_id, 'player.userId', player.userId);
         // Emit status update
         eventBus.emit('dev:scenarioStatus', { type: 'addingPlayers', scenario, playerName: player.name });
         
@@ -309,7 +357,7 @@ export class DevEventHandler
     console.log('🧪 DevEventHandler: Game created:', gameData);
     
     // Set game tracker map
-    this.gameTracker.set(gameData.id, gameData.title);
+    this.gameTracker.set(gameData.id, { scenario: gameData.title, currentPlayers: [] });
     
     // Emit status update
     eventBus.emit('dev:scenarioStatus', { type: 'gameCreated', gameTitle: gameData.title });
@@ -328,13 +376,14 @@ export class DevEventHandler
     console.log('🧪 DevEventHandler: Player added:', playerData);
     
     // Emit status update
-    const scenario = this.gameTracker.get(playerData.gameId);
+    const gameTrackerData = this.gameTracker.get(playerData.gameId);
+    const scenario = gameTrackerData ? gameTrackerData.scenario : null;
     eventBus.emit('dev:scenarioStatus', { type: 'playerAdded', scenario, playerName: playerData.name });
     
     // Add player to tracking object
     if (!this.gameTracker.has(playerData.gameId))
     {
-      this.gameTracker.set(playerData.gameId, { currentPlayers: [] });
+      this.gameTracker.set(playerData.gameId, { scenario: null, currentPlayers: [] });
     }
     
     const gameTracker = this.gameTracker.get(playerData.gameId);
@@ -369,7 +418,8 @@ export class DevEventHandler
     console.log('🧪 DevEventHandler: Game loaded:', gameId);
     
     // Emit status update
-    const scenario = this.gameTracker.get(gameId);
+    const gameTrackerData = this.gameTracker.get(gameId);
+    const scenario = gameTrackerData ? gameTrackerData.scenario : null;
     eventBus.emit('dev:scenarioStatus', { type: 'gameLoaded', scenario });
   }
 

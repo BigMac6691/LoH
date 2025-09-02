@@ -143,12 +143,82 @@ export class GameEventHandler {
    * @param {Object} context - Current system context
    * @param {Object} playerData - Player data to add
    */
-  handleAddPlayer(context, playerData) {
+  async handleAddPlayer(context, playerData) {
     console.log('🎮 GameEventHandler: Adding player:', playerData);
     console.log('🎮 GameEventHandler: Context:', context);
     
-    // TODO: Implement player addition logic
-    // For now, just log the event as requested
+    try {
+      // Validate required parameters
+      const { gameId, userId, name, color_hex, country_name } = playerData;
+      
+      if (!gameId || !name || !color_hex) {
+        const error = 'Missing required parameters: gameId, name, color_hex';
+        console.error('🎮 GameEventHandler: Validation error:', error);
+        
+        // Emit error event
+        eventBus.emit('game:playerAdded', { 
+          success: false, 
+          error: 'validation_error',
+          message: error 
+        });
+        return;
+      }
+      
+      // Call the backend API to add the player
+      const response = await fetch('/api/games/players', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gameId,
+          userId,
+          name,
+          colorHex: color_hex,
+          countryName: country_name
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('🎮 GameEventHandler: API error:', errorData);
+        
+        // Emit error event
+        eventBus.emit('game:playerAdded', { 
+          success: false, 
+          error: 'api_error',
+          message: errorData.error || 'Failed to add player',
+          details: errorData.details
+        });
+        return;
+      }
+      
+      const result = await response.json();
+      console.log('🎮 GameEventHandler: Player added successfully:', result);
+      
+      // Emit success event with player details
+      eventBus.emit('game:playerAdded', {
+        success: true,
+        player: {
+          id: result.id,
+          gameId: gameId,
+          userId: userId,
+          name: name,
+          color_hex: color_hex,
+          country_name: country_name
+        }
+      });
+      
+    } catch (error) {
+      console.error('🎮 GameEventHandler: Unexpected error adding player:', error);
+      
+      // Emit error event
+      eventBus.emit('game:playerAdded', { 
+        success: false, 
+        error: 'unexpected_error',
+        message: error.message || 'Unexpected error occurred'
+      });
+    }
   }
 
   /**

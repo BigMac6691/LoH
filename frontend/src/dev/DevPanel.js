@@ -152,7 +152,7 @@ export class DevPanel
    */
   handleScenarioStatus(context, statusData) {
     const statusDiv = this.panel.querySelector('#status');
-    const { type, scenario, gameTitle, playerName, reason } = statusData;
+    const { type, scenario, gameTitle, playerName, message } = statusData;
     
     let statusText = '';
     let statusClass = 'status-info';
@@ -174,6 +174,10 @@ export class DevPanel
         statusText = `✅ Player added: ${playerName} to ${scenario}`;
         statusClass = 'status-success';
         break;
+      case 'allPlayersAdded':
+        statusText = `👥 All players added for scenario: ${scenario}`;
+        statusClass = 'status-success';
+        break;
       case 'applyingSpecialRules':
         statusText = `🔧 Applying special rules for: ${scenario}`;
         statusClass = 'status-loading';
@@ -187,10 +191,14 @@ export class DevPanel
         statusClass = 'status-success';
         break;
       case 'error':
-        if (reason === 'duplicateGames') {
-          statusText = `❌ Error: Multiple games found for scenario: ${scenario}`;
+        if (message) {
+          statusText = `❌ Error: ${message}`;
+          if (scenario) {
+            statusText += ` (${scenario})`;
+          }
         } else {
-          statusText = `❌ Error: ${reason || 'Unknown error'} for scenario: ${scenario}`;
+          // If wrong format arrives, fail fast to find bugs
+          throw new Error(`Invalid error event format: missing message field in ${JSON.stringify(statusData)}`);
         }
         statusClass = 'status-error';
         break;

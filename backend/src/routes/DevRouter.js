@@ -1,5 +1,6 @@
 import express from 'express';
 import { getGamesByTitle } from '../repos/gamesRepo.js';
+import { listPlayers } from '../repos/playersRepo.js';
 
 export class DevRouter {
   constructor() {
@@ -10,6 +11,9 @@ export class DevRouter {
   setupRoutes() {
     // GET /api/dev/games/check/:scenario - Check for games with matching title
     this.router.get('/games/check/:scenario', this.checkGame.bind(this));
+    
+    // GET /api/dev/games/:gameId/players - Get players for a game
+    this.router.get('/games/:gameId/players', this.getGamePlayers.bind(this));
   }
 
   /**
@@ -60,6 +64,37 @@ export class DevRouter {
       console.error('Error checking game:', error);
       res.status(500).json({
         error: 'Failed to check game',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * GET /api/dev/games/:gameId/players
+   * Get all players for a specific game
+   */
+  async getGamePlayers(req, res) {
+    try {
+      const { gameId } = req.params;
+      
+      if (!gameId) {
+        return res.status(400).json({
+          error: 'Missing gameId parameter'
+        });
+      }
+
+      const players = await listPlayers(gameId);
+      
+      res.json({
+        success: true,
+        gameId: gameId,
+        players: players
+      });
+
+    } catch (error) {
+      console.error('Error getting game players:', error);
+      res.status(500).json({
+        error: 'Failed to get game players',
         details: error.message
       });
     }

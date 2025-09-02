@@ -29,6 +29,9 @@ export class GameRouter
     
     // GET /api/games/current - Get latest game (for development)
     this.router.get('/current/latest', this.getCurrentGame.bind(this));
+    
+    // POST /api/games/players - Add a player to a game
+    this.router.post('/players', this.addPlayer.bind(this));
   }
 
   /**
@@ -251,6 +254,54 @@ export class GameRouter
       console.error('Error getting current game:', error);
       res.status(500).json({
         error: 'Failed to get current game',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * POST /api/games/players
+   * Add a player to a game
+   */
+  async addPlayer(req, res) {
+    try {
+      const { gameId, userId, name, colorHex, countryName } = req.body;
+      
+      // Debug logging
+      console.log('Received add player request body:', req.body);
+      console.log('Extracted values:', { gameId, userId, name, colorHex, countryName });
+      
+      // Validate required parameters
+      if (!gameId || !name || !colorHex) {
+        return res.status(400).json({
+          error: 'Missing required parameters: gameId, name, colorHex'
+        });
+      }
+      
+      // Import the addPlayer function from playersRepo
+      const { addPlayer: addPlayerToGame } = await import('../repos/playersRepo.js');
+      
+      const result = await addPlayerToGame({
+        gameId,
+        userId,
+        name,
+        colorHex,
+        countryName
+      });
+      
+      res.json({
+        success: true,
+        id: result.id,
+        gameId: result.game_id,
+        name: result.name,
+        colorHex: result.color_hex,
+        countryName: result.country_name
+      });
+      
+    } catch (error) {
+      console.error('Error adding player:', error);
+      res.status(500).json({
+        error: 'Failed to add player',
         details: error.message
       });
     }
