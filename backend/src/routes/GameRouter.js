@@ -42,11 +42,11 @@ export class GameRouter
   {
     try
     {
-      const { seed, mapSize, densityMin, densityMax, title, description, status, ownerId } = req.body;
+      const { seed, mapSize, densityMin, densityMax, title, description, status, ownerId, params } = req.body;
       
       // Debug logging
       console.log('Received request body:', req.body);
-      console.log('Extracted values:', { seed, mapSize, densityMin, densityMax, title, description, status, ownerId });
+      console.log('Extracted values:', { seed, mapSize, densityMin, densityMax, title, description, status, ownerId, params });
       
       // Validate required parameters
       if (!seed || !mapSize || densityMin === undefined || densityMax === undefined || !title || !description || !status || !ownerId)
@@ -64,7 +64,8 @@ export class GameRouter
         densityMax,
         title,
         description,
-        status
+        status: status || 'lobby',
+        params: params || {}
       });
       
       res.json({

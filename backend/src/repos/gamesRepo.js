@@ -84,18 +84,53 @@ export async function listGames(client = null) {
 }
 
 /**
- * Get games by title
- * @param {string} title - Game title to search for
+ * Get games by scenario (dev scenario type)
+ * @param {string} scenario - Scenario name to search for
  * @param {Object} [client] - Optional database client for transactions
- * @returns {Promise<Array>} Array of games with matching title
+ * @returns {Promise<Array>} Array of games with matching scenario
  */
-export async function getGamesByTitle(title, client = null) {
+export async function getGamesByScenario(scenario, client = null) {
   const dbClient = client || pool;
   
   const { rows } = await dbClient.query(
-    `SELECT * FROM game WHERE title = $1 ORDER BY created_at DESC`,
-    [title]
+    `SELECT * FROM game 
+     WHERE params->>'type' = 'devScenario' 
+     AND params->>'scenario' = $1 
+     ORDER BY created_at DESC`,
+    [scenario]
   );
   
   return rows;
+}
+
+/**
+ * Update game params (for scenario state updates)
+ * @param {Object} params
+ * @param {string} params.id - Game UUID
+ * @param {Object} params.newParams - New params object to merge
+ * @param {Object} [client] - Optional database client for transactions
+ * @returns {Promise<Object|null>} The updated game row or null
+ */
+export async function updateGameParams({ id, newParams }, client = null) {
+  const dbClient = client || pool;
+  
+  // Get current params and merge with new ones
+  const { rows: currentRows } = await dbClient.query(
+    `SELECT params FROM game WHERE id = $1`,
+    [id]
+  );
+  
+  if (currentRows.length === 0) {
+    return null;
+  }
+  
+  const currentParams = currentRows[0].params || {};
+  const mergedParams = { ...currentParams, ...newParams };
+  
+  const { rows } = await dbClient.query(
+    `UPDATE game SET params = $2 WHERE id = $1 RETURNING *`,
+    [id, mergedParams]
+  );
+  
+  return rows[0] ?? null;
 }

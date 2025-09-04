@@ -178,6 +178,38 @@ export class DevPanel
         statusText = `👥 All players added for scenario: ${scenario}`;
         statusClass = 'status-success';
         break;
+      case 'generatingMap':
+        statusText = `🗺️ Generating map for scenario: ${scenario}`;
+        statusClass = 'status-loading';
+        break;
+      case 'mapGenerated':
+        statusText = `✅ Map generated for scenario: ${scenario}`;
+        statusClass = 'status-success';
+        break;
+      case 'placingPlayers':
+        statusText = `📍 Placing players for scenario: ${scenario}`;
+        statusClass = 'status-loading';
+        break;
+      case 'playersPlaced':
+        statusText = `✅ Players placed for scenario: ${scenario}`;
+        statusClass = 'status-success';
+        break;
+      case 'placingShips':
+        statusText = `🚢 Placing ships for scenario: ${scenario}`;
+        statusClass = 'status-loading';
+        break;
+      case 'shipPlaced':
+        statusText = `✅ Ship placed for scenario: ${scenario}`;
+        statusClass = 'status-success';
+        break;
+      case 'startingGame':
+        statusText = `🎮 Starting game for scenario: ${scenario}`;
+        statusClass = 'status-loading';
+        break;
+      case 'scenarioSetupComplete':
+        statusText = `🎯 Scenario setup complete: ${scenario}`;
+        statusClass = 'status-success';
+        break;
       case 'applyingSpecialRules':
         statusText = `🔧 Applying special rules for: ${scenario}`;
         statusClass = 'status-loading';
@@ -313,8 +345,15 @@ export class DevPanel
 
       statusDiv.innerHTML = '<span class="status-loading">⏳ Loading scenario...</span>';
 
-      // Emit dev:loadScenario event
-      eventBus.emit('dev:loadScenario', selectedScenario);
+      // Emit dev:loadScenario event with standardized format
+      eventBus.emit('dev:loadScenario', {
+        success: true,
+        details: {
+          eventType: 'dev:loadScenario',
+          gameId: null,
+          scenario: selectedScenario
+        }
+      });
     }
     catch (error)
     {

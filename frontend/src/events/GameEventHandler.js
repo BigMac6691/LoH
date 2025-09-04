@@ -95,7 +95,8 @@ export class GameEventHandler {
           densityMax,
           title,
           description,
-          status
+          status,
+          params: gameData.params
         })
       });
       
@@ -103,7 +104,7 @@ export class GameEventHandler {
         const errorData = await response.json();
         console.error('🎮 GameEventHandler: API error:', errorData);
         
-        // Emit error event
+        // Emit error event with standardized format
         eventBus.emit('game:gameCreated', { 
           success: false, 
           error: 'api_error',
@@ -116,12 +117,12 @@ export class GameEventHandler {
       const result = await response.json();
       console.log('🎮 GameEventHandler: Game created successfully:', result);
       
-      // Emit success event with game details
+      // Emit success event with standardized format
       eventBus.emit('game:gameCreated', {
         success: true,
-        game: {
-          id: result.gameId,
-          title: title,
+        details: {
+          eventType: 'game:gameCreated',
+          gameId: result.gameId,
           status: status
         }
       });
@@ -129,7 +130,7 @@ export class GameEventHandler {
     } catch (error) {
       console.error('🎮 GameEventHandler: Unexpected error creating game:', error);
       
-      // Emit error event
+      // Emit error event with standardized format
       eventBus.emit('game:gameCreated', { 
         success: false, 
         error: 'unexpected_error',
@@ -155,7 +156,7 @@ export class GameEventHandler {
         const error = 'Missing required parameters: gameId, name, color_hex';
         console.error('🎮 GameEventHandler: Validation error:', error);
         
-        // Emit error event
+        // Emit error event with standardized format
         eventBus.emit('game:playerAdded', { 
           success: false, 
           error: 'validation_error',
@@ -183,12 +184,12 @@ export class GameEventHandler {
         const errorData = await response.json();
         console.error('🎮 GameEventHandler: API error:', errorData);
         
-        // Emit error event
+        // Emit error event with standardized format
         eventBus.emit('game:playerAdded', { 
           success: false, 
           error: 'api_error',
           message: errorData.error || 'Failed to add player',
-          details: errorData.details
+          details: errorData.error || 'Failed to add player'
         });
         return;
       }
@@ -196,23 +197,21 @@ export class GameEventHandler {
       const result = await response.json();
       console.log('🎮 GameEventHandler: Player added successfully:', result);
       
-      // Emit success event with player details
+      // Emit success event with standardized format
       eventBus.emit('game:playerAdded', {
         success: true,
-        player: {
-          id: result.id,
+        details: {
+          eventType: 'game:playerAdded',
           gameId: gameId,
-          userId: userId,
-          name: name,
-          color_hex: color_hex,
-          country_name: country_name
+          playerId: result.id,
+          playerName: name
         }
       });
       
     } catch (error) {
       console.error('🎮 GameEventHandler: Unexpected error adding player:', error);
       
-      // Emit error event
+      // Emit error event with standardized format
       eventBus.emit('game:playerAdded', { 
         success: false, 
         error: 'unexpected_error',
@@ -243,5 +242,9 @@ export class GameEventHandler {
     eventBus.off('game:createGame', this.handleCreateGame.bind(this));
     eventBus.off('game:addPlayer', this.handleAddPlayer.bind(this));
     eventBus.off('game:loadGame', this.handleLoadGame.bind(this));
+    eventBus.off('game:generateMap', this.handleGenerateMap.bind(this));
+    eventBus.off('game:placePlayers', this.handlePlacePlayers.bind(this));
+    eventBus.off('game:placeShips', this.handlePlaceShips.bind(this));
+    eventBus.off('game:startGame', this.handleStartGame.bind(this));
   }
 }

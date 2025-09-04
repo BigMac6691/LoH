@@ -1,5 +1,5 @@
 import express from 'express';
-import { getGamesByTitle } from '../repos/gamesRepo.js';
+import { getGamesByScenario, updateGameParams } from '../repos/gamesRepo.js';
 import { listPlayers } from '../repos/playersRepo.js';
 
 export class DevRouter {
@@ -9,11 +9,14 @@ export class DevRouter {
   }
 
   setupRoutes() {
-    // GET /api/dev/games/check/:scenario - Check for games with matching title
+    // GET /api/dev/games/check/:scenario - Check for games with matching scenario
     this.router.get('/games/check/:scenario', this.checkGame.bind(this));
     
     // GET /api/dev/games/:gameId/players - Get players for a game
     this.router.get('/games/:gameId/players', this.getGamePlayers.bind(this));
+    
+    // PUT /api/dev/games/:gameId/state - Update game state
+    this.router.put('/games/:gameId/state', this.updateGameState.bind(this));
   }
 
   /**
@@ -30,7 +33,7 @@ export class DevRouter {
         });
       }
 
-      const games = await getGamesByTitle(scenario);
+      const games = await getGamesByScenario(scenario);
       
       if (games.length === 0) {
         // No games found
@@ -53,13 +56,20 @@ export class DevRouter {
 
       // Single game found
       const game = games[0];
+      
+      // Parse the scenario state from params
+      const scenarioState = game.params?.state || {};
+      
       return res.json({
         found: true,
-        gameId: game.id,
-        status: game.status,
-        game: game
+        game: {
+          id: game.id,
+          title: game.title,
+          status: game.status,
+          scenario: game.params?.scenario,
+          state: scenarioState
+        }
       });
-
     } catch (error) {
       console.error('Error checking game:', error);
       res.status(500).json({
@@ -95,6 +105,56 @@ export class DevRouter {
       console.error('Error getting game players:', error);
       res.status(500).json({
         error: 'Failed to get game players',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * PUT /api/dev/games/:gameId/state
+   * Update game state for scenario progression
+   */
+  async updateGameState(req, res) {
+    try {
+      const { gameId } = req.params;
+      const { state } = req.body;
+      
+      if (!gameId) {
+        return res.status(400).json({
+          error: 'Missing gameId parameter'
+        });
+      }
+
+      if (!state) {
+        return res.status(400).json({
+          error: 'Missing state in request body'
+        });
+      }
+
+      console.log(`🔄 DevRouter: Updating game state for ${gameId}:`, state);
+
+      // Update the state in the params column
+      const updatedGame = await updateGameParams({ 
+        id: gameId, 
+        newParams: { state } 
+      });
+
+      if (!updatedGame) {
+        return res.status(404).json({
+          error: 'Game not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        gameId: gameId,
+        state: updatedGame.params.state
+      });
+
+    } catch (error) {
+      console.error('❌ DevRouter: Error updating game state:', error);
+      res.status(500).json({
+        error: 'Failed to update game state',
         details: error.message
       });
     }
