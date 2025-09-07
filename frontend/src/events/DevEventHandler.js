@@ -109,8 +109,8 @@ export class DevEventHandler
    */
   async loadScenario(context, eventData)
   {
-    console.log('🧪 DevEventHandler: Loading scenario with event data:', eventData);
-    console.log('🧪 DevEventHandler: Context:', context);
+    console.log('❗ DevEventHandler: Loading scenario with event data:', eventData);
+    console.log('❗ DevEventHandler: Context:', context);
     
     // Resolve game state for dev events
     const gameState = await this.resolveGameState(eventData);
@@ -146,9 +146,24 @@ export class DevEventHandler
               break;
               
             case 'game:playerAdded':
-              // Note: We'll need to check if all players are added in GameEventHandler
-              // For now, we'll assume this means players are added
-              stateUpdate = { playersAdded: true };
+              // If players are already added, don't check again
+              if(gameState.playersAdded)
+                return;
+
+              const currentPlayers = await this.checkPlayersAdded(gameState);
+              const requiredPlayers = this.playerData.get(gameState.scenario) || [];
+              
+              // If current count < required count, do nothing and let it continue
+              if (currentPlayers.length < requiredPlayers.length)
+              {
+                console.log(`🧪 DevEventHandler: Still need more players - Current: ${currentPlayers.length}, Required: ${requiredPlayers.length}`);
+                // Don't return - let it continue to emit dev:loadScenario
+              }
+              else if (currentPlayers.length === requiredPlayers.length)
+              {
+                // All players added, update state
+                stateUpdate = { playersAdded: true };
+              }
               break;
               
             case 'game:mapGenerated':
@@ -197,19 +212,7 @@ export class DevEventHandler
         }
       } 
       else 
-      {
-        // Legacy format or invalid data, try to extract scenario
-        console.log('🧪 DevEventHandler: Legacy format detected, attempting to extract scenario');
-        const scenario = typeof eventData === 'string' ? eventData : eventData?.scenario;
-        if (scenario) 
-        {
-          await this.processLoadScenario(scenario);
-        } 
-        else 
-        {
-          console.error('🧪 DevEventHandler: Could not extract scenario from event data:', eventData);
-        }
-      }
+        throw new Error('Invlaid format of event data');
     }
     catch (error)
     {
@@ -337,7 +340,7 @@ export class DevEventHandler
    * Add players to a game for a scenario
    * @param {Object} data - Event data
    */
-  addPlayers(data) 
+  async addPlayers(data) 
   {
     console.log('🧪 DevEventHandler: Adding players with data:', data);
     
@@ -354,18 +357,32 @@ export class DevEventHandler
     if(!this.playerData.has(scenario))
       throw new Error('🧪 DevEventHandler: No players found for scenario: ' + scenario);
     
-    // Get required players from the map
+    // Get current players and required players
+    const gameState = { gameId, scenario };
+    const currentPlayers = await this.checkPlayersAdded(gameState);
     const requiredPlayers = this.playerData.get(scenario) || [];
-
-    // Emit status update
-    eventBus.emit('dev:scenarioStatus', { type: 'addingPlayers', scenario });
     
-    // Emit player addition events for all required players
-    requiredPlayers.forEach(player => 
+    // Find players that haven't been added yet (compare by userId)
+    const currentPlayerIds = currentPlayers.map(p => p.user_id);
+    const missingPlayers = requiredPlayers.filter(player => 
+      !currentPlayerIds.includes(player.userId)
+    );
+    
+    if (missingPlayers.length === 0)
     {
-      console.log('🧪 DevEventHandler: Adding player:', player.name);
-      eventBus.emit('game:addPlayer', { ...player, gameId });
-    });
+      console.log('🧪 DevEventHandler: All players already added');
+      return;
+    }
+    
+    // Add only the first missing player
+    const playerToAdd = missingPlayers[0];
+    console.log('🧪 DevEventHandler: Adding player:', playerToAdd.name);
+    
+    // Emit status update
+    eventBus.emit('dev:scenarioStatus', { type: 'addingPlayers', scenario, playerName: playerToAdd.name });
+    
+    // Emit player addition event for just one player
+    eventBus.emit('game:addPlayer', { ...playerToAdd, gameId });
   }
 
   /**
@@ -534,7 +551,7 @@ export class DevEventHandler
     else if (!playersAdded)
     {
       console.log('🧪 DevEventHandler: Need to add players.');
-      this.addPlayers(eventData);
+      await this.addPlayers(eventData);
     }
     else if (!mapGenerated)
     {
@@ -565,6 +582,43 @@ export class DevEventHandler
     }
   }
 
+
+  /**
+   * Get current players for the game
+   * @param {Object} gameState - Current game state object
+   * @returns {Promise<Array>} Array of current players
+   */
+  async checkPlayersAdded(gameState)
+  {
+    const { gameId, scenario } = gameState;
+    
+    if (!gameId || !scenario)
+    {
+      throw new Error(`🧪 DevEventHandler: Missing gameId or scenario in gameState: ${JSON.stringify(gameState)}`);
+    }
+    
+    // Get current players from the database
+    const response = await fetch(`/api/dev/games/${encodeURIComponent(gameId)}/players`);
+    
+    if (!response.ok)
+    {
+      throw new Error(`🧪 DevEventHandler: Error getting game players: HTTP ${response.status} - ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    const currentPlayers = data.players || [];
+    
+    // Get required players from scenario data
+    const requiredPlayers = this.playerData.get(scenario);
+    if (!requiredPlayers)
+    {
+      throw new Error(`🧪 DevEventHandler: No player data found for scenario: ${scenario}`);
+    }
+    
+    console.log(`🧪 DevEventHandler: Player check - Current: ${currentPlayers.length}, Required: ${requiredPlayers.length}`);
+    
+    return currentPlayers;
+  }
 
   /**
    * Update game state in database after completing a step
