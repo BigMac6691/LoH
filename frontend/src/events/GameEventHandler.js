@@ -24,6 +24,7 @@ export class GameEventHandler {
     eventBus.on('game:createGame', this.handleCreateGame.bind(this));
     eventBus.on('game:addPlayer', this.handleAddPlayer.bind(this));
     eventBus.on('game:loadGame', this.handleLoadGame.bind(this));
+    eventBus.on('game:generateMap', this.handleGenerateMap.bind(this));
   }
 
   /**
@@ -231,6 +232,81 @@ export class GameEventHandler {
     
     // TODO: Implement game loading logic
     // For now, just log the event as requested
+  }
+
+  /**
+   * Handle generate map event
+   * @param {Object} context - Current system context
+   * @param {Object} mapData - Map generation data
+   */
+  async handleGenerateMap(context, mapData) {
+    console.log('🎮 GameEventHandler: Generating map:', mapData);
+    console.log('🎮 GameEventHandler: Context:', context);
+    
+    try {
+      // Validate required parameters
+      const { gameId } = mapData;
+      
+      if (!gameId) {
+        const error = 'Missing required parameter: gameId';
+        console.error('🎮 GameEventHandler: Validation error:', error);
+        
+        // Emit error event with standardized format
+        eventBus.emit('game:mapGenerated', { 
+          success: false, 
+          error: 'validation_error',
+          message: error 
+        });
+        return;
+      }
+      
+      // Call the backend API to generate the map (only need gameId)
+      const response = await fetch(`/api/games/${gameId}/generate-map`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('🎮 GameEventHandler: API error:', errorData);
+        
+        // Emit error event with standardized format
+        eventBus.emit('game:mapGenerated', { 
+          success: false, 
+          error: 'api_error',
+          message: errorData.error || 'Failed to generate map',
+          details: errorData.details
+        });
+        return;
+      }
+      
+      const result = await response.json();
+      console.log('🎮 GameEventHandler: Map generated successfully:', result);
+      
+      // Emit success event with standardized format
+      eventBus.emit('game:mapGenerated', {
+        success: true,
+        details: {
+          eventType: 'game:mapGenerated',
+          gameId: result.gameId,
+          starsCount: result.starsCount,
+          wormholesCount: result.wormholesCount
+        }
+      });
+      
+    } catch (error) {
+      console.error('🎮 GameEventHandler: Unexpected error generating map:', error);
+      
+      // Emit error event with standardized format
+      eventBus.emit('game:mapGenerated', { 
+        success: false, 
+        error: 'unexpected_error',
+        message: error.message || 'Unexpected error occurred'
+      });
+    }
   }
 
   /**

@@ -125,7 +125,19 @@ export async function updateGameParams({ id, newParams }, client = null) {
   }
   
   const currentParams = currentRows[0].params || {};
-  const mergedParams = { ...currentParams, ...newParams };
+
+  console.log('🧪 updateGameParams: currentParams:', currentParams);
+  console.log('🧪 updateGameParams: newParams:', newParams);
+
+  // Handle nested merging for state object
+  let mergedParams = { ...currentParams, ...newParams };
+  
+  // If both current and new params have a state object, merge them
+  if (currentParams.state && newParams.state) {
+    mergedParams.state = { ...currentParams.state, ...newParams.state };
+  }
+
+  console.log('🧪 updateGameParams: mergedParams:', mergedParams);
   
   const { rows } = await dbClient.query(
     `UPDATE game SET params = $2 WHERE id = $1 RETURNING *`,

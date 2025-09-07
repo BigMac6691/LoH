@@ -31,6 +31,78 @@ export async function createEmptyGame({ ownerId, seed, mapSize, densityMin, dens
   }
 }
 
+export async function generateMapForGame({ gameId })
+{
+  const client = await pool.connect();
+  try
+  {
+    await client.query('BEGIN');
+
+    // Get the game to verify it exists and retrieve all parameters
+    const { rows: gameRows } = await client.query('SELECT * FROM game WHERE id = $1', [gameId]);
+    if (gameRows.length === 0) {
+      throw new Error(`Game with ID ${gameId} not found`);
+    }
+    
+    const game = gameRows[0];
+    
+    // Extract map generation parameters from the game record
+    const { seed, map_size: mapSize, density_min: densityMin, density_max: densityMax } = game;
+    
+    // Validate that all required parameters are present
+    if (!seed || !mapSize || densityMin === undefined || densityMax === undefined) {
+      throw new Error(`Game ${gameId} is missing required map generation parameters: seed, mapSize, densityMin, densityMax`);
+    }
+
+    // Generate the map model using the game's parameters
+    const model = await generateMap({ seed, mapSize, densityMin, densityMax });
+
+    // Insert stars
+    const stars = model.getStars();
+    for (const s of stars)
+    {
+      await client.query(
+        `INSERT INTO star (id, game_id, star_id, name, sector_x, sector_y, pos_x, pos_y, pos_z, resource)
+         VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [gameId, s.getId(), s.getName(), s.getSector().col, s.getSector().row, s.getPosition().x, s.getPosition().y, s.getPosition().z, s.getResourceValue()]
+      );
+    }
+
+    // Insert wormholes (ensure a<b for uniqueness)
+    const wormholes = model.getWormholes();
+    for (const w of wormholes)
+    {
+      const a = w.star1.getId();
+      const b = w.star2.getId();
+      const aId = a < b ? a : b;
+      const bId = a < b ? b : a;
+      const wormholeId = `EDGE_${aId}_${bId}`;
+      await client.query(
+        `INSERT INTO wormhole (id, game_id, wormhole_id, star_a_id, star_b_id)
+         VALUES (gen_random_uuid(),$1,$2,$3,$4)`,
+        [gameId, wormholeId, aId, bId]
+      );
+    }
+
+    await client.query('COMMIT');
+    return { 
+      gameId, 
+      starsCount: stars.length, 
+      wormholesCount: wormholes.length,
+      modelSummary: { stars: stars.length, edges: wormholes.length }
+    };
+  }
+  catch (e)
+  {
+    await client.query('ROLLBACK');
+    throw e;
+  }
+  finally
+  {
+    client.release();
+  }
+}
+
 export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, densityMax, title, description, players, status = 'lobby', params = {} })
 {
   const client = await pool.connect();

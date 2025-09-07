@@ -1,5 +1,5 @@
 import express from 'express';
-import { getGamesByScenario, updateGameParams } from '../repos/gamesRepo.js';
+import { getGame, getGamesByScenario, updateGameParams } from '../repos/gamesRepo.js';
 import { listPlayers } from '../repos/playersRepo.js';
 
 export class DevRouter {
@@ -11,6 +11,12 @@ export class DevRouter {
   setupRoutes() {
     // GET /api/dev/games/check/:scenario - Check for games with matching scenario
     this.router.get('/games/check/:scenario', this.checkGame.bind(this));
+    
+    // GET /api/dev/games/:gameId - Get game by ID
+    this.router.get('/games/:gameId', this.getGameById.bind(this));
+    
+    // GET /api/dev/games/by-scenario/:scenario - Get games by scenario
+    this.router.get('/games/by-scenario/:scenario', this.getGamesByScenario.bind(this));
     
     // GET /api/dev/games/:gameId/players - Get players for a game
     this.router.get('/games/:gameId/players', this.getGamePlayers.bind(this));
@@ -74,6 +80,73 @@ export class DevRouter {
       console.error('Error checking game:', error);
       res.status(500).json({
         error: 'Failed to check game',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * GET /api/dev/games/:gameId
+   * Get game by ID
+   */
+  async getGameById(req, res) {
+    try {
+      const { gameId } = req.params;
+      
+      if (!gameId) {
+        return res.status(400).json({
+          error: 'Missing gameId parameter'
+        });
+      }
+
+      const game = await getGame(gameId);
+      
+      if (!game) {
+        return res.status(404).json({
+          error: 'Game not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        game: game
+      });
+
+    } catch (error) {
+      console.error('Error getting game by ID:', error);
+      res.status(500).json({
+        error: 'Failed to get game',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * GET /api/dev/games/by-scenario/:scenario
+   * Get games by scenario name
+   */
+  async getGamesByScenario(req, res) {
+    try {
+      const { scenario } = req.params;
+      
+      if (!scenario) {
+        return res.status(400).json({
+          error: 'Missing scenario parameter'
+        });
+      }
+
+      const games = await getGamesByScenario(scenario);
+      
+      res.json({
+        success: true,
+        scenario: scenario,
+        games: games
+      });
+
+    } catch (error) {
+      console.error('Error getting games by scenario:', error);
+      res.status(500).json({
+        error: 'Failed to get games by scenario',
         details: error.message
       });
     }

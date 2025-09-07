@@ -41,6 +41,7 @@ export class DevEventHandler
         scenario: 'simple-two-player',
         state:
         {
+          gameCreated: false,
           playersAdded: false,
           mapGenerated: false,
           playersPlaced: false,
@@ -90,13 +91,6 @@ export class DevEventHandler
   {
     // Listen for dev events
     eventBus.on('dev:loadScenario', this.loadScenario.bind(this));
-    eventBus.on('dev:createGame', this.createGame.bind(this));
-    eventBus.on('dev:addPlayers', this.addPlayers.bind(this));
-    eventBus.on('dev:generateMap', this.generateMap.bind(this));
-    eventBus.on('dev:placePlayers', this.placePlayers.bind(this));
-    eventBus.on('dev:placeShips', this.placeShips.bind(this));
-    eventBus.on('dev:applySpecials', this.applySpecials.bind(this));
-    eventBus.on('dev:startGame', this.startGame.bind(this));
     
     // Listen for game events
     eventBus.on('game:gameCreated', this.loadScenario.bind(this));
@@ -118,32 +112,101 @@ export class DevEventHandler
     console.log('🧪 DevEventHandler: Loading scenario with event data:', eventData);
     console.log('🧪 DevEventHandler: Context:', context);
     
+    // Resolve game state for dev events
+    const gameState = await this.resolveGameState(eventData);
+    console.log('🧪 DevEventHandler: Resolved game state:', gameState);
+
     try
     {
       // Check if this is a dev event or game event
-      if (eventData && eventData.details && eventData.details.eventType) {
+      if (eventData && eventData.details && eventData.details.eventType) 
+      {
         const eventType = eventData.details.eventType;
         
-        if (eventType.startsWith('dev:')) {
-          // This is a dev event, continue normally
-          console.log('🧪 DevEventHandler: Processing dev event:', eventType);
-          
-          if (eventType === 'dev:loadScenario') {
-            const scenario = eventData.details.scenario;
-            await this.processLoadScenario(scenario);
-          }
-        } else {
-          // This is a game event, just log for now
+        if (eventType.startsWith('dev:')) 
+            await this.executeNextStep(gameState, eventData);
+        else 
+        {
+          // This is a game event, handle it appropriately
           console.log('🧪 DevEventHandler: Received game event:', eventType, 'Details:', eventData.details);
+          
+          // Check success flag first - fail fast if the operation failed
+          if (!eventData.success) 
+            throw new Error(`Game event failed: ${eventType} - ${eventData.error || 'Unknown error'}`);
+          
+          // Declare variables for state update
+          let stateUpdate = {};
+          let done = false;
+          
+          // Switch statement to construct the new state value
+          switch (eventType) 
+          {
+            case 'game:gameCreated':
+              stateUpdate = { gameCreated: true };
+              break;
+              
+            case 'game:playerAdded':
+              // Note: We'll need to check if all players are added in GameEventHandler
+              // For now, we'll assume this means players are added
+              stateUpdate = { playersAdded: true };
+              break;
+              
+            case 'game:mapGenerated':
+              stateUpdate = { mapGenerated: true };
+              break;
+              
+            case 'game:playersPlaced':
+              stateUpdate = { playersPlaced: true };
+              break;
+              
+            case 'game:shipPlaced':
+              stateUpdate = { shipsPlaced: true };
+              break;
+              
+            case 'game:gameLoaded':
+              stateUpdate = { specialsApplied: true };
+              done = true;
+              break;
+              
+            default:
+              throw new Error(`Unknown game event type: ${eventType}`);
+          }
+          
+          // Update the database state
+          if (Object.keys(stateUpdate).length > 0) 
+          {
+            const gameId = eventData.details.gameId;
+            await this.updateGameState(gameId, stateUpdate);
+          }
+          
+          // Only continue if not done
+          if (!done) 
+          {
+            const gameId = eventData.details.gameId;
+            eventBus.emit('dev:loadScenario', {
+              success: true,
+              details: {
+                eventType: 'dev:loadScenario',
+                gameId: gameId,
+                scenario: gameState.scenario
+              }
+            });
+          }
+          
           return;
         }
-      } else {
+      } 
+      else 
+      {
         // Legacy format or invalid data, try to extract scenario
         console.log('🧪 DevEventHandler: Legacy format detected, attempting to extract scenario');
         const scenario = typeof eventData === 'string' ? eventData : eventData?.scenario;
-        if (scenario) {
+        if (scenario) 
+        {
           await this.processLoadScenario(scenario);
-        } else {
+        } 
+        else 
+        {
           console.error('🧪 DevEventHandler: Could not extract scenario from event data:', eventData);
         }
       }
@@ -162,114 +225,100 @@ export class DevEventHandler
   }
 
   /**
-   * Process the actual scenario loading logic
-   * @param {string} scenario - Scenario name to load
+   * Resolve game state from event data
+   * @param {Object} eventData - Event data containing gameId and/or scenario
+   * @returns {Promise<Object>} Game state object with all state flags
    */
-  async processLoadScenario(scenario)
+  async resolveGameState(eventData)
   {
-    console.log('🧪 DevEventHandler: Processing scenario:', scenario);
-    
     try
     {
-      // Check for existing game first
-      const gameInfo = await this.checkGame(scenario);
+      const { gameId, scenario } = eventData.details || {};
+      let game = null;
       
-      if (gameInfo)
+      // First try to get game by gameId if it exists
+      if (gameId) 
       {
-        if (gameInfo.status === 'running')
+        console.log('🔍 DevEventHandler: Resolving game state by gameId:', gameId);
+        const response = await fetch(`/api/dev/games/${gameId}`);
+        if (response.ok) 
         {
-          // Game is already running, load it
-          eventBus.emit('dev:scenarioStatus', { type: 'loadingGame', scenario });
-          eventBus.emit('game:loadGame', { gameId: gameInfo.id });
-          return;
+          const data = await response.json();
+          game = data.game;
+          console.log('✅ DevEventHandler: Found game by gameId:', game);
         }
-        
-        // Game exists but is in lobby, use database state to continue
-        console.log('🧪 DevEventHandler: Found existing game, using database state:', gameInfo.state);
-        
-        // Execute next step based on database state
-        await this.executeNextStep(scenario, gameInfo);
-        return;
       }
       
-      // No game found, create a new one
-      console.log('🧪 DevEventHandler: No game found, creating new game for scenario:', scenario);
-      eventBus.emit('dev:createGame', { scenario });
+      // If no game found by gameId, try to find by scenario
+      if (!game && scenario) 
+      {
+        console.log('🔍 DevEventHandler: Resolving game state by scenario:', scenario);
+        const response = await fetch(`/api/dev/games/by-scenario/${scenario}`);
+        if (response.ok) 
+        {
+          const data = await response.json();
+          if (data.games && data.games.length > 0) 
+          {
+            game = data.games[0]; // Take the first (most recent) game
+            console.log('✅ DevEventHandler: Found game by scenario:', game);
+          }
+        }
+      }
+      
+      // If game was found, create state object from params
+      if (game) 
+      {
+        const params = game.params || {};
+        const state = params.state || {};
+        
+        return {
+          gameId: game.id,
+          scenario: params.scenario || scenario,
+          status: game.status,
+          gameCreated: state.gameCreated || false,
+          playersAdded: state.playersAdded || false,
+          mapGenerated: state.mapGenerated || false,
+          playersPlaced: state.playersPlaced || false,
+          shipsPlaced: state.shipsPlaced || false,
+          specialsApplied: state.specialsApplied || false
+        };
+      }
+      
+      // No game found, create default state object
+      console.log('🔍 DevEventHandler: No game found, creating default state for scenario:', scenario);
+      return {
+        gameId: null,
+        scenario: scenario,
+        status: null,
+        gameCreated: false,
+        playersAdded: false,
+        mapGenerated: false,
+        playersPlaced: false,
+        shipsPlaced: false,
+        specialsApplied: false
+      };
     }
     catch (error)
     {
-      console.error('🧪 DevEventHandler: Error in processLoadScenario:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Check if there is a game in the database with title equal to the scenario
-   * @param {string} scenario - Scenario name to check
-   * @returns {Promise<Object|null>} Game info with gameId and status, or null if not found
-   */
-  async checkGame(scenario)
-  {
-    try {
-      console.log(`🔍 DevEventHandler: Checking for scenario: ${scenario}`);
-      
-      const response = await fetch(`/api/dev/games/check/${scenario}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!data.found) {
-        console.log(`🔍 DevEventHandler: No game found for scenario: ${scenario}`);
-        return null;
-      }
-      
-      if (data.error === 'duplicateGames') {
-        eventBus.emit('dev:scenarioStatus', {
-          type: 'error',
-          message: data.message,
-          scenario
-        });
-        throw new Error(data.message);
-      }
-      
-      console.log(`✅ DevEventHandler: Found game for scenario: ${scenario}`, data.game);
-      return data.game;
-      
-    } catch (error) {
-      console.error(`❌ DevEventHandler: Error checking game for scenario ${scenario}:`, error);
-      eventBus.emit('dev:scenarioStatus', {
-        type: 'error',
-        message: `Failed to check game: ${error.message}`,
-        scenario
-      });
+      console.error('❌ DevEventHandler: Error resolving game state:', error);
       throw error;
     }
   }
 
   /**
    * Create a game for the given scenario
-   * @param {Object} context - Current system context
    * @param {Object} data - Event data containing scenario
    */
-  createGame(context, data)
+  createGame(data)
   {
     console.log('🧪 DevEventHandler: Creating game with data:', data);
     
     // Extract scenario from standardized format or legacy format
     let scenario;
-    if (data && data.details && data.details.scenario) {
+    if (data && data.details && data.details.scenario) 
       scenario = data.details.scenario;
-    } else if (data && data.scenario) {
-      scenario = data.scenario;
-    } else {
-      console.error('🧪 DevEventHandler: No scenario found in data:', data);
-      return;
-    }
-    
-    console.log('🧪 DevEventHandler: Creating game for scenario:', scenario);
+    else 
+      throw new Error('🧪 DevEventHandler: No scenario found in data');
     
     // Emit status update
     eventBus.emit('dev:scenarioStatus', { type: 'creatingGame', scenario });
@@ -277,116 +326,45 @@ export class DevEventHandler
     // Get game data from the map
     const gameData = this.gameData.get(scenario);
     if (!gameData)
-    {
-      console.error('🧪 DevEventHandler: No game data found for scenario:', scenario);
-      return;
-    }
+      throw new Error('🧪 DevEventHandler: No game data found for scenario: ' + scenario);
     
     // Emit game creation event
     eventBus.emit('game:createGame', gameData);
   }
 
-  /**
-   * Get a list of players currently added to a given game
-   * @param {string} gameId - Game ID to check
-   * @returns {Promise<Array>} List of current players
-   */
-  async listGamePlayers(gameId)
-  {
-    console.log('🧪 DevEventHandler: Listing players for game:', gameId);
-    
-    try
-    {
-      // Get players from the backend API
-      const response = await fetch(`/api/dev/games/${encodeURIComponent(gameId)}/players`);
-      
-      if (!response.ok)
-      {
-        const errorData = await response.json();
-        console.error('🧪 DevEventHandler: Error getting game players:', errorData);
-        throw new Error(`Failed to get game players: ${errorData.error || 'Unknown error'}`);
-      }
-      
-      const data = await response.json();
-      const players = data.players || [];
-      
-      console.log('🧪 DevEventHandler: Found players for game:', players);
-      
-      return players;      
-    }
-    catch (error)
-    {
-      console.error('🧪 DevEventHandler: Error in listGamePlayers:', error);
-      
-      // Always throw on API failures - we need to distinguish between no players and request failures
-      throw error;
-    }
-  }
 
   /**
    * Add players to a game for a scenario
-   * @param {Object} context - Current system context
    * @param {Object} data - Event data
    */
-  async addPlayers(context, data) {
+  addPlayers(data) 
+  {
     console.log('🧪 DevEventHandler: Adding players with data:', data);
     
     // Extract scenario and gameId from standardized format or legacy format
     let scenario, gameId;
-    if (data && data.details) {
+    if (data && data.details && data.details.scenario && data.details.gameId) 
+    {
       scenario = data.details.scenario;
       gameId = data.details.gameId;
-    } else {
-      scenario = data.scenario;
-      gameId = data.gameId;
-    }
-    
-    if (!scenario || !gameId) {
-      console.error('🧪 DevEventHandler: Missing scenario or gameId in data:', data);
-      return;
-    }
-    
-    console.log('🧪 DevEventHandler: Adding players for scenario:', scenario, 'game:', gameId);
-    
-    // Get current players
-    const currentPlayers = await this.listGamePlayers(gameId);
+    } 
+    else 
+      throw new Error('🧪 DevEventHandler: No scenario or gameId found in data');
+
+    if(!this.playerData.has(scenario))
+      throw new Error('🧪 DevEventHandler: No players found for scenario: ' + scenario);
     
     // Get required players from the map
     const requiredPlayers = this.playerData.get(scenario) || [];
 
-    if(currentPlayers.length === requiredPlayers.length)
+    // Emit status update
+    eventBus.emit('dev:scenarioStatus', { type: 'addingPlayers', scenario });
+    
+    // Emit player addition events for all required players
+    requiredPlayers.forEach(player => 
     {
-      console.log('🧪 DevEventHandler: All players added for scenario:', scenario);
-      
-      // Update database state to mark players as added
-      await this.updateGameState(gameId, { playersAdded: true });
-      
-      eventBus.emit('dev:scenarioStatus', { type: 'allPlayersAdded', scenario });
-      
-      // Continue with next step using standardized format
-      eventBus.emit('dev:loadScenario', {
-        success: true,
-        details: {
-          eventType: 'dev:loadScenario',
-          gameId: gameId,
-          scenario: scenario
-        }
-      });
-
-      return;
-    }
-
-    // Loop through required players and add missing ones
-    requiredPlayers.forEach(player => {
-      if (!currentPlayers.find(cp => cp.user_id === player.userId))
-      {
-        console.log('🧪 DevEventHandler: Adding missing player:', player.name);
-        // Emit status update
-        eventBus.emit('dev:scenarioStatus', { type: 'addingPlayers', scenario, playerName: player.name });
-        
-        // Emit player addition event
-        eventBus.emit('game:addPlayer', { ...player, gameId });
-      }
+      console.log('🧪 DevEventHandler: Adding player:', player.name);
+      eventBus.emit('game:addPlayer', { ...player, gameId });
     });
   }
 
@@ -396,7 +374,7 @@ export class DevEventHandler
    * @param {string} data.scenario - Scenario name
    * @param {string} data.gameId - Game ID
    */
-  applySpecials(context, data)
+  applySpecials(data)
   {
     const { scenario, gameId } = data;
     console.log('🧪 DevEventHandler: Applying special rules for scenario:', scenario, 'game:', gameId);
@@ -422,19 +400,26 @@ export class DevEventHandler
   /**
    * Generate map for a scenario
    * @param {Object} data - Event data
-   * @param {string} data.scenario - Scenario name
-   * @param {string} data.gameId - Game ID
    */
-  generateMap(context, data)
+  generateMap(data)
   {
-    const { scenario, gameId } = data;
-    console.log('🧪 DevEventHandler: Generating map for scenario:', scenario, 'game:', gameId);
+    console.log('🧪 DevEventHandler: Generating map with data:', data);
+    
+    // Extract scenario and gameId from standardized format or legacy format
+    let scenario, gameId;
+    if (data && data.details && data.details.scenario && data.details.gameId) 
+    {
+      scenario = data.details.scenario;
+      gameId = data.details.gameId;
+    }
+    else 
+      throw new Error('🧪 DevEventHandler: No scenario or gameId found in data');
     
     // Emit status update
-    eventBus.emit('dev:scenarioStatus', { type: 'generatingMap', scenario });
+    eventBus.emit('dev:scenarioStatus', { type: 'generatingMap', scenario: scenario });
     
-    // Emit game map generation event
-    eventBus.emit('game:generateMap', { scenario, gameId });
+    // Emit game map generation event (only need gameId - backend will retrieve all parameters)
+    eventBus.emit('game:generateMap', { gameId });
   }
 
   /**
@@ -443,7 +428,7 @@ export class DevEventHandler
    * @param {string} data.scenario - Scenario name
    * @param {string} data.gameId - Game ID
    */
-  placePlayers(context, data)
+  placePlayers(data)
   {
     const { scenario, gameId } = data;
     console.log('🧪 DevEventHandler: Placing players for scenario:', scenario, 'game:', gameId);
@@ -451,6 +436,8 @@ export class DevEventHandler
     // Emit status update
     eventBus.emit('dev:scenarioStatus', { type: 'placingPlayers', scenario });
     
+    throw new Error('🧪 DevEventHandler: Not implemented yet');
+
     // Emit game player placement event
     eventBus.emit('game:placePlayers', { scenario, gameId });
   }
@@ -461,7 +448,7 @@ export class DevEventHandler
    * @param {string} data.scenario - Scenario name
    * @param {string} data.gameId - Game ID
    */
-  placeShips(context, data)
+  placeShips(data)
   {
     const { scenario, gameId } = data;
     console.log('🧪 DevEventHandler: Placing ships for scenario:', scenario, 'game:', gameId);
@@ -479,7 +466,7 @@ export class DevEventHandler
    * @param {string} data.scenario - Scenario name
    * @param {string} data.gameId - Game ID
    */
-  startGame(context, data)
+  startGame(data)
   {
     const { scenario, gameId } = data;
     console.log('🧪 DevEventHandler: Starting game for scenario:', scenario, 'game:', gameId);
@@ -525,38 +512,49 @@ export class DevEventHandler
 
   /**
    * Execute the next step of scenario setup based on current state
-   * @param {string} scenario - Scenario name
-   * @param {Object} gameInfo - Game info from database (includes id and state)
+   * @param {Object} gameState - Game state object from resolveGameState
+   * @param {Object} eventData - Event data passed to loadScenario
    */
-  async executeNextStep(scenario, gameInfo)
+  async executeNextStep(gameState, eventData)
   {
-    const { id: gameId, state } = gameInfo;
-    const { playersAdded, mapGenerated, playersPlaced, shipsPlaced, specialsApplied } = state;
+    console.log('🧪 DevEventHandler: Executing next step with game state:', gameState);
+    console.log('🧪 DevEventHandler: Event data:', eventData);
 
-    if (!playersAdded)
+    const { gameId, scenario, status, gameCreated, playersAdded, mapGenerated, playersPlaced, shipsPlaced, specialsApplied } = gameState;
+
+    if (!gameCreated)
+    {
+      console.log('🧪 DevEventHandler: Need to create game.');
+      this.createGame(eventData);
+    }
+    else if (status === 'running')
+    {
+      console.log('🧪 DevEventHandler: Game is already running.');
+    }
+    else if (!playersAdded)
     {
       console.log('🧪 DevEventHandler: Need to add players.');
-      eventBus.emit('dev:addPlayers', { scenario, gameId });
+      this.addPlayers(eventData);
     }
     else if (!mapGenerated)
     {
       console.log('🧪 DevEventHandler: Need to generate map.');
-      eventBus.emit('game:generateMap', { scenario, gameId });
+      this.generateMap(eventData);
     }
     else if (!playersPlaced)
     {
       console.log('🧪 DevEventHandler: Need to place players.');
-      eventBus.emit('game:placePlayers', { scenario, gameId });
+      this.placePlayers(eventData);
     }
     else if (!shipsPlaced)
     {
       console.log('🧪 DevEventHandler: Need to place ships.');
-      eventBus.emit('game:placeShips', { scenario, gameId });
+      this.placeShips(eventData);
     }
     else if (!specialsApplied)
     {
       console.log('🧪 DevEventHandler: Need to apply special rules.');
-      eventBus.emit('dev:applySpecials', { scenario, gameId });
+      this.applySpecials(eventData);
     }
     else
     {
@@ -566,6 +564,7 @@ export class DevEventHandler
       eventBus.emit('game:startGame', { gameId });
     }
   }
+
 
   /**
    * Update game state in database after completing a step
@@ -609,9 +608,6 @@ export class DevEventHandler
   dispose()
   {
     eventBus.off('dev:loadScenario', this.loadScenario.bind(this));
-    eventBus.off('dev:createGame', this.createGame.bind(this));
-    eventBus.off('dev:addPlayers', this.addPlayers.bind(this));
-    eventBus.off('dev:applySpecials', this.applySpecials.bind(this));
 
     eventBus.off('game:gameCreated', this.loadScenario.bind(this));
     eventBus.off('game:mapGenerated', this.loadScenario.bind(this));

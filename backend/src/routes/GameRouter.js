@@ -1,5 +1,5 @@
 import express from 'express';
-import { startGameFromSeed, createEmptyGame } from '../services/startGameService.js';
+import { startGameFromSeed, createEmptyGame, generateMapForGame } from '../services/startGameService.js';
 import { getOpenTurn } from '../repos/turnsRepo.js';
 import { listPlayers } from '../repos/playersRepo.js';
 import { listGames } from '../repos/gamesRepo.js';
@@ -32,6 +32,9 @@ export class GameRouter
     
     // POST /api/games/players - Add a player to a game
     this.router.post('/players', this.addPlayer.bind(this));
+    
+    // POST /api/games/:gameId/generate-map - Generate map for a game
+    this.router.post('/:gameId/generate-map', this.generateMap.bind(this));
   }
 
   /**
@@ -303,6 +306,45 @@ export class GameRouter
       console.error('Error adding player:', error);
       res.status(500).json({
         error: 'Failed to add player',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * POST /api/games/:gameId/generate-map
+   * Generate map for a game (stars and wormholes only)
+   */
+  async generateMap(req, res) {
+    try {
+      const { gameId } = req.params;
+      
+      // Debug logging
+      console.log('Received generate map request for gameId:', gameId);
+      
+      // Validate required parameters
+      if (!gameId) {
+        return res.status(400).json({
+          error: 'Missing required parameter: gameId'
+        });
+      }
+      
+      const result = await generateMapForGame({
+        gameId
+      });
+      
+      res.json({
+        success: true,
+        gameId: result.gameId,
+        starsCount: result.starsCount,
+        wormholesCount: result.wormholesCount,
+        modelSummary: result.modelSummary
+      });
+      
+    } catch (error) {
+      console.error('Error generating map:', error);
+      res.status(500).json({
+        error: 'Failed to generate map',
         details: error.message
       });
     }
