@@ -1,5 +1,5 @@
 import express from 'express';
-import { startGameFromSeed, createEmptyGame, generateMapForGame } from '../services/startGameService.js';
+import { createEmptyGame, generateMapForGame, placePlayersForGame } from '../services/startGameService.js';
 import { getOpenTurn } from '../repos/turnsRepo.js';
 import { listPlayers } from '../repos/playersRepo.js';
 import { listGames } from '../repos/gamesRepo.js';
@@ -35,6 +35,9 @@ export class GameRouter
     
     // POST /api/games/:gameId/generate-map - Generate map for a game
     this.router.post('/:gameId/generate-map', this.generateMap.bind(this));
+    
+    // POST /api/games/:gameId/place-players - Place players on the map
+    this.router.post('/:gameId/place-players', this.placePlayers.bind(this));
   }
 
   /**
@@ -345,6 +348,43 @@ export class GameRouter
       console.error('Error generating map:', error);
       res.status(500).json({
         error: 'Failed to generate map',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * POST /api/games/:gameId/place-players
+   * Place players on the map for a game
+   */
+  async placePlayers(req, res)
+  {
+    try
+    {
+      const { gameId } = req.params;
+      
+      if (!gameId)
+      {
+        return res.status(400).json({
+          error: 'Missing gameId parameter'
+        });
+      }
+      
+      console.log(`🎮 GameRouter: Placing players for game: ${gameId}`);
+      
+      // Call the service to place players
+      const result = await placePlayersForGame({ gameId });
+      
+      res.json({
+        success: true,
+        gameId: gameId,
+        playersPlaced: result.playersPlaced
+      });
+      
+    } catch (error) {
+      console.error('Error placing players:', error);
+      res.status(500).json({
+        error: 'Failed to place players',
         details: error.message
       });
     }

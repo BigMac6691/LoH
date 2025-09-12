@@ -103,123 +103,117 @@ export async function generateMapForGame({ gameId })
   }
 }
 
-export async function startGameFromSeed({ ownerId, seed, mapSize, densityMin, densityMax, title, description, players, status = 'lobby', params = {} })
-{
+
+/**
+ * Place players on the map for a game
+ * @param {Object} params
+ * @param {string} params.gameId - Game ID
+ * @returns {Promise<Object>} Result with playersPlaced count
+ */
+export async function placePlayersForGame({ gameId }) {
   const client = await pool.connect();
-  try
-  {
-    await client.query('BEGIN');
-
-    const game = await createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, params, status }, client);
-    const turn = await openTurn({ gameId: game.id, number: 1 }, client);
-
-    const model = await generateMap({ seed, mapSize, densityMin, densityMax });
-
-    // insert stars
-    const stars = model.getStars();
-    for (const s of stars)
-    {
-      await client.query(
-        `INSERT INTO star (id, game_id, star_id, name, sector_x, sector_y, pos_x, pos_y, pos_z, resource)
-         VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [game.id, s.getId(), s.getName(), s.getSector().col, s.getSector().row, s.getPosition().x, s.getPosition().y, s.getPosition().z, s.getResourceValue()]
-      );
-    }
-
-    // insert wormholes (ensure a<b for uniqueness)
-    const wormholes = model.getWormholes();
-    for (const w of wormholes)
-    {
-      const a = w.star1.getId();
-      const b = w.star2.getId();
-      const aId = a < b ? a : b;
-      const bId = a < b ? b : a;
-      const wormholeId = `EDGE_${aId}_${bId}`;
-      await client.query(
-        `INSERT INTO wormhole (id, game_id, wormhole_id, star_a_id, star_b_id)
-         VALUES (gen_random_uuid(),$1,$2,$3,$4)`,
-        [game.id, wormholeId, aId, bId]
-      );
-    }
-
-    // add players as provided
-    const playersInserted = [];
-    for (const p of players)
-    {
-      const row = await addPlayer({
-        gameId: game.id,
-        userId: p.userId ?? null,
-        name: p.name,
-        colorHex: p.colorHex,
-        countryName: p.countryName ?? null
-      }, client);
-      playersInserted.push(row);
-    }
-
-    // deterministic initial ownership & ships using corner placements
-    const sectors = model.getSectors();
-    const sectorCount = sectors.length;
-    const cornerSectors = [
-      { sectorX: 0, sectorY: 0 },
-      { sectorX: sectorCount - 1, sectorY: 0 },
-      { sectorX: 0, sectorY: sectorCount - 1 },
-      { sectorX: sectorCount - 1, sectorY: sectorCount - 1 }
-    ];
+  
+  try {
+    console.log(`🎮 startGameService: Placing players for game: ${gameId}`);
     
-    for (let i = 0; i < playersInserted.length && i < cornerSectors.length; i++)
-    {
-      const pl = playersInserted[i];
-      const corner = cornerSectors[i];
-      const sector = sectors[corner.sectorY][corner.sectorX];
-      
-      if (sector.stars.length > 0)
-      {
-        // Pick a random star from this sector
-        const star = sector.stars[Math.floor(Math.random() * sector.stars.length)];
-        
-        // Update the star's resource value to 10 for fairness
-        await client.query(
-          `UPDATE star SET resource = 10 WHERE game_id = $1 AND star_id = $2`,
-          [game.id, star.getId()]
-        );
-        
-        await upsertStarState({
-          gameId: game.id,
-          starId: star.getId(),
-          ownerPlayer: pl.id,
-          economy: { industry: 10, available: 10, technology: 3 },
-          damage: {}
-        }, client);
+    // Get all game players
+    const { rows: players } = await client.query(
+      `SELECT * FROM game_player WHERE game_id = $1`,
+      [gameId]
+    );
+    
+    if (players.length === 0) {
+      throw new Error('No players found for game');
+    }
+    
+    // Get all stars for the game
+    const { rows: stars } = await client.query(
+      `SELECT * FROM star WHERE game_id = $1`,
+      [gameId]
+    );
+    
+    if (stars.length === 0) {
+      throw new Error('No stars found for game');
+    }
+    
+    let playersPlaced = 0;
+    
+    // Place each player on a random unowned star
+    for (const player of players) {
+      let placed = false;
+      let attempts = 0;
+      const maxAttempts = 100; // Prevent infinite loop
 
-        // optional: initial ships
-        await addShip({
-          gameId: game.id,
-          ownerPlayer: pl.id,
-          locationStarId: star.getId(),
-          hp: 3,
-          power: 3, // deterministic variance
-          details: {}
-        }, client);
+      console.log(`🎮 startGameService: Placing player ${player.user_id} on game ${gameId}`);
+      
+      while (!placed && attempts < maxAttempts) {
+        // Pick a random star
+        const randomStar = stars[Math.floor(Math.random() * stars.length)];
+
+        console.log(`🎮 startGameService: Picking random star ${randomStar.star_id}`);
+        
+        // Check if star is already owned
+        const { rows: existingOwner } = await client.query(
+          `SELECT owner_player FROM star_state WHERE game_id = $1 AND star_id = $2`,
+          [gameId, randomStar.star_id]
+        );
+
+        console.log(`🎮 startGameService: Checking if star ${randomStar.star_id} is owned by ${existingOwner.length > 0 ? existingOwner[0].owner_player : 'none'}`);
+        
+        if (existingOwner.length === 0 || !existingOwner[0].owner_player) {
+          // Star is unowned, place player here
+          
+          // Update star resource value to 10
+          await client.query(
+            `UPDATE star SET resource = 10 WHERE game_id = $1 AND star_id = $2`,
+            [gameId, randomStar.star_id]
+          );
+          
+          // Update star_state with owner and economy
+          await upsertStarState({
+            gameId: gameId,
+            starId: randomStar.star_id,
+            ownerPlayer: player.id,
+            economy: { industry: 10, available: 10, technology: 3 },
+            damage: {}
+          }, client);
+          
+          // Create three ships for the player at their home star
+          for (let shipIndex = 0; shipIndex < 3; shipIndex++) {
+            await addShip({
+              gameId: gameId,
+              ownerPlayer: player.id,
+              locationStarId: randomStar.star_id,
+              hp: 3,
+              power: 3,
+              details: {}
+            }, client);
+          }
+          
+          console.log(`🎮 startGameService: Placed player ${player.user_id} on star ${randomStar.star_id} with 3 ships`);
+          playersPlaced++;
+          placed = true;
+        } else {
+          // Star is owned, try again
+          attempts++;
+        }
+      }
+      
+      if (!placed) {
+        throw new Error(`Could not find unowned star for player ${player.user_id} after ${maxAttempts} attempts`);
       }
     }
-
-    await logEvent({
-      gameId: game.id,
-      turnId: turn.id,
-      kind: 'game_started',
-      details: { seed, mapSize, players: playersInserted.map(p => ({ id: p.id, name: p.name })) }
-    }, client);
-
-    await client.query('COMMIT');
-    return { game, turn, players: playersInserted, modelSummary: { stars: model.getStars().length, edges: model.getWormholes().length } };
-  }
-  catch (e)
-  {
-    await client.query('ROLLBACK');
-    throw e;
-  }
-  finally
-  {
+    
+    console.log(`🎮 startGameService: Successfully placed ${playersPlaced} players`);
+    
+    return {
+      playersPlaced: playersPlaced
+    };
+    
+  } catch (error) {
+    console.error('🎮 startGameService: Error placing players:', error);
+    throw error;
+  } finally {
     client.release();
   }
 }

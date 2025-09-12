@@ -25,6 +25,8 @@ export class GameEventHandler {
     eventBus.on('game:addPlayer', this.handleAddPlayer.bind(this));
     eventBus.on('game:loadGame', this.handleLoadGame.bind(this));
     eventBus.on('game:generateMap', this.handleGenerateMap.bind(this));
+    eventBus.on('game:placePlayers', this.handlePlacePlayers.bind(this));
+    eventBus.on('game:startGame', this.handleStartGame.bind(this));
   }
 
   /**
@@ -310,6 +312,158 @@ export class GameEventHandler {
   }
 
   /**
+   * Handle place players event
+   * @param {Object} context - Current system context
+   * @param {Object} data - Event data containing gameId
+   */
+  async handlePlacePlayers(context, data) {
+    try {
+      console.log('🎮 GameEventHandler: Placing players with data:', data);
+      
+      const { gameId } = data;
+      
+      if (!gameId) {
+        console.error('🎮 GameEventHandler: Missing gameId in placePlayers data');
+        
+        // Emit error event with standardized format
+        eventBus.emit('game:playersPlaced', { 
+          success: false, 
+          error: 'missing_gameId',
+          message: 'Game ID is required for placing players'
+        });
+        return;
+      }
+      
+      // Call the backend API to place players
+      const response = await fetch(`/api/games/${gameId}/place-players`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('🎮 GameEventHandler: API error placing players:', errorData);
+        
+        // Emit error event with standardized format
+        eventBus.emit('game:playersPlaced', { 
+          success: false, 
+          error: 'api_error',
+          message: errorData.error || 'Failed to place players'
+        });
+        return;
+      }
+      
+      const result = await response.json();
+      console.log('🎮 GameEventHandler: Players placed successfully:', result);
+      
+      // Emit success event with standardized format
+      eventBus.emit('game:playersPlaced', { 
+        success: true, 
+        details: {
+          eventType: 'game:playersPlaced',
+          gameId: gameId,
+          playersPlaced: result.playersPlaced || 0
+        }
+      });
+      
+    } catch (error) {
+      console.error('🎮 GameEventHandler: Unexpected error placing players:', error);
+      
+      // Emit error event with standardized format
+      eventBus.emit('game:playersPlaced', { 
+        success: false, 
+        error: 'unexpected_error',
+        message: error.message || 'Unexpected error occurred'
+      });
+    }
+  }
+
+  /**
+   * Handle start game event - loads complete game state and emits gameLoaded event
+   * @param {Object} context - Current system context
+   * @param {Object} data - Event data containing gameId
+   */
+  async handleStartGame(context, data) {
+    console.log('🎮 GameEventHandler: Starting game with data:', data);
+    console.log('🎮 GameEventHandler: Context:', context);
+    
+    try {
+      const { gameId } = data;
+      
+      if (!gameId) {
+        console.error('🎮 GameEventHandler: Missing gameId in startGame data');
+        
+        // Emit error event
+        eventBus.emit('game:gameLoaded', { 
+          success: false, 
+          error: 'missing_gameId',
+          message: 'Game ID is required to start game'
+        });
+        return;
+      }
+      
+      // Load complete game state from backend
+      const response = await fetch(`/api/games/${gameId}/state`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('🎮 GameEventHandler: API error loading game state:', errorData);
+        
+        // Emit error event
+        eventBus.emit('game:gameLoaded', { 
+          success: false, 
+          error: 'api_error',
+          message: errorData.error || 'Failed to load game state'
+        });
+        return;
+      }
+      
+      const gameData = await response.json();
+      console.log('🎮 GameEventHandler: Game state loaded successfully:', gameData);
+      
+      // Set game ID on event bus
+      eventBus.setGameId(gameId);
+      
+      // Set user ID to the first player in the list
+      if (gameData.players && gameData.players.length > 0) {
+        const firstPlayer = gameData.players[0];
+        eventBus.setUser(firstPlayer.user_id);
+        console.log('🎮 GameEventHandler: Set context - GameId:', gameId, 'UserId:', firstPlayer.user_id);
+      } else {
+        console.warn('🎮 GameEventHandler: No players found in game data');
+      }
+      
+      // Emit success event with complete game data
+      eventBus.emit('game:gameLoaded', {
+        success: true,
+        details: {
+          eventType: 'game:gameLoaded',
+          gameId: gameId,
+          gameData: gameData
+        }
+      });
+      
+    } catch (error) {
+      console.error('🎮 GameEventHandler: Unexpected error starting game:', error);
+      
+      // Emit error event
+      eventBus.emit('game:gameLoaded', { 
+        success: false, 
+        error: 'unexpected_error',
+        message: error.message || 'Unexpected error occurred'
+      });
+    }
+  }
+
+  /**
    * Clean up event listeners
    */
   dispose() {
@@ -320,7 +474,6 @@ export class GameEventHandler {
     eventBus.off('game:loadGame', this.handleLoadGame.bind(this));
     eventBus.off('game:generateMap', this.handleGenerateMap.bind(this));
     eventBus.off('game:placePlayers', this.handlePlacePlayers.bind(this));
-    eventBus.off('game:placeShips', this.handlePlaceShips.bind(this));
     eventBus.off('game:startGame', this.handleStartGame.bind(this));
   }
 }

@@ -6,6 +6,7 @@ import { RadialMenu } from './RadialMenu.js';
 import { createStarLabel3D } from './scene/createStarLabel3D.js';
 import { assetManager } from './engine/AssetManager.js';
 import { mem } from './engine/MemoryManager.js';
+import { eventBus } from './eventBus.js';
 
 // Constants for rendering
 const DEBUG_SHOW_SECTOR_BORDERS = true; // Set to false to hide sector borders
@@ -38,10 +39,13 @@ export class MapViewGenerator
     
     // Set up asset manager event listeners
     this.setupAssetEventListeners();
+    
+    // Set up game event listeners
+    this.setupGameEventListeners();
   }
 
   /**
-   * Set up event listeners for asset manager
+   * Set up event listeners for asset manager and game events
    */
   setupAssetEventListeners()
   {
@@ -56,6 +60,15 @@ export class MapViewGenerator
     {
       this.onAssetsReady(event.detail);
     });
+  }
+
+  /**
+   * Set up event listeners for game events
+   */
+  setupGameEventListeners()
+  {
+    // Listen for game loaded events
+    eventBus.on('game:gameLoaded', this.handleGameLoaded.bind(this));
   }
 
   /**
@@ -99,6 +112,42 @@ export class MapViewGenerator
     // This event is less useful since we handle individual asset loads
     // But we could use it for batch operations if needed
     console.log('🎨 Assets ready event received, but individual assets already processed');
+  }
+
+  /**
+   * Handle game loaded event - renders the game map
+   * @param {Object} context - Current system context
+   * @param {Object} eventData - Event data containing game state
+   */
+  async handleGameLoaded(context, eventData)
+  {
+    console.log('🎨 MapViewGenerator: Game loaded event received:', eventData);
+    console.log('🎨 MapViewGenerator: Context:', context);
+    
+    try {
+      // Check if the event was successful
+      if (!eventData.success) {
+        console.error('🎨 MapViewGenerator: Game load failed:', eventData.error, eventData.message);
+        return;
+      }
+      
+      const { gameData } = eventData.details;
+      
+      if (!gameData) {
+        console.error('🎨 MapViewGenerator: No game data in event');
+        return;
+      }
+      
+      console.log('🎨 MapViewGenerator: Rendering game with data:', gameData);
+      
+      // Generate the map from the loaded game data
+      await this.generateMapFromModel(gameData);
+      
+      console.log('🎨 MapViewGenerator: Game map rendered successfully');
+      
+    } catch (error) {
+      console.error('🎨 MapViewGenerator: Error rendering game:', error);
+    }
   }
 
   /**

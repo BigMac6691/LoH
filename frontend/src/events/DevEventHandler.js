@@ -11,7 +11,6 @@ export class DevEventHandler
     // Initialize the four maps as specified
     this.gameData = new Map();
     this.playerData = new Map();
-    this.shipData = new Map();
     this.gameTracker = new Map(); // game id -> scenario
     
     // Initialize scenario data
@@ -30,7 +29,7 @@ export class DevEventHandler
     this.gameData.set("simple-two-player", {
       ownerId: "a109d369-0df3-4e73-b262-62c793ad743f",
       title: "simple-two-player",
-      description: "Simple game with two players and one ship each",
+      description: "Simple game with two players",
       seed: 12345,
       mapSize: 5,
       densityMin: 3,
@@ -45,7 +44,6 @@ export class DevEventHandler
           playersAdded: false,
           mapGenerated: false,
           playersPlaced: false,
-          shipsPlaced: false,
           specialsApplied: false
         }
       })
@@ -67,21 +65,6 @@ export class DevEventHandler
       }
     ]);
 
-    // Initialize ship data map (empty for now)
-    this.shipData.set("simple-two-player", [
-      {
-        owner_player: "7a0fc466-218e-49cf-9235-7a3d0d197b96",
-        location_star_id: "X",
-        hp: 3,
-        power: 3
-      },
-      {
-        owner_player: "93046edf-11c1-4e70-83a2-afebb209a343",
-        location_star_id: "X",
-        hp: 3,
-        power: 3
-      }
-    ]);
   }
 
   /**
@@ -97,7 +80,6 @@ export class DevEventHandler
     eventBus.on('game:playerAdded', this.loadScenario.bind(this));
     eventBus.on('game:mapGenerated', this.loadScenario.bind(this));
     eventBus.on('game:playersPlaced', this.loadScenario.bind(this));
-    eventBus.on('game:shipPlaced', this.loadScenario.bind(this));
     
     eventBus.on('game:gameLoaded', this.handleGameLoaded.bind(this));
   }
@@ -116,6 +98,9 @@ export class DevEventHandler
     const gameState = await this.resolveGameState(eventData);
     console.log('🧪 DevEventHandler: Resolved game state:', gameState);
 
+    if(!eventData.details.gameId)
+      eventData.details.gameId = gameState.gameId;
+    
     try
     {
       // Check if this is a dev event or game event
@@ -174,9 +159,6 @@ export class DevEventHandler
               stateUpdate = { playersPlaced: true };
               break;
               
-            case 'game:shipPlaced':
-              stateUpdate = { shipsPlaced: true };
-              break;
               
             case 'game:gameLoaded':
               stateUpdate = { specialsApplied: true };
@@ -282,7 +264,6 @@ export class DevEventHandler
           playersAdded: state.playersAdded || false,
           mapGenerated: state.mapGenerated || false,
           playersPlaced: state.playersPlaced || false,
-          shipsPlaced: state.shipsPlaced || false,
           specialsApplied: state.specialsApplied || false
         };
       }
@@ -297,7 +278,6 @@ export class DevEventHandler
         playersAdded: false,
         mapGenerated: false,
         playersPlaced: false,
-        shipsPlaced: false,
         specialsApplied: false
       };
     }
@@ -391,9 +371,11 @@ export class DevEventHandler
    * @param {string} data.scenario - Scenario name
    * @param {string} data.gameId - Game ID
    */
-  applySpecials(data)
+  async applySpecials(data)
   {
-    const { scenario, gameId } = data;
+    console.log('🧪 DevEventHandler: Applying special rules with data:', data);
+    
+    const { scenario, gameId } = data.details;
     console.log('🧪 DevEventHandler: Applying special rules for scenario:', scenario, 'game:', gameId);
     
     // Emit status update
@@ -403,7 +385,7 @@ export class DevEventHandler
     switch (scenario)
     {
       case 'simple-two-player':
-        this.createSimpleTwoPlayer(gameId);
+        await this.createSimpleTwoPlayer(gameId);
         break;
       default:
         console.log('🧪 DevEventHandler: No special setup for scenario:', scenario);
@@ -447,35 +429,17 @@ export class DevEventHandler
    */
   placePlayers(data)
   {
-    const { scenario, gameId } = data;
+    console.log('🧪 DevEventHandler: Placing players with data:', data);
+    const { scenario, gameId } = data.details;
     console.log('🧪 DevEventHandler: Placing players for scenario:', scenario, 'game:', gameId);
     
     // Emit status update
     eventBus.emit('dev:scenarioStatus', { type: 'placingPlayers', scenario });
     
-    throw new Error('🧪 DevEventHandler: Not implemented yet');
-
     // Emit game player placement event
-    eventBus.emit('game:placePlayers', { scenario, gameId });
+    eventBus.emit('game:placePlayers', { gameId });
   }
 
-  /**
-   * Place ships for a scenario
-   * @param {Object} data - Event data
-   * @param {string} data.scenario - Scenario name
-   * @param {string} data.gameId - Game ID
-   */
-  placeShips(data)
-  {
-    const { scenario, gameId } = data;
-    console.log('🧪 DevEventHandler: Placing ships for scenario:', scenario, 'game:', gameId);
-    
-    // Emit status update
-    eventBus.emit('dev:scenarioStatus', { type: 'placingShips', scenario });
-    
-    // Emit game ship placement event
-    eventBus.emit('game:placeShips', { scenario, gameId });
-  }
 
   /**
    * Start game for a scenario
@@ -490,6 +454,8 @@ export class DevEventHandler
     
     // Emit status update
     eventBus.emit('dev:scenarioStatus', { type: 'startingGame', scenario });
+
+    throw new Error('🧪 DevEventHandler: Not implemented yet');
     
     // Emit game start event
     eventBus.emit('game:startGame', { gameId });
@@ -499,15 +465,22 @@ export class DevEventHandler
    * Create simple two player scenario setup
    * @param {string} gameId - Game ID
    */
-  createSimpleTwoPlayer(gameId)
+  async createSimpleTwoPlayer(gameId)
   {
     console.log('🧪 DevEventHandler: Creating simple two player setup for game:', gameId);
     
-    // TODO: Add any special setup conditions here
+    // Mark this step as complete
+    await this.updateGameState(gameId, { specialsApplied: true });
     
-    // When done, emit loading events
-    eventBus.emit('dev:scenarioStatus', { type: 'loadingGame', scenario: 'simple-two-player' });
-    eventBus.emit('game:loadGame', gameId);
+    // Emit dev:loadScenario event to continue the flow
+    eventBus.emit('dev:loadScenario', {
+      success: true,
+      details: {
+        eventType: 'dev:loadScenario',
+        gameId: gameId,
+        scenario: 'simple-two-player'
+      }
+    });
   }
 
 
@@ -537,7 +510,7 @@ export class DevEventHandler
     console.log('🧪 DevEventHandler: Executing next step with game state:', gameState);
     console.log('🧪 DevEventHandler: Event data:', eventData);
 
-    const { gameId, scenario, status, gameCreated, playersAdded, mapGenerated, playersPlaced, shipsPlaced, specialsApplied } = gameState;
+    const { gameId, scenario, status, gameCreated, playersAdded, mapGenerated, playersPlaced, specialsApplied } = gameState;
 
     if (!gameCreated)
     {
@@ -563,15 +536,10 @@ export class DevEventHandler
       console.log('🧪 DevEventHandler: Need to place players.');
       this.placePlayers(eventData);
     }
-    else if (!shipsPlaced)
-    {
-      console.log('🧪 DevEventHandler: Need to place ships.');
-      this.placeShips(eventData);
-    }
     else if (!specialsApplied)
     {
       console.log('🧪 DevEventHandler: Need to apply special rules.');
-      this.applySpecials(eventData);
+      await this.applySpecials(eventData);
     }
     else
     {
@@ -667,7 +635,6 @@ export class DevEventHandler
     eventBus.off('game:mapGenerated', this.loadScenario.bind(this));
     eventBus.off('game:playerAdded', this.loadScenario.bind(this));
     eventBus.off('game:playersPlaced', this.loadScenario.bind(this));
-    eventBus.off('game:shipPlaced', this.loadScenario.bind(this));
     
     eventBus.off('game:gameLoaded', this.handleGameLoaded.bind(this));
   }
