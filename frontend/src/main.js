@@ -58,7 +58,6 @@ function animate()
   // Render star labels if map generator exists
   if (mapGenerator)
   {
-    mapGenerator.renderLabels();
     // Update star interaction manager
     mapGenerator.updateStarInteraction(0.016); // Approximate delta time
   }

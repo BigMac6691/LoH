@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 // import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'; // No longer needed
-import { MapModel } from '@loh/shared';
+import { MapModel, Economy, Ship } from '@loh/shared';
 import { StarInteractionManager } from './StarInteractionManager.js';
 import { RadialMenu } from './RadialMenu.js';
 import { createStarLabel3D } from './scene/createStarLabel3D.js';
@@ -27,8 +27,6 @@ export class MapViewGenerator
     this.wormholes = [];
     this.sectorBorders = [];
     this.mapModel = null;
-    // this.labelRenderer = null; // No longer needed - using 3D labels
-    // this.starLabels = []; // No longer needed - using 3D labels
     this.mapSize = 0; // Track map size for label visibility calculations
     this.starInteractionManager = null;
     this.radialMenu = null;
@@ -151,7 +149,7 @@ export class MapViewGenerator
 
       this.clearMap();
       
-      // Create MapModel instance using seed from gameInfo
+      // TODO construct the map model from the game info
       this.mapModel = new MapModel(gameInfo.seed);
       const gameData = { stars, wormholes };
       
@@ -159,6 +157,9 @@ export class MapViewGenerator
       this.mapModel.buildSectors(gameInfo.map_size);
       this.mapModel.setStars(stars);
       this.mapModel.setWormholes(wormholes);
+      
+      // Apply current state to the static map
+      this.applyCurrentStateToMap(eventData.details.gameData);
       
       console.log('🎨 MapViewGenerator: Rendering game with data:', gameData);
       
@@ -170,6 +171,72 @@ export class MapViewGenerator
     } catch (error) {
       console.error('🎨 MapViewGenerator: Error rendering game:', error);
     }
+  }
+
+  /**
+   * Apply current game state to the static map
+   * @param {Object} gameData - Game data containing players, ships, and starStates
+   */
+  applyCurrentStateToMap(gameData)
+  {
+    console.log('🎨 MapViewGenerator: Applying current state to map:', gameData);
+    
+    const { players, ships, starStates } = gameData;
+    
+    if (!players || !ships || !starStates) {
+      console.warn('⚠️ MapViewGenerator: Missing required game data for state application');
+      return;
+    }
+    
+    // Process star states - assign owners and economies
+    starStates.forEach(starState => {
+      const star = this.mapModel.getStarById(starState.star_id);
+      if (!star) {
+        console.warn(`⚠️ MapViewGenerator: Star with ID ${starState.star_id} not found in map model`);
+        return;
+      }
+      
+      // Assign owner if present
+      if (starState.owner_player) {
+        const player = players.find(p => p.id === starState.owner_player);
+        if (player) {
+          star.assignOwner(player);
+        } else {
+          console.warn(`⚠️ MapViewGenerator: Player with ID ${starState.owner_player} not found`);
+        }
+      }
+      
+      // Assign economy if present
+      if (starState.economy !== null) {
+        const economy = new Economy(starState.economy);
+        star.setEconomy(economy);
+      }
+    });
+    
+    // Process ships - create ship instances and place them in stars
+    ships.forEach(shipData => {
+      const star = this.mapModel.getStarById(shipData.location_star_id);
+      if (!star) {
+        console.warn(`⚠️ MapViewGenerator: Star with ID ${shipData.location_star_id} not found for ship ${shipData.id}`);
+        return;
+      }
+      
+      // Find the owner player
+      const owner = players.find(p => p.id === shipData.owner_player);
+      
+      // Create ship instance
+      const ship = new Ship({
+        id: shipData.id,
+        power: shipData.power,
+        damage: shipData.damage,
+        owner: owner,
+        location: star
+      });
+      
+      // Ship is automatically added to star via constructor
+    });
+    
+    console.log(`🎨 MapViewGenerator: Applied state to ${starStates.length} stars and ${ships.length} ships`);
   }
 
   /**
@@ -189,10 +256,6 @@ export class MapViewGenerator
     // Position camera to fit the entire map
     this.positionCameraToFitMap();
     
-    // Fail catastrophically if MapModel instance is not available
-    if (!this.mapModel || typeof this.mapModel.getStars !== 'function' || typeof this.mapModel.getWormholes !== 'function')
-      throw new Error('MapModel instance required for generateMapFromModel');
-
     const starCount = this.mapModel.getStars().length;
     const wormholeCount = this.mapModel.getWormholes().length;
     console.log(`Map generated from model: ${starCount} stars, ${wormholeCount} wormholes`);
@@ -279,42 +342,12 @@ export class MapViewGenerator
    */
   positionCameraToFitMap()
   {
-    // Fail catastrophically if MapModel instance is not available
-    if (!this.mapModel || typeof this.mapModel.getSectors !== 'function')
-      throw new Error('MapModel instance required for positionCameraToFitMap');
-
-    const sectors = this.mapModel.getSectors();
-    if (!sectors.length) return;
-    
-    // Calculate map bounds
-    const bounds = this.calculateMapBounds();
-    
-    // Calculate required camera distance
-    const mapWidth = bounds.maxX - bounds.minX;
-    const mapHeight = bounds.maxY - bounds.minY;
-    const mapDepth = bounds.maxZ - bounds.minZ;
-    
-    const maxDimension = Math.max(mapWidth, mapHeight, mapDepth);
     const fov = this.camera.fov * (Math.PI / 180); // Convert to radians
-    const cameraDistance = (maxDimension / 2) / Math.tan(fov / 2);
+    const cameraDistance = 1 / Math.tan(fov / 2);
     
-    // Position camera
-    const centerX = (bounds.maxX + bounds.minX) / 2;
-    const centerY = (bounds.maxY + bounds.minY) / 2;
-    const centerZ = (bounds.maxZ + bounds.minZ) / 2;
-    
-    this.camera.position.set(centerX, centerY, centerZ + cameraDistance * 1.2);
-    this.camera.lookAt(centerX, centerY, centerZ);
+    this.camera.position.set(0, 0, cameraDistance * 1.2);
+    this.camera.lookAt(0, 0, 0);
     this.camera.updateMatrixWorld();
-  }
-
-  /**
-   * Calculate the bounds of the current map
-   * @returns {Object} Object with min/max coordinates
-   */
-  calculateMapBounds()
-  {
-    return { minX: -1, maxX: 1, minY: -1, maxY: 1, minZ: -1, maxZ: 1 };
   }
 
   /**
@@ -420,17 +453,6 @@ export class MapViewGenerator
       // }
     });
     
-    // Get wormholes and sectors from MapModel instance - fail catastrophically if not available
-    if (typeof this.mapModel.getWormholes !== 'function')
-    {
-      console.error('❌ CRITICAL ERROR: MapModel instance missing getWormholes() method');
-      throw new Error('MapModel instance must have getWormholes() method');
-    }
-    if (typeof this.mapModel.getSectors !== 'function')
-    {
-      console.error('❌ CRITICAL ERROR: MapModel instance missing getSectors() method');
-      throw new Error('MapModel instance must have getSectors() method');
-    }
     const wormholes = this.mapModel.getWormholes();
     const sectors = this.mapModel.getSectors();
     
@@ -440,9 +462,7 @@ export class MapViewGenerator
     
     // Build sector borders if debug mode is enabled
     if (DEBUG_SHOW_SECTOR_BORDERS)
-    {
       this.renderSectorBorders(sectors);
-    }
     
     // Check if font is already loaded and apply 3D labels
     if (this.font)
@@ -572,32 +592,6 @@ export class MapViewGenerator
   }
 
   /**
-   * Clean up and dispose of a 3D label mesh (deprecated - use MemoryManager)
-   * @param {THREE.Mesh} labelMesh - Label mesh to dispose
-   * @deprecated Use mem.dispose() instead
-   */
-  disposeLabelMesh(labelMesh)
-  {
-    if (labelMesh)
-    {
-      mem.dispose(labelMesh);
-    }
-  }
-
-  /**
-   * Clean up and dispose of a fleet icon (deprecated - use MemoryManager)
-   * @param {THREE.Object3D} fleetIcon - Fleet icon to dispose
-   * @deprecated Use mem.dispose() instead
-   */
-  disposeFleetIcon(fleetIcon)
-  {
-    if (fleetIcon)
-    {
-      mem.dispose(fleetIcon);
-    }
-  }
-
-  /**
    * Render sector borders for debugging
    * @param {Array} sectors - 2D array of sectors
    */
@@ -681,25 +675,6 @@ export class MapViewGenerator
       Math.pow(star1.getY() - star2.getY(), 2) + 
       Math.pow(star1.getZ() - star2.getZ(), 2)
     );
-  }
-
-  /**
-   * Get map statistics
-   * @returns {Object} Map statistics
-   */
-  getStats()
-  {
-    if (!this.mapModel)
-    {
-      return {
-        sectors: 0,
-        stars: 0,
-        wormholes: 0,
-        averageStarsPerSector: 0
-      };
-    }
-    
-    return this.mapModel.stats;
   }
 
   /**
@@ -924,13 +899,7 @@ export class MapViewGenerator
     if (!this.labelRenderer || !this.mapModel) return;
     
     // Calculate map center
-    const bounds = this.calculateMapBounds();
-    const mapCenter = new THREE.Vector3(
-      (bounds.maxX + bounds.minX) / 2,
-      (bounds.maxY + bounds.minY) / 2,
-      (bounds.maxZ + bounds.minZ) / 2
-    );
-    
+    const mapCenter = new THREE.Vector3(0, 0, 0);
     const cameraDistance = this.camera.position.distanceTo(mapCenter);
     const visibilityThreshold = this.mapSize * LABEL_VISIBILITY_THRESHOLD;
     const shouldShowLabels = cameraDistance <= visibilityThreshold;
@@ -955,18 +924,6 @@ export class MapViewGenerator
         }
       }
     });
-  }
-
-  /**
-   * Render labels (no longer needed - using 3D labels)
-   */
-  renderLabels()
-  {
-    // CSS2D labels disabled - using 3D labels instead
-    // if (this.labelRenderer && this.currentModel) {
-    //   this.updateLabelVisibility();
-    //   this.labelRenderer.render(this.scene, this.camera);
-    // }
   }
 
   /**
@@ -1032,15 +989,7 @@ export class MapViewGenerator
     {
       this.starInteractionManager.dispose();
     }
-    
-    // Fail catastrophically if MapModel instance is not available
-    if (!this.mapModel || typeof this.mapModel.getStars !== 'function')
-    {
-      console.error('❌ CRITICAL ERROR: MapModel instance not available or invalid in initializeStarInteraction');
-      console.error('Expected: MapModel instance with getStars() method');
-      console.error('Received:', this.mapModel);
-      throw new Error('MapModel instance required for initializeStarInteraction');
-    }
+
     const stars = this.mapModel.getStars();
     
     this.starInteractionManager = new StarInteractionManager(
@@ -1091,61 +1040,5 @@ export class MapViewGenerator
     {
       this.radialMenu.onWindowResize();
     }
-  }
-
-  /**
-   * Get the current map model
-   * @returns {Object|null} Current map model or null
-   */
-  getCurrentModel()
-  {
-    return this.mapModel;
-  }
-
-  /**
-   * Get all stars from the current map
-   * @returns {Array} Array of all star objects
-   */
-  getStars()
-  {
-    // Fail catastrophically if MapModel instance is not available
-    if (!this.mapModel || typeof this.mapModel.getStars !== 'function')
-      throw new Error('MapModel instance required for getStars');
-
-    return this.mapModel.getStars();
-  }
-
-  /**
-   * Get all wormholes from the current map
-   * @returns {Array} Array of all wormhole objects
-   */
-  getWormholes()
-  {
-    // Fail catastrophically if MapModel instance is not available
-    if (!this.mapModel || typeof this.mapModel.getWormholes !== 'function')
-    {
-      console.error('❌ CRITICAL ERROR: MapModel instance not available or invalid in getWormholes');
-      console.error('Expected: MapModel instance with getWormholes() method');
-      console.error('Received:', this.mapModel);
-      throw new Error('MapModel instance required for getWormholes');
-    }
-    return this.mapModel.getWormholes();
-  }
-
-  /**
-   * Get all sectors from the current map
-   * @returns {Array} 2D array of sector objects
-   */
-  getSectors()
-  {
-    // Fail catastrophically if MapModel instance is not available
-    if (!this.mapModel || typeof this.mapModel.getSectors !== 'function')
-    {
-      console.error('❌ CRITICAL ERROR: MapModel instance not available or invalid in getSectors');
-      console.error('Expected: MapModel instance with getSectors() method');
-      console.error('Received:', this.mapModel);
-      throw new Error('MapModel instance required for getSectors');
-    }
-    return this.mapModel.getSectors();
   }
 } 
