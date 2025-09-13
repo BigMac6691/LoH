@@ -80,8 +80,6 @@ export class DevEventHandler
     eventBus.on('game:playerAdded', this.loadScenario.bind(this));
     eventBus.on('game:mapGenerated', this.loadScenario.bind(this));
     eventBus.on('game:playersPlaced', this.loadScenario.bind(this));
-    
-    eventBus.on('game:gameLoaded', this.handleGameLoaded.bind(this));
   }
 
   /**
@@ -635,7 +633,5 @@ export class DevEventHandler
     eventBus.off('game:mapGenerated', this.loadScenario.bind(this));
     eventBus.off('game:playerAdded', this.loadScenario.bind(this));
     eventBus.off('game:playersPlaced', this.loadScenario.bind(this));
-    
-    eventBus.off('game:gameLoaded', this.handleGameLoaded.bind(this));
   }
 }

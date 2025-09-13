@@ -49,6 +49,15 @@ export class MapModel
     {
       const star = new Star(starData);
       this.starLookup.set(star.getId(), star);
+
+      const sectorX = star.getSector().col;
+      const sectorY = star.getSector().row;
+      
+      if (sectorY >= 0 && sectorY < this.sectors.length && 
+          sectorX >= 0 && sectorX < this.sectors[sectorY].length)
+        this.sectors[sectorY][sectorX].stars.push(star);
+      else
+        throw new Error(`Star ${star.getId()} is out of bounds: ${sectorX}, ${sectorY}`);
     });
   }
 
@@ -81,46 +90,29 @@ export class MapModel
   /**
    * Build sectors from existing stars (temporary method)
    * Creates a 2D array of sector objects based on star positions
-   * @param {number} originalMapSize - Original map size from game creation (required)
+   * @param {number} mapSize - Original map size from game creation (required)
    */
-  buildSectors(originalMapSize)
+  buildSectors(mapSize)
   {
     // Fail catastrophically if originalMapSize is missing - this indicates a bug
-    if (originalMapSize === null || originalMapSize === undefined)
-    {
-      console.error('❌ CRITICAL ERROR: buildSectors() called without originalMapSize parameter');
-      console.error('This indicates a bug in the calling code - gameInfo.map_size should be available');
-      console.error('Calling code should ensure gameInfo is loaded from the backend before calling buildSectors()');
+    if (mapSize === null || mapSize === undefined)
       throw new Error('buildSectors() requires originalMapSize parameter - this indicates a bug in the calling code');
-    }
     
-    const stars = this.getStars();
-    if (stars.length === 0)
-    {
-      this.sectors = [];
-      return;
-    }
-    
-    // Calculate map bounds from star positions
-    const bounds = this.calculateMapBounds(stars);
-    const mapSize = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
-    
-    // Use the original map size (no fallback - this is the correct value)
-    const sectorCount = originalMapSize;
-    const sectorSize = mapSize / sectorCount;
+    // We use normalized coordinate system from -1 to 1
+    const sectorSize = 2 / mapSize;
     
     // Create sectors array (2D array of sector objects)
     this.sectors = [];
-    for (let row = 0; row < sectorCount; row++)
+    for (let row = 0; row < mapSize; row++)
     {
       const sectorRow = [];
-      for (let col = 0; col < sectorCount; col++)
+      for (let col = 0; col < mapSize; col++)
       {
         sectorRow.push({
           row,
           col,
-          x: bounds.minX + (col * sectorSize) + (sectorSize / 2),
-          y: bounds.minY + (row * sectorSize) + (sectorSize / 2),
+          x: -1 + (col * sectorSize) + (sectorSize / 2),
+          y: -1 + (row * sectorSize) + (sectorSize / 2),
           width: sectorSize,
           height: sectorSize,
           stars: []
@@ -128,19 +120,6 @@ export class MapModel
       }
       this.sectors.push(sectorRow);
     }
-    
-    // Assign stars to sectors
-    stars.forEach(star =>
-    {
-      const sectorX = Math.floor((star.getX() - bounds.minX) / sectorSize);
-      const sectorY = Math.floor((star.getY() - bounds.minY) / sectorSize);
-      
-      if (sectorY >= 0 && sectorY < this.sectors.length && 
-          sectorX >= 0 && sectorX < this.sectors[sectorY].length)
-      {
-        this.sectors[sectorY][sectorX].stars.push(star);
-      }
-    });
   }
 
   /**
@@ -150,26 +129,7 @@ export class MapModel
    */
   calculateMapBounds(stars)
   {
-    if (stars.length === 0)
-    {
-      return { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
-    }
-    
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
-    let minZ = Infinity, maxZ = -Infinity;
-    
-    stars.forEach(star =>
-    {
-      minX = Math.min(minX, star.getX());
-      maxX = Math.max(maxX, star.getX());
-      minY = Math.min(minY, star.getY());
-      maxY = Math.max(maxY, star.getY());
-      minZ = Math.min(minZ, star.getZ());
-      maxZ = Math.max(maxZ, star.getZ());
-    });
-    
-    return { minX, maxX, minY, maxY, minZ, maxZ };
+    return { minX: -1, maxX: 1, minY: -1, maxY: 1, minZ: -1, maxZ: 1 };
   }
 
   /**

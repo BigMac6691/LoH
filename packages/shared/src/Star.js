@@ -136,7 +136,7 @@ export class Star
    */
   getSector()
   {
-    return {...this.data.sector};
+    return {row: this.data.sector_x, col: this.data.sector_y};
   }
 
   /**
