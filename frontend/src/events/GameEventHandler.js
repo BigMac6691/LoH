@@ -382,6 +382,57 @@ export class GameEventHandler {
   }
 
   /**
+   * Get the current turn for a game, creating turn 1 if no open turn exists
+   * @param {string} gameId - Game ID
+   * @returns {Promise<Object>} Current turn object
+   */
+  async getCurrentTurn(gameId) {
+    console.log('🎮 GameEventHandler: Getting current turn for game:', gameId);
+    
+    try {
+      // First, try to get the open turn
+      const openTurnResponse = await fetch(`/api/games/${gameId}/turn/open`);
+      
+      if (openTurnResponse.ok) {
+        const openTurnData = await openTurnResponse.json();
+        if (openTurnData.success && openTurnData.turn) {
+          console.log('🎮 GameEventHandler: Found open turn:', openTurnData.turn);
+          return openTurnData.turn;
+        }
+      }
+      
+      // If no open turn exists, create turn 1
+      console.log('🎮 GameEventHandler: No open turn found, creating turn 1');
+      const createTurnResponse = await fetch(`/api/games/${gameId}/turn`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          number: 1
+        })
+      });
+      
+      if (!createTurnResponse.ok) {
+        const errorData = await createTurnResponse.json();
+        throw new Error(errorData.error || 'Failed to create turn 1');
+      }
+      
+      const createTurnData = await createTurnResponse.json();
+      if (createTurnData.success && createTurnData.turn) {
+        console.log('🎮 GameEventHandler: Created turn 1:', createTurnData.turn);
+        return createTurnData.turn;
+      } else {
+        throw new Error('Failed to create turn 1 - invalid response');
+      }
+      
+    } catch (error) {
+      console.error('🎮 GameEventHandler: Error getting/creating current turn:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Handle start game event - loads complete game state and emits gameLoaded event
    * @param {Object} context - Current system context
    * @param {Object} data - Event data containing gameId
@@ -435,19 +486,23 @@ export class GameEventHandler {
       // Set user ID to the first player in the list
       if (gameData.players && gameData.players.length > 0) {
         const firstPlayer = gameData.players[0];
-        eventBus.setUser(firstPlayer.user_id);
-        console.log('🎮 GameEventHandler: Set context - GameId:', gameId, 'UserId:', firstPlayer.user_id);
+        eventBus.setUser(firstPlayer.id);
+        console.log('🎮 GameEventHandler: Set context - GameId:', gameId, 'UserId:', firstPlayer.id);
       } else {
         console.warn('🎮 GameEventHandler: No players found in game data');
       }
       
-      // Emit success event with complete game data
+      // Get current turn for the game
+      const currentTurn = await this.getCurrentTurn(gameId);
+      
+      // Emit success event with complete game data including current turn
       eventBus.emit('game:gameLoaded', {
         success: true,
         details: {
           eventType: 'game:gameLoaded',
           gameId: gameId,
-          gameData: gameData
+          gameData: gameData,
+          currentTurn: currentTurn
         }
       });
       

@@ -6,3 +6,4 @@
 export { SystemEventHandler } from './SystemEventHandler.js';
 export { GameEventHandler } from './GameEventHandler.js';
 export { DevEventHandler } from './DevEventHandler.js';
+export { OrderEventHandler } from './OrderEventHandler.js';

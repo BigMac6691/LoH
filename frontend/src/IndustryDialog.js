@@ -1,6 +1,8 @@
 /**
  * IndustryDialog - A draggable dialog for displaying and managing star industry
  */
+import { eventBus } from './eventBus.js';
+
 export class IndustryDialog
 {
   constructor()
@@ -18,11 +20,8 @@ export class IndustryDialog
       build: 0,
     };
 
-    // Game context for backend communication
-    this.gameId = null;
-    this.playerId = null;
-
     this.createDialog();
+    this.setupEventListeners();
   }
 
   /**
@@ -76,6 +75,26 @@ export class IndustryDialog
 
     // Add to DOM
     document.body.appendChild(this.dialog);
+  }
+
+  /**
+   * Set up event listeners for order responses
+   */
+  setupEventListeners()
+  {
+    // Listen for order submission success
+    eventBus.on('order:submitSuccess', this.handleOrderSubmitSuccess.bind(this));
+    
+    // Listen for order submission error
+    eventBus.on('order:submitError', this.handleOrderSubmitError.bind(this));
+    
+    // Listen for order loading success
+    eventBus.on('order:loadSuccess', this.handleOrderLoadSuccess.bind(this));
+    
+    // Listen for order loading error
+    eventBus.on('order:loadError', this.handleOrderLoadError.bind(this));
+    
+    console.log('🏭 IndustryDialog: Event listeners set up');
   }
 
   /**
@@ -310,19 +329,13 @@ export class IndustryDialog
   }
 
   /**
-   * Submit the current spending order
+   * Submit the current spending order via event system
    */
   async submitOrder()
   {
     if (!this.currentStar)
     {
       console.error('IndustryDialog: No star selected for order submission');
-      return;
-    }
-
-    if (!this.gameId || !this.playerId)
-    {
-      console.error('IndustryDialog: Game context not set. Call setGameContext() first.');
       return;
     }
 
@@ -334,46 +347,18 @@ export class IndustryDialog
       timestamp: Date.now()
     };
 
-    try
-    {
-      const response = await fetch('/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          gameId: this.gameId,
-          starId: starId,
-          playerId: this.playerId,
-          orderType: 'build',
-          payload: orderData
-        }),
-      });
+    console.log('🏭 IndustryDialog: Submitting order via event system:', starId, orderData);
 
-      if (!response.ok)
-      {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit order');
+    // Emit order submission event
+    eventBus.emit('order:submit', {
+      success: true,
+      details: {
+        eventType: 'order:submit',
+        starId: starId,
+        orderType: 'build',
+        payload: orderData
       }
-
-      const result = await response.json();
-      console.log(
-        '🏭 IndustryDialog: Order submitted for star',
-        starId,
-        ':',
-        orderData,
-        'Result:',
-        result
-      );
-
-      // Show confirmation
-      this.showOrderConfirmation();
-    }
-    catch (error)
-    {
-      console.error('🏭 IndustryDialog: Error submitting order:', error);
-      this.showOrderError(error.message);
-    }
+    });
   }
 
   /**
@@ -421,29 +406,43 @@ export class IndustryDialog
   }
 
   /**
-   * Load saved orders for a star
+   * Handle order submission success
+   * @param {Object} context - Current context
+   * @param {Object} eventData - Event data with order result
    */
-  async loadSavedOrders(starId)
+  handleOrderSubmitSuccess(context, eventData)
   {
-    if (!this.gameId || !this.playerId)
-    {
-      console.error('IndustryDialog: Game context not set. Call setGameContext() first.');
-      return false;
-    }
+    console.log('🏭 IndustryDialog: Order submitted successfully:', eventData.details);
+    this.showOrderConfirmation();
+  }
 
-    try
+  /**
+   * Handle order submission error
+   * @param {Object} context - Current context
+   * @param {Object} eventData - Event data with error information
+   */
+  handleOrderSubmitError(context, eventData)
+  {
+    console.error('🏭 IndustryDialog: Order submission failed:', eventData.details.error);
+    this.showOrderError(eventData.details.error);
+  }
+
+  /**
+   * Handle order loading success
+   * @param {Object} context - Current context
+   * @param {Object} eventData - Event data with loaded orders
+   */
+  handleOrderLoadSuccess(context, eventData)
+  {
+    console.log('🏭 IndustryDialog: Orders loaded successfully:', eventData.details);
+    
+    const { orders, starId } = eventData.details;
+    
+    // Check if this is for the star we're currently loading
+    if (starId === this.pendingLoadStarId)
     {
-      const response = await fetch(`/api/orders/star/${starId}?gameId=${this.gameId}&playerId=${this.playerId}`);
+      let hasOrders = false;
       
-      if (!response.ok)
-      {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to load orders');
-      }
-
-      const result = await response.json();
-      const orders = result.orders;
-
       if (orders && orders.length > 0)
       {
         // Get the latest order (first in the array since they're ordered by created_at DESC)
@@ -473,15 +472,60 @@ export class IndustryDialog
           ':',
           this.spendingOrders
         );
-        return true;
+        hasOrders = true;
       }
-      return false;
+      
+      // Resolve the promise
+      if (this.pendingLoadResolve)
+      {
+        this.pendingLoadResolve(hasOrders);
+        this.pendingLoadResolve = null;
+        this.pendingLoadStarId = null;
+      }
     }
-    catch (error)
+  }
+
+  /**
+   * Handle order loading error
+   * @param {Object} context - Current context
+   * @param {Object} eventData - Event data with error information
+   */
+  handleOrderLoadError(context, eventData)
+  {
+    console.error('🏭 IndustryDialog: Order loading failed:', eventData.details.error);
+    
+    // Resolve the promise with false to indicate no orders were loaded
+    if (this.pendingLoadResolve)
     {
-      console.error('🏭 IndustryDialog: Error loading orders:', error);
-      return false;
+      this.pendingLoadResolve(false);
+      this.pendingLoadResolve = null;
+      this.pendingLoadStarId = null;
     }
+  }
+
+  /**
+   * Load saved orders for a star via event system
+   */
+  async loadSavedOrders(starId)
+  {
+    console.log('🏭 IndustryDialog: Loading saved orders via event system for star:', starId);
+
+    // Store the starId for the response handler
+    this.pendingLoadStarId = starId;
+
+    // Emit order loading event
+    eventBus.emit('order:loadForStar', {
+      success: true,
+      details: {
+        eventType: 'order:loadForStar',
+        starId: starId
+      }
+    });
+
+    // Return a promise that will be resolved by the event handler
+    return new Promise((resolve) => {
+      this.pendingLoadResolve = resolve;
+    });
   }
 
   /**
@@ -522,18 +566,6 @@ export class IndustryDialog
     {
       this.isDragging = false;
     });
-  }
-
-  /**
-   * Set game context for backend communication
-   * @param {string} gameId - Game ID
-   * @param {string} playerId - Player ID
-   */
-  setGameContext(gameId, playerId)
-  {
-    this.gameId = gameId;
-    this.playerId = playerId;
-    console.log('🏭 IndustryDialog: Game context set:', { gameId, playerId });
   }
 
   /**

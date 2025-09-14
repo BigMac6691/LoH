@@ -1,6 +1,6 @@
 import express from 'express';
 import { createEmptyGame, generateMapForGame, placePlayersForGame } from '../services/startGameService.js';
-import { getOpenTurn } from '../repos/turnsRepo.js';
+import { getOpenTurn, openTurn } from '../repos/turnsRepo.js';
 import { listPlayers } from '../repos/playersRepo.js';
 import { listGames } from '../repos/gamesRepo.js';
 import { pool } from '../db/pool.js';
@@ -38,6 +38,12 @@ export class GameRouter
     
     // POST /api/games/:gameId/place-players - Place players on the map
     this.router.post('/:gameId/place-players', this.placePlayers.bind(this));
+    
+    // GET /api/games/:gameId/turn/open - Get open turn for a game
+    this.router.get('/:gameId/turn/open', this.getOpenTurn.bind(this));
+    
+    // POST /api/games/:gameId/turn - Create a new turn for a game
+    this.router.post('/:gameId/turn', this.createTurn.bind(this));
   }
 
   /**
@@ -385,6 +391,92 @@ export class GameRouter
       console.error('Error placing players:', error);
       res.status(500).json({
         error: 'Failed to place players',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * GET /api/games/:gameId/turn/open
+   * Get the currently open turn for a game
+   */
+  async getOpenTurn(req, res)
+  {
+    try
+    {
+      const { gameId } = req.params;
+      
+      if (!gameId)
+      {
+        return res.status(400).json({
+          error: 'Missing required parameter: gameId'
+        });
+      }
+
+      const turn = await getOpenTurn(gameId);
+      
+      if (turn)
+      {
+        res.json({
+          success: true,
+          turn: turn
+        });
+      }
+      else
+      {
+        res.json({
+          success: true,
+          turn: null
+        });
+      }
+
+    } catch (error)
+    {
+      console.error('Error getting open turn:', error);
+      res.status(500).json({
+        error: 'Failed to get open turn',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * POST /api/games/:gameId/turn
+   * Create a new turn for a game
+   */
+  async createTurn(req, res)
+  {
+    try
+    {
+      const { gameId } = req.params;
+      const { number } = req.body;
+      
+      if (!gameId)
+      {
+        return res.status(400).json({
+          error: 'Missing required parameter: gameId'
+        });
+      }
+
+      if (!number)
+      {
+        return res.status(400).json({
+          error: 'Missing required parameter: number'
+        });
+      }
+
+      const turn = await openTurn({ gameId, number });
+      
+      res.json({
+        success: true,
+        turn: turn
+      });
+
+    } catch (error)
+    {
+      console.error('Error creating turn:', error);
+      res.status(500).json({
+        error: 'Failed to create turn',
         details: error.message
       });
     }
