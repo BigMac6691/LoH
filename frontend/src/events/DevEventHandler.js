@@ -543,6 +543,16 @@ export class DevEventHandler
     {
       console.log('🧪 DevEventHandler: Scenario setup complete.');
       eventBus.emit('dev:scenarioStatus', { type: 'scenarioSetupComplete', scenario });
+      
+      // Get players data and emit scenario complete event with player info
+      const players = await this.checkPlayersAdded(gameState);
+      eventBus.emit('dev:scenarioComplete', { 
+        scenario, 
+        gameId, 
+        players,
+        currentPlayer: players[0] // Default to first player
+      });
+      
       // Optionally, emit a final game start event
       eventBus.emit('game:startGame', { gameId });
     }

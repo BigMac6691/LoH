@@ -16,6 +16,9 @@ export class DevPanel
     this.isVisible = false;
     this.isDragging = false;
     this.dragOffset = {x: 0, y: 0};
+    
+    // Track turn status for each player
+    this.playerTurnStatus = new Map(); // playerId -> { hasEndedTurn: boolean, buttonElement: HTMLElement }
 
     this.createPanel();
     this.setupEventListeners();
@@ -48,6 +51,24 @@ export class DevPanel
       </form>
       
       <div id="status" class="status-display"></div>
+      
+      <div id="current-player-section" class="current-player-section" style="display: none;">
+        <div class="form-group">
+          <label class="form-label">Current Player:</label>
+          <select id="current-player-select" class="form-input">
+            <option value="">Select Player</option>
+          </select>
+        </div>
+        
+        <div id="player-turn-status" class="player-turn-status">
+          <div class="dev-tools-header">
+            👥 Player Turn Status
+          </div>
+          <div id="player-list" class="player-list">
+            <!-- Player items will be dynamically added here -->
+          </div>
+        </div>
+      </div>
       
       <div class="dev-tools-section">
           <div class="dev-tools-header">
@@ -143,6 +164,15 @@ export class DevPanel
 
     // Listen for dev:scenarioStatus events
     eventBus.on('dev:scenarioStatus', this.handleScenarioStatus.bind(this));
+    
+    // Listen for dev:scenarioComplete events
+    eventBus.on('dev:scenarioComplete', this.handleScenarioComplete.bind(this));
+    
+    // Current player dropdown change
+    const currentPlayerSelect = this.panel.querySelector('#current-player-select');
+    currentPlayerSelect.addEventListener('change', e => {
+      this.handleCurrentPlayerChange(e.target.value);
+    });
   }
 
   /**
@@ -240,6 +270,166 @@ export class DevPanel
     }
     
     statusDiv.innerHTML = `<span class="${statusClass}">${statusText}</span>`;
+  }
+
+  /**
+   * Handle scenario complete event - show player dropdown
+   * @param {Object} context - Current context
+   * @param {Object} scenarioData - Scenario complete data with players
+   */
+  handleScenarioComplete(context, scenarioData) {
+    console.log('🎯 DevPanel: Scenario complete, showing player dropdown:', scenarioData);
+    
+    const { players, currentPlayer } = scenarioData;
+    const currentPlayerSection = this.panel.querySelector('#current-player-section');
+    const currentPlayerSelect = this.panel.querySelector('#current-player-select');
+    const playerList = this.panel.querySelector('#player-list');
+    
+    // Clear existing options and player list
+    currentPlayerSelect.innerHTML = '<option value="">Select Player</option>';
+    playerList.innerHTML = '';
+    this.playerTurnStatus.clear();
+    
+    // Add player options to dropdown
+    players.forEach(player => {
+      const option = document.createElement('option');
+      option.value = player.user_id;
+      option.textContent = `${player.name} (${player.color_hex})`;
+      option.style.color = player.color_hex;
+      currentPlayerSelect.appendChild(option);
+      
+      // Create player list item
+      this.createPlayerListItem(player);
+    });
+    
+    // Set default selection
+    if (currentPlayer) {
+      currentPlayerSelect.value = currentPlayer.user_id;
+    }
+    
+    // Show the section
+    currentPlayerSection.style.display = 'block';
+  }
+
+  /**
+   * Handle current player dropdown change
+   * @param {string} playerId - Selected player ID
+   */
+  handleCurrentPlayerChange(playerId) {
+    console.log('🎯 DevPanel: Current player changed to:', playerId);
+    
+    if (!playerId) {
+      console.log('🎯 DevPanel: No player selected');
+      return;
+    }
+    
+    // Emit currentPlayerChanged event
+    eventBus.emit('dev:currentPlayerChanged', {
+      success: true,
+      details: {
+        eventType: 'dev:currentPlayerChanged',
+        playerId: playerId
+      }
+    });
+  }
+
+  /**
+   * Create a player list item with turn status and end turn button
+   * @param {Object} player - Player object
+   */
+  createPlayerListItem(player) {
+    const playerList = this.panel.querySelector('#player-list');
+    
+    // Create player item container
+    const playerItem = document.createElement('div');
+    playerItem.className = 'player-item';
+    playerItem.style.borderLeft = `4px solid ${player.color_hex}`;
+    playerItem.style.padding = '8px';
+    playerItem.style.margin = '4px 0';
+    playerItem.style.backgroundColor = '#2a2a2a';
+    playerItem.style.borderRadius = '4px';
+    
+    // Create player info section
+    const playerInfo = document.createElement('div');
+    playerInfo.style.display = 'flex';
+    playerInfo.style.justifyContent = 'space-between';
+    playerInfo.style.alignItems = 'center';
+    
+    // Player name and status
+    const playerDetails = document.createElement('div');
+    playerDetails.innerHTML = `
+      <div style="color: ${player.color_hex}; font-weight: bold;">${player.name}</div>
+      <div id="turn-status-${player.user_id}" style="font-size: 12px; color: #888;">Turn: Active</div>
+    `;
+    
+    // End turn button/toggle
+    const endTurnButton = document.createElement('button');
+    endTurnButton.id = `end-turn-btn-${player.user_id}`;
+    endTurnButton.textContent = 'End Turn';
+    endTurnButton.className = 'dev-tools-btn';
+    endTurnButton.style.padding = '4px 8px';
+    endTurnButton.style.fontSize = '12px';
+    endTurnButton.style.backgroundColor = '#444';
+    endTurnButton.style.border = '1px solid #666';
+    endTurnButton.style.borderRadius = '4px';
+    endTurnButton.style.color = '#fff';
+    endTurnButton.style.cursor = 'pointer';
+    
+    // Add event listener for end turn button
+    endTurnButton.addEventListener('click', () => {
+      this.handleEndTurn(player.user_id);
+    });
+    
+    // Assemble the player item
+    playerInfo.appendChild(playerDetails);
+    playerInfo.appendChild(endTurnButton);
+    playerItem.appendChild(playerInfo);
+    playerList.appendChild(playerItem);
+    
+    // Store turn status tracking
+    this.playerTurnStatus.set(player.user_id, {
+      hasEndedTurn: false,
+      buttonElement: endTurnButton,
+      statusElement: playerItem.querySelector(`#turn-status-${player.user_id}`)
+    });
+  }
+
+  /**
+   * Handle end turn button click
+   * @param {string} playerId - Player ID
+   */
+  handleEndTurn(playerId) {
+    console.log(`🎯 DevPanel: End turn requested for player: ${playerId}`);
+    
+    const turnStatus = this.playerTurnStatus.get(playerId);
+    if (!turnStatus) {
+      console.error(`🎯 DevPanel: No turn status found for player: ${playerId}`);
+      return;
+    }
+    
+    // Check if turn has already been ended
+    if (turnStatus.hasEndedTurn) {
+      console.log(`🎯 DevPanel: Player ${playerId} has already ended their turn`);
+      return;
+    }
+    
+    // Update UI to show turn has been ended
+    turnStatus.buttonElement.textContent = 'Turn Ended';
+    turnStatus.buttonElement.style.backgroundColor = '#666';
+    turnStatus.buttonElement.style.cursor = 'not-allowed';
+    turnStatus.buttonElement.disabled = true;
+    
+    turnStatus.statusElement.textContent = 'Turn: Ended';
+    turnStatus.statusElement.style.color = '#666';
+    
+    // Update tracking
+    turnStatus.hasEndedTurn = true;
+    
+    // Log to console as requested
+    console.log(`🎯 DevPanel: Turn ended for player ${playerId} - End turn message would be sent here`);
+    
+    // TODO: In the future, emit an event to send the actual end turn message
+    // eventBus.emit('game:endTurn', { playerId, gameId });
   }
 
   /**
