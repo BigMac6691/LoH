@@ -426,10 +426,16 @@ export class DevPanel
     turnStatus.hasEndedTurn = true;
     
     // Log to console as requested
-    console.log(`🎯 DevPanel: Turn ended for player ${playerId} - End turn message would be sent here`);
+    console.log(`🎯 DevPanel: Turn ended for player ${playerId} - Sending end turn event`);
     
-    // TODO: In the future, emit an event to send the actual end turn message
-    // eventBus.emit('game:endTurn', { playerId, gameId });
+    // Emit end turn event
+    eventBus.emit('turn:endTurn', {
+      success: true,
+      details: {
+        eventType: 'turn:endTurn',
+        playerId: playerId
+      }
+    });
   }
 
   /**

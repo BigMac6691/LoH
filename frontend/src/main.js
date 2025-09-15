@@ -7,7 +7,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DEV_MODE, autoStartDevMode, logDevModeStatus, setupDevModeEventListeners } from './devScenarios.js';
 import { eventBus } from './eventBus.js';
 import { assetManager } from './engine/AssetManager.js';
-import { SystemEventHandler, GameEventHandler, DevEventHandler, OrderEventHandler } from './events/index.js';
+import { SystemEventHandler, GameEventHandler, DevEventHandler, OrderEventHandler, TurnEventHandler } from './events/index.js';
 
 import { DevPanel } from './dev/DevPanel.js';
 
@@ -87,6 +87,7 @@ let systemEventHandler;
 let gameEventHandler;
 let devEventHandler;
 let orderEventHandler;
+let turnEventHandler;
 
 let devPanel;
 
@@ -132,6 +133,9 @@ document.addEventListener('DOMContentLoaded', () =>
   
   // Initialize order event handler
   orderEventHandler = new OrderEventHandler();
+  
+  // Initialize turn event handler
+  turnEventHandler = new TurnEventHandler();
   
   // Initialize dev panel if in dev mode
   if (DEV_MODE > 0)

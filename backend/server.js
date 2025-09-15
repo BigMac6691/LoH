@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { pool } from './src/db/pool.js';
 import { GameRouter } from './src/routes/GameRouter.js';
 import { OrdersRouter } from './src/routes/OrdersRouter.js';
+import { TurnRouter } from './src/routes/TurnRouter.js';
 import { DevRouter } from './src/routes/DevRouter.js';
 
 const app = express();
@@ -26,9 +27,11 @@ app.get('/api/health', async (_req, res) => {
 // Production routes
 const gameRouter = new GameRouter();
 const ordersRouter = new OrdersRouter();
+const turnRouter = new TurnRouter();
 const devRouter = new DevRouter();
 app.use('/api/games', gameRouter.getRouter());
 app.use('/api/orders', ordersRouter.getRouter());
+app.use('/api/turns', turnRouter.getRouter());
 app.use('/api/dev', devRouter.router);
 
 // DEV-only routes (for backward compatibility during transition)
