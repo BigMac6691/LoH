@@ -16,7 +16,8 @@ export class Star
    * @param {number} data.pos_x - X coordinate
    * @param {number} data.pos_y - Y coordinate
    * @param {number} data.pos_z - Z coordinate
-   * @param {Object} data.sector - Sector this star belongs to {row, col}
+   * @param {number} data.sector_x - Sector X coordinate (row)
+   * @param {number} data.sector_y - Sector Y coordinate (column)
    * @param {number} data.resource - Natural resource abundance (0-100)
    * @param {string|null} data.owner - Player ID who owns this star (optional)
    * @param {string} data.color - Visual color of the star (default: light gray)
@@ -36,6 +37,11 @@ export class Star
 
     // Initialize ships array to store Ship objects (not IDs)
     this.ships = [];
+
+    // Initialize connectedStarIds array if not provided
+    if (!this.data.connectedStarIds) {
+      this.data.connectedStarIds = [];
+    }
   }
 
   // ===== DATA ACCESS METHODS =====
@@ -146,7 +152,8 @@ export class Star
    */
   setSector(row, col)
   {
-    this.data.sector = {row, col};
+    this.data.sector_x = row;
+    this.data.sector_y = col;
   }
 
   /**
@@ -365,22 +372,6 @@ export class Star
     return [...this.data.connectedStarIds];
   }
 
-  /**
-   * Get connected Star objects (requires a lookup function)
-   * @param {Function} lookupFn - Function to look up stars by ID (e.g., mapModel.getStarById)
-   * @returns {Array} Array of connected Star objects
-   */
-  getConnectedStars(lookupFn)
-  {
-    if (!lookupFn || typeof lookupFn !== 'function')
-    {
-      console.warn('getConnectedStars requires a lookup function');
-      return [];
-    }
-    return this.data.connectedStarIds
-      .map(id => lookupFn(id))
-      .filter(star => star !== null);
-  }
 
   /**
    * Add a connected star ID

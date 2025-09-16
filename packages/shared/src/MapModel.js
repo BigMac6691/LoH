@@ -64,6 +64,7 @@ export class MapModel
   /**
    * Set wormholes from plain data objects (e.g., from database)
    * Creates wormhole objects with references to Star instances
+   * Also populates the connectedStarIds arrays for each star
    * @param {Array} wormholeDataArray - Array of plain wormhole data objects
    */
   setWormholes(wormholeDataArray)
@@ -79,6 +80,10 @@ export class MapModel
         console.warn(`Wormhole references non-existent star: ${wormholeData.star_a_id} or ${wormholeData.star_b_id}`);
         return null;
       }
+      
+      // Add each star to the other's connectedStarIds array
+      star1.addConnectedStar(star2.getId());
+      star2.addConnectedStar(star1.getId());
       
       return {
         star1: star1,

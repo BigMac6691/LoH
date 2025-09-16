@@ -151,6 +151,7 @@ export class MapViewGenerator
       
       // TODO construct the map model from the game info
       this.mapModel = new MapModel(gameInfo.seed);
+      window.globalMapModel = this.mapModel; // Set global reference
       const gameData = { stars, wormholes };
       
       // Set map data with stars and wormholes
@@ -306,6 +307,7 @@ export class MapViewGenerator
     this.sectorBorders.length = 0;
     this.starLookup.clear();
     this.mapModel = null; // Reset MapModel instance
+    window.globalMapModel = null; // Clear global reference
     
     // Clear star interaction
     if (this.starInteractionManager)
@@ -322,6 +324,7 @@ export class MapViewGenerator
     }
     
     this.mapModel = null;
+    window.globalMapModel = null; // Clear global reference
   }
 
   /**

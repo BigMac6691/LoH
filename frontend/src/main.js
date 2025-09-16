@@ -8,8 +8,12 @@ import { DEV_MODE, autoStartDevMode, logDevModeStatus, setupDevModeEventListener
 import { eventBus } from './eventBus.js';
 import { assetManager } from './engine/AssetManager.js';
 import { SystemEventHandler, GameEventHandler, DevEventHandler, OrderEventHandler, TurnEventHandler } from './events/index.js';
+import { MapModel } from '@loh/shared';
 
 import { DevPanel } from './dev/DevPanel.js';
+
+// Global MapModel instance
+window.globalMapModel = null;
 
 // Scene setup
 const scene = new THREE.Scene();

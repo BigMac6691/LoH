@@ -1,5 +1,6 @@
 import { MoveOrder, moveOrderStore } from '@loh/shared';
 import { groupShipsByPowerAndDamage, getShipDisplayName, getShipHealthPercentage, canShipMove } from './utils/shipGrouping.js';
+import { eventBus } from './eventBus.js';
 
 /**
  * MoveDialog - A draggable dialog for managing fleet movement
@@ -20,15 +21,148 @@ export class MoveDialog
     this.selectedShipIds = new Set();
     this.expandedNodes = new Set();
     this.shipTreeData = null;
+    this.starLookupFunction = null; // Function to look up stars by ID
+    this.loadedOrders = []; // Track orders loaded from database
     
     this.createDialog();
+    this.setupEventListeners();
+  }
+
+  /**
+   * Set the star lookup function for getting connected stars
+   * @param {Function} lookupFn - Function that takes a star ID and returns a Star object
+   * @deprecated Use global MapModel instead
+   */
+  setStarLookupFunction(lookupFn) {
+    this.starLookupFunction = lookupFn;
+  }
+
+  /**
+   * Get star lookup function from global MapModel
+   * @returns {Function|null} Star lookup function or null if no global MapModel
+   */
+  getStarLookupFunction() {
+    if (window.globalMapModel && typeof window.globalMapModel.getStarById === 'function') {
+      return (starId) => window.globalMapModel.getStarById(starId);
+    }
+    return null;
+  }
+
+  /**
+   * Set up event listeners for order responses
+   */
+  setupEventListeners() {
+    // Listen for order submission success
+    eventBus.on('order:submitSuccess', this.handleOrderSubmitSuccess.bind(this));
+    
+    // Listen for order submission error
+    eventBus.on('order:submitError', this.handleOrderSubmitError.bind(this));
+    
+    // Listen for order loading success
+    eventBus.on('order:loadSuccess', this.handleOrderLoadSuccess.bind(this));
+    
+    // Listen for order loading error
+    eventBus.on('order:loadError', this.handleOrderLoadError.bind(this));
+    
+    console.log('🚀 MoveDialog: Event listeners set up');
+  }
+
+  /**
+   * Handle order submission success
+   * @param {Object} context - Current context
+   * @param {Object} eventData - Event data containing order information
+   */
+  handleOrderSubmitSuccess(context, eventData) {
+    console.log('🚀 MoveDialog: Order submitted successfully:', eventData);
+    
+    // Check if this is a move order for the current star
+    if (eventData.details.orderType === 'move' && 
+        eventData.details.payload?.sourceStarId === this.currentStar?.getId()) {
+      
+      // Update UI to reflect the saved order
+      this.updateConnectedStarsList(); // Refresh rocket icons
+      this.updateMoveButton();
+      
+      // Show confirmation
+      const fromStar = this.currentStar.getName ? this.currentStar.getName() : `Star ${this.currentStar.id}`;
+      const toStar = this.selectedDestination?.getName ? this.selectedDestination.getName() : `Star ${this.selectedDestination?.id}`;
+      this.showMoveConfirmation(fromStar, toStar);
+    }
+  }
+
+  /**
+   * Handle order submission error
+   * @param {Object} context - Current context
+   * @param {Object} eventData - Event data containing error information
+   */
+  handleOrderSubmitError(context, eventData) {
+    console.error('🚀 MoveDialog: Order submission failed:', eventData);
+    
+    // Check if this is a move order for the current star
+    if (eventData.details.orderType === 'move' && 
+        eventData.details.payload?.sourceStarId === this.currentStar?.getId()) {
+      
+      // Show error message to user
+      alert(`Failed to submit move order: ${eventData.error}`);
+    }
+  }
+
+  /**
+   * Handle order loading success
+   * @param {Object} context - Current context
+   * @param {Object} eventData - Event data containing loaded orders
+   */
+  handleOrderLoadSuccess(context, eventData) {
+    console.log('🚀 MoveDialog: Orders loaded successfully:', eventData);
+    
+    // Check if this is for the current star
+    if (eventData.details.starId === this.currentStar?.getId()) {
+      // Store loaded orders
+      this.loadedOrders = eventData.details.orders || [];
+      
+      // Find move orders for the selected destination
+      const moveOrders = this.loadedOrders.filter(order => order.order_type === 'move');
+      
+      if (this.selectedDestination) {
+        const orderForDestination = moveOrders.find(order => 
+          order.payload && order.payload.destinationStarId === this.selectedDestination.id
+        );
+        
+        if (orderForDestination) {
+          // Load the order data
+          this.currentMoveOrder = orderForDestination;
+          this.selectedShipIds = new Set(orderForDestination.payload.selectedShipIds || []);
+          console.log('🚀 MoveDialog: Loaded order for destination:', this.selectedDestination.getName ? this.selectedDestination.getName() : `Star ${this.selectedDestination.id}`);
+        } else {
+          // Clear selection if no order for this destination
+          this.selectedShipIds.clear();
+          this.currentMoveOrder = null;
+          console.log('🚀 MoveDialog: No order found for destination:', this.selectedDestination.getName ? this.selectedDestination.getName() : `Star ${this.selectedDestination.id}`);
+        }
+        
+        // Re-render to show selections
+        this.renderShipTree();
+        this.updateMoveButton();
+      }
+      
+      // Update UI with loaded orders
+      this.updateConnectedStarsList(); // Refresh rocket icons
+    }
+  }
+
+  /**
+   * Handle order loading error
+   * @param {Object} context - Current context
+   * @param {Object} eventData - Event data containing error information
+   */
+  handleOrderLoadError(context, eventData) {
+    console.error('🚀 MoveDialog: Order loading failed:', eventData);
   }
 
   createDialog()
   {
     this.dialog = document.createElement('div');
     this.dialog.className = 'move-dialog dialog-base';
-    this.dialog.style.width = '800px';
 
     // Header for dragging
     const header = document.createElement('div');
@@ -286,12 +420,23 @@ export class MoveDialog
     this.selectedShipIds.clear();
     this.expandedNodes.clear();
     this.currentMoveOrder = null;
+    this.loadedOrders = []; // Clear loaded orders
     this.isVisible = true;
     this.dialog.style.display = 'block';
 
     // Update star name
     const starName = star.getName ? star.getName() : `Star ${star.id}`;
     this.starNameElement.textContent = starName;
+
+    // Load orders from database for this star
+    eventBus.emit('order:loadForStar', {
+      success: true,
+      details: {
+        eventType: 'order:loadForStar',
+        starId: this.currentStar.getId(),
+        orderType: 'move'
+      }
+    });
 
     // Update connected stars list
     this.updateConnectedStarsList();
@@ -314,18 +459,17 @@ export class MoveDialog
     // Clear existing list
     this.starsListContainer.innerHTML = '';
 
-    // Get connected stars
-    const connectedStars = this.currentStar.getConnectedStars ? this.currentStar.getConnectedStars() : [];
+    // Get connected star IDs and look up the actual star objects
+    const connectedStarIds = this.currentStar.getConnectedStarIds ? this.currentStar.getConnectedStarIds() : [];
+    const lookupFunction = this.getStarLookupFunction();
+    const connectedStars = connectedStarIds
+      .map(starId => lookupFunction ? lookupFunction(starId) : null)
+      .filter(star => star !== null);
 
     if (connectedStars.length === 0) {
       const noStarsMessage = document.createElement('div');
       noStarsMessage.textContent = 'No connected stars available';
-      noStarsMessage.style.cssText = `
-        padding: 20px;
-        text-align: center;
-        color: #888;
-        font-style: italic;
-      `;
+      noStarsMessage.className = 'star-list-empty';
       this.starsListContainer.appendChild(noStarsMessage);
       return;
     }
@@ -334,15 +478,6 @@ export class MoveDialog
     connectedStars.forEach(star => {
       const starItem = document.createElement('div');
       starItem.className = 'star-item';
-      starItem.style.cssText = `
-        padding: 12px 15px;
-        border-bottom: 1px solid #444;
-        cursor: pointer;
-        transition: background-color 0.2s;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      `;
 
       // Check if there's an existing move order to this star
       const hasMoveOrder = this.checkForExistingMoveOrder(star);
@@ -353,37 +488,25 @@ export class MoveDialog
       
       // Use star's color (owner's color) or light gray if unowned
       const starColor = star.color || '#CCCCCC';
-      starNameElement.style.cssText = `
-        color: ${starColor};
-        font-weight: bold;
-      `;
+      starNameElement.className = 'star-name';
+      starNameElement.style.color = starColor;
 
       // Create right side container for owner and rocket icon
       const rightSide = document.createElement('div');
-      rightSide.style.cssText = `
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      `;
+      rightSide.className = 'star-item-meta';
 
       // Show star owner if any
       const ownerElement = document.createElement('span');
       if (star.owner) {
         ownerElement.textContent = `(${star.owner.name || 'Owned'})`;
       }
-      ownerElement.style.cssText = `
-        font-size: 12px;
-        color: #888;
-      `;
+      ownerElement.className = 'star-owner';
 
       // Add rocket icon if there's an existing move order
       if (hasMoveOrder) {
         const rocketIcon = document.createElement('span');
         rocketIcon.textContent = '🚀';
-        rocketIcon.style.cssText = `
-          font-size: 14px;
-          color: #00ff88;
-        `;
+        rocketIcon.className = 'star-icon';
         rocketIcon.title = 'Has existing move order';
         rightSide.appendChild(rocketIcon);
       }
@@ -395,7 +518,7 @@ export class MoveDialog
       // Hover effects
       starItem.addEventListener('mouseenter', () => {
         if (this.selectedDestination !== star) {
-          starItem.style.background = '#444';
+          starItem.style.background = 'var(--bg-light)';
         }
       });
 
@@ -428,7 +551,12 @@ export class MoveDialog
        // Restore original star name color
        const starNameElement = previousSelected.querySelector('span:first-child');
        if (starNameElement) {
-         const originalStar = this.currentStar.getConnectedStars().find(s => 
+         const connectedStarIds = this.currentStar.getConnectedStarIds ? this.currentStar.getConnectedStarIds() : [];
+         const lookupFunction = this.getStarLookupFunction();
+         const connectedStars = connectedStarIds
+           .map(starId => lookupFunction ? lookupFunction(starId) : null)
+           .filter(star => star !== null);
+         const originalStar = connectedStars.find(s => 
            (s.getName ? s.getName() : `Star ${s.id}`) === starNameElement.textContent
          );
          if (originalStar) {
@@ -441,10 +569,9 @@ export class MoveDialog
      this.selectedDestination = null;
      
      // Disable ship tree
-     if (this.shipTreeContainer) {
-       this.shipTreeContainer.style.opacity = '0.5';
-       this.shipTreeContainer.style.pointerEvents = 'none';
-     }
+    if (this.shipTreeContainer) {
+      this.shipTreeContainer.classList.add('disabled');
+    }
    }
 
    /**
@@ -461,7 +588,12 @@ export class MoveDialog
       // Restore original star name color
       const starNameElement = previousSelected.querySelector('span:first-child');
       if (starNameElement) {
-        const originalStar = this.currentStar.getConnectedStars().find(s => 
+        const connectedStarIds = this.currentStar.getConnectedStarIds ? this.currentStar.getConnectedStarIds() : [];
+        const lookupFunction = this.getStarLookupFunction();
+        const connectedStars = connectedStarIds
+          .map(starId => lookupFunction ? lookupFunction(starId) : null)
+          .filter(star => star !== null);
+        const originalStar = connectedStars.find(s => 
           (s.getName ? s.getName() : `Star ${s.id}`) === starNameElement.textContent
         );
         if (originalStar) {
@@ -474,8 +606,6 @@ export class MoveDialog
     // Select new destination
     this.selectedDestination = star;
     element.classList.add('selected');
-    element.style.background = '#00ff88';
-    element.style.border = '1px solid #00ff88';
     
     // Change star name to black for better contrast on green background
     const starNameElement = element.querySelector('span:first-child');
@@ -496,8 +626,7 @@ export class MoveDialog
    */
   enableShipTree() {
     if (this.shipTreeContainer) {
-      this.shipTreeContainer.style.opacity = '1';
-      this.shipTreeContainer.style.pointerEvents = 'auto';
+      this.shipTreeContainer.classList.remove('disabled');
     }
   }
 
@@ -528,12 +657,7 @@ export class MoveDialog
     if (this.shipTreeData.totalShips === 0) {
       const noShipsMessage = document.createElement('div');
       noShipsMessage.textContent = 'No ships available at this star';
-      noShipsMessage.style.cssText = `
-        padding: 20px;
-        text-align: center;
-        color: #888;
-        font-style: italic;
-      `;
+      noShipsMessage.className = 'ship-tree-empty';
       this.shipTreeContainer.appendChild(noShipsMessage);
       return;
     }
@@ -553,25 +677,10 @@ export class MoveDialog
   renderPowerGroup(powerGroup) {
     const groupElement = document.createElement('div');
     groupElement.className = 'power-group';
-    groupElement.style.cssText = `
-      margin-bottom: 10px;
-      border: 1px solid #555;
-      border-radius: 4px;
-      background: #3a3a3a;
-    `;
 
     // Power group header
     const header = document.createElement('div');
     header.className = 'power-group-header';
-    header.style.cssText = `
-      padding: 8px 12px;
-      background: #444;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-radius: 4px 4px 0 0;
-    `;
 
          const selectedCount = this.calculatePowerGroupSelectionCount(powerGroup);
      const availableCount = this.calculatePowerGroupAvailableCount(powerGroup);
@@ -580,10 +689,7 @@ export class MoveDialog
      // Add checkbox for "select all" in this power group
      const checkbox = document.createElement('input');
      checkbox.type = 'checkbox';
-     checkbox.style.cssText = `
-       margin-right: 8px;
-       cursor: pointer;
-     `;
+     // Checkbox styles are handled by CSS
      
      // Set checkbox state - checked if all available ships (excluding damaged immobile) are selected, unchecked otherwise
      checkbox.checked = selectedCount > 0 && selectedCount === availableCount;
@@ -601,19 +707,12 @@ export class MoveDialog
      });
     
     const headerText = document.createElement('span');
+    headerText.className = 'power-group-title';
     headerText.innerHTML = `Power ${powerGroup.power} (${selectedCount}/${availableCount}/<span style="color: #ff4444;">${immobileCount}</span> ships)`;
-    headerText.style.cssText = `
-      font-weight: bold;
-      color: ${selectedCount > 0 ? '#00ff88' : '#00ff88'};
-      flex: 1;
-    `;
 
     const expandIcon = document.createElement('span');
     expandIcon.textContent = '▼';
-    expandIcon.style.cssText = `
-      font-size: 12px;
-      transition: transform 0.2s;
-    `;
+    expandIcon.className = 'power-group-expand-icon';
 
     header.appendChild(checkbox);
     header.appendChild(headerText);
@@ -622,10 +721,6 @@ export class MoveDialog
     // Content container
     const content = document.createElement('div');
     content.className = 'power-group-content';
-    content.style.cssText = `
-      padding: 8px;
-      display: none;
-    `;
 
     // Render categories
     this.renderCategory(content, 'undamaged', powerGroup.categories.undamaged);
@@ -640,19 +735,19 @@ export class MoveDialog
     const isExpanded = this.expandedNodes.has(groupKey);
     
     if (isExpanded) {
-      content.style.display = 'block';
+      content.classList.add('expanded');
       expandIcon.style.transform = 'rotate(180deg)';
     }
 
     header.addEventListener('click', () => {
-      const isCurrentlyExpanded = content.style.display !== 'none';
+      const isCurrentlyExpanded = content.classList.contains('expanded');
       
       if (isCurrentlyExpanded) {
-        content.style.display = 'none';
+        content.classList.remove('expanded');
         expandIcon.style.transform = 'rotate(0deg)';
         this.expandedNodes.delete(groupKey);
       } else {
-        content.style.display = 'block';
+        content.classList.add('expanded');
         expandIcon.style.transform = 'rotate(180deg)';
         this.expandedNodes.add(groupKey);
       }
@@ -669,23 +764,10 @@ export class MoveDialog
 
     const categoryElement = document.createElement('div');
     categoryElement.className = 'category';
-    categoryElement.style.cssText = `
-      margin-bottom: 8px;
-    `;
 
     // Category header
     const header = document.createElement('div');
     header.className = 'category-header';
-    header.style.cssText = `
-      padding: 6px 8px;
-      background: #555;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-radius: 3px;
-      margin-bottom: 4px;
-    `;
 
     const categoryName = this.getCategoryDisplayName(categoryType);
     const selectedCount = this.calculateCategorySelectionCount(category);
@@ -695,21 +777,12 @@ export class MoveDialog
     // Add checkbox for "select all" in this category
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
-    checkbox.style.cssText = `
-      margin-right: 6px;
-      cursor: pointer;
-      transform: scale(0.8);
-    `;
+    // Checkbox styles are handled by CSS
     
     // Disable checkbox for damaged immobile ships
     if (categoryType === 'damagedImmobile') {
       checkbox.disabled = true;
-      checkbox.style.cssText = `
-        margin-right: 6px;
-        cursor: not-allowed;
-        transform: scale(0.8);
-        opacity: 0.5;
-      `;
+      // Disabled checkbox styles are handled by CSS
     }
     
          // Set checkbox state - checked if all available ships (excluding damaged immobile) are selected, unchecked otherwise
@@ -734,18 +807,14 @@ export class MoveDialog
     } else {
       headerText.textContent = `${categoryName} (${selectedCount}/${availableCount})`;
     }
-    headerText.style.cssText = `
-      font-size: 13px;
-      color: ${selectedCount > 0 ? '#00ff88' : this.getCategoryColor(categoryType)};
-      flex: 1;
-    `;
+    headerText.className = 'category-title';
+    if (selectedCount > 0) {
+      headerText.classList.add('selected');
+    }
 
     const expandIcon = document.createElement('span');
     expandIcon.textContent = '▶';
-    expandIcon.style.cssText = `
-      font-size: 10px;
-      transition: transform 0.2s;
-    `;
+    expandIcon.className = 'category-expand-icon';
 
     header.appendChild(checkbox);
     header.appendChild(headerText);
@@ -754,10 +823,6 @@ export class MoveDialog
     // Ships container
     const shipsContainer = document.createElement('div');
     shipsContainer.className = 'ships-container';
-    shipsContainer.style.cssText = `
-      padding-left: 15px;
-      display: none;
-    `;
 
     // Render ships
     category.ships.forEach(ship => {
@@ -772,19 +837,19 @@ export class MoveDialog
     const isExpanded = this.expandedNodes.has(categoryKey);
     
     if (isExpanded) {
-      shipsContainer.style.display = 'block';
+      shipsContainer.classList.add('expanded');
       expandIcon.style.transform = 'rotate(90deg)';
     }
 
     header.addEventListener('click', () => {
-      const isCurrentlyExpanded = shipsContainer.style.display !== 'none';
+      const isCurrentlyExpanded = shipsContainer.classList.contains('expanded');
       
       if (isCurrentlyExpanded) {
-        shipsContainer.style.display = 'none';
+        shipsContainer.classList.remove('expanded');
         expandIcon.style.transform = 'rotate(0deg)';
         this.expandedNodes.delete(categoryKey);
       } else {
-        shipsContainer.style.display = 'block';
+        shipsContainer.classList.add('expanded');
         expandIcon.style.transform = 'rotate(90deg)';
         this.expandedNodes.add(categoryKey);
       }
@@ -799,11 +864,11 @@ export class MoveDialog
   checkForExistingMoveOrder(destinationStar) {
     if (!this.currentPlayer || !this.currentStar) return false;
     
-    const playerId = this.currentPlayer.id;
-    const originStarId = this.currentStar.id;
-    const destStarId = destinationStar.id;
-    
-    return moveOrderStore.hasOrder(playerId, originStarId, destStarId);
+    // Check loaded orders for move orders to this destination
+    const moveOrders = this.loadedOrders.filter(order => order.order_type === 'move');
+    return moveOrders.some(order => 
+      order.payload && order.payload.destinationStarId === destinationStar.id
+    );
   }
 
   /**
@@ -812,22 +877,21 @@ export class MoveDialog
   calculateAvailableShips() {
     if (!this.currentPlayer || !this.currentStar) return new Set();
     
-    const playerId = this.currentPlayer.id;
-    const originStarId = this.currentStar.id;
-    
-    // Get all existing move orders for this origin star
-    const existingOrders = moveOrderStore.getOrdersForOriginStar(playerId, originStarId);
+    // Get all move orders for this origin star
+    const moveOrders = this.loadedOrders.filter(order => order.order_type === 'move');
     
     // Collect all ship IDs that are already assigned to other destinations
     const assignedShipIds = new Set();
-    existingOrders.forEach(order => {
+    moveOrders.forEach(order => {
       // Don't include ships from the current destination (if any)
-      if (this.selectedDestination && order.getDestStarId() === this.selectedDestination.id) {
+      if (this.selectedDestination && order.payload && order.payload.destinationStarId === this.selectedDestination.id) {
         return;
       }
-      order.getSelectedShipIds().forEach(shipId => {
-        assignedShipIds.add(shipId);
-      });
+      if (order.payload && order.payload.selectedShipIds) {
+        order.payload.selectedShipIds.forEach(shipId => {
+          assignedShipIds.add(shipId);
+        });
+      }
     });
     
     return assignedShipIds;
@@ -849,16 +913,6 @@ export class MoveDialog
   renderShipItem(container, ship, categoryType) {
     const shipElement = document.createElement('div');
     shipElement.className = 'ship-item';
-    shipElement.style.cssText = `
-      padding: 4px 8px;
-      margin: 2px 0;
-      border-radius: 3px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    `;
 
     const shipId = this.getShipId(ship);
     const isSelected = this.selectedShipIds.has(shipId);
@@ -869,25 +923,15 @@ export class MoveDialog
     const isAvailable = !assignedShipIds.has(shipId);
 
     if (isSelected) {
-      shipElement.style.background = '#00ff88';
-      shipElement.style.color = '#000';
-      shipElement.style.border = '1px solid #00cc6a';
-      shipElement.style.fontWeight = 'bold';
+      shipElement.classList.add('selected');
     } else if (!canMove || !isAvailable) {
-      shipElement.style.background = '#666';
-      shipElement.style.color = '#999';
-      shipElement.style.cursor = 'not-allowed';
-    } else {
-      shipElement.style.background = 'transparent';
-      shipElement.style.color = '#fff';
+      shipElement.classList.add('disabled');
     }
 
     // Ship name
     const shipName = document.createElement('span');
     shipName.textContent = getShipDisplayName(ship);
-    shipName.style.cssText = `
-      font-size: 12px;
-    `;
+    shipName.className = 'ship-name';
 
     // Ship health (for damaged ships)
     const healthInfo = document.createElement('span');
@@ -895,18 +939,17 @@ export class MoveDialog
       const healthPercentage = getShipHealthPercentage(ship);
       healthInfo.textContent = `${Math.round(healthPercentage)}%`;
       
-      // Ensure proper contrast for selected ships
+      healthInfo.className = 'ship-health';
       if (isSelected) {
-        healthInfo.style.cssText = `
-          font-size: 11px;
-          color: #000;
-          font-weight: bold;
-        `;
+        healthInfo.classList.add('selected');
       } else {
-        healthInfo.style.cssText = `
-          font-size: 11px;
-          color: ${healthPercentage > 50 ? '#00ff88' : healthPercentage > 25 ? '#ffaa00' : '#ff4444'};
-        `;
+        if (healthPercentage > 50) {
+          healthInfo.classList.add('healthy');
+        } else if (healthPercentage > 25) {
+          healthInfo.classList.add('warning');
+        } else {
+          healthInfo.classList.add('critical');
+        }
       }
     }
 
@@ -1148,25 +1191,21 @@ export class MoveDialog
   loadPreviousSelectionForDestination(destinationStar) {
     if (!this.currentPlayer || !this.currentStar) return;
 
-    const playerId = this.currentPlayer.id;
-    const originStarId = this.currentStar.id;
-    const destStarId = destinationStar.id;
+    // Request orders from database for this star
+    eventBus.emit('order:loadForStar', {
+      success: true,
+      details: {
+        eventType: 'order:loadForStar',
+        starId: this.currentStar.getId(),
+        orderType: 'move'
+      }
+    });
     
-    const previousOrder = moveOrderStore.getOrder(playerId, originStarId, destStarId);
-    if (previousOrder) {
-      this.currentMoveOrder = previousOrder;
-      this.selectedShipIds = new Set(previousOrder.getSelectedShipIds());
-      
-      // Re-render to show selections
-      this.renderShipTree();
-      console.log('🚀 MoveDialog: Loaded previous selection for destination:', destinationStar.getName ? destinationStar.getName() : `Star ${destinationStar.id}`);
-    } else {
-      // Clear any existing selection if no previous order for this destination
-      this.selectedShipIds.clear();
-      this.currentMoveOrder = null;
-      this.renderShipTree();
-      console.log('🚀 MoveDialog: No previous selection found for destination:', destinationStar.getName ? destinationStar.getName() : `Star ${destinationStar.id}`);
-    }
+    // For now, clear selection - we'll update when orders are loaded
+    this.selectedShipIds.clear();
+    this.currentMoveOrder = null;
+    this.renderShipTree();
+    console.log('🚀 MoveDialog: Requesting orders from database for destination:', destinationStar.getName ? destinationStar.getName() : `Star ${destinationStar.id}`);
   }
 
   /**
@@ -1175,17 +1214,20 @@ export class MoveDialog
   loadPreviousSelection() {
     if (!this.currentPlayer || !this.currentStar) return;
 
-    const playerId = this.currentPlayer.id;
-    const originStarId = this.currentStar.id;
+    // Request orders from database for this star
+    eventBus.emit('order:loadForStar', {
+      success: true,
+      details: {
+        eventType: 'order:loadForStar',
+        starId: this.currentStar.getId(),
+        orderType: 'move'
+      }
+    });
     
-    const previousOrder = moveOrderStore.getOrder(playerId, originStarId);
-    if (previousOrder) {
-      this.currentMoveOrder = previousOrder;
-      this.selectedShipIds = new Set(previousOrder.getSelectedShipIds());
-      
-      // Re-render to show selections
-      this.renderShipTree();
-    }
+    // For now, clear selection - we'll update when orders are loaded
+    this.selectedShipIds.clear();
+    this.currentMoveOrder = null;
+    this.renderShipTree();
   }
 
   /**
@@ -1208,20 +1250,20 @@ export class MoveDialog
   updateMoveButton() {
     // Update submit button
     if (this.canSubmit()) {
-      this.moveButton.style.opacity = '1';
-      this.moveButton.style.pointerEvents = 'auto';
+      this.moveButton.classList.remove('btn-disabled');
+      this.moveButton.classList.add('btn-enabled');
     } else {
-      this.moveButton.style.opacity = '0.5';
-      this.moveButton.style.pointerEvents = 'none';
+      this.moveButton.classList.remove('btn-enabled');
+      this.moveButton.classList.add('btn-disabled');
     }
 
     // Update cancel button
     if (this.canCancel()) {
-      this.cancelButton.style.opacity = '1';
-      this.cancelButton.style.pointerEvents = 'auto';
+      this.cancelButton.classList.remove('btn-disabled');
+      this.cancelButton.classList.add('btn-enabled');
     } else {
-      this.cancelButton.style.opacity = '0.5';
-      this.cancelButton.style.pointerEvents = 'none';
+      this.cancelButton.classList.remove('btn-enabled');
+      this.cancelButton.classList.add('btn-disabled');
     }
   }
 
@@ -1239,19 +1281,27 @@ export class MoveDialog
     
     console.log(`🚀 MoveDialog: Cancelling move order from ${fromStar} to ${toStar}`);
     
-    // Remove the move order from store
-    if (this.currentPlayer) {
-      const playerId = this.currentPlayer.id;
-      const originStarId = this.currentStar.id;
-      const destStarId = this.selectedDestination.id;
-      
-      const removed = moveOrderStore.removeOrder(playerId, originStarId, destStarId);
-      if (removed) {
-        console.log('🚀 MoveDialog: Removed move order from store');
-      } else {
-        console.warn('🚀 MoveDialog: Failed to remove move order from store');
+      // Submit order cancellation to database
+      if (this.currentPlayer) {
+        const orderData = {
+          action: 'cancel',
+          sourceStarId: this.currentStar.getId(),
+          destinationStarId: this.selectedDestination.id,
+          selectedShipIds: Array.from(this.selectedShipIds)
+        };
+
+        console.log('🚀 MoveDialog: Submitting order cancellation via event system');
+
+        // Emit order submission event for cancellation
+        eventBus.emit('order:submit', {
+          success: true,
+          details: {
+            eventType: 'order:submit',
+            orderType: 'move',
+            payload: orderData
+          }
+        });
       }
-    }
     
     // Clear current selection
     this.selectedShipIds.clear();
@@ -1280,29 +1330,25 @@ export class MoveDialog
     
     console.log(`🚀 MoveDialog: Submitting move order from ${fromStar} to ${toStar}`);
     
-    // Create MoveOrder
-    const moveOrder = new MoveOrder({
-      originStarId: this.currentStar.id,
-      destStarId: this.selectedDestination.id,
+    // Prepare order data for database submission
+    const orderData = {
+      action: 'move',
+      sourceStarId: this.currentStar.getId(),
+      destinationStarId: this.selectedDestination.getId(),
       selectedShipIds: Array.from(this.selectedShipIds)
-    });
+    };
 
-    // Store the move order
-    console.log('🚀 MoveDialog: currentPlayer:', this.currentPlayer);
-    if (this.currentPlayer) {
-      const playerId = this.currentPlayer.id;
-      const originStarId = this.currentStar.id;
-      const destStarId = this.selectedDestination.id;
-      console.log('🚀 MoveDialog: Storing order with playerId:', playerId, 'originStarId:', originStarId, 'destStarId:', destStarId);
-      moveOrderStore.storeOrder(playerId, originStarId, destStarId, moveOrder);
-      
-      console.log('🚀 MoveDialog: Stored move order:', moveOrder.getSummary());
-    } else {
-      console.warn('🚀 MoveDialog: No current player, cannot store move order');
-    }
-    
-    // TODO: Implement actual fleet movement logic
-    // For now, just log the action
+    console.log('🚀 MoveDialog: Submitting move order via event system', orderData);
+
+    // Emit order submission event
+    eventBus.emit('order:submit', {
+      success: true,
+      details: {
+        eventType: 'order:submit',
+        orderType: 'move',
+        payload: orderData
+      }
+    });
     
          // Show confirmation and refresh UI
      this.showMoveConfirmation(fromStar, toStar);
@@ -1322,18 +1368,7 @@ export class MoveDialog
   showMoveConfirmation(fromStar, toStar) {
     const confirmation = document.createElement('div');
     confirmation.textContent = `Move order submitted: ${fromStar} → ${toStar}`;
-    confirmation.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #00ff88;
-      color: #000;
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-weight: bold;
-      z-index: 3000;
-      animation: slideIn 0.3s ease-out;
-    `;
+    confirmation.className = 'confirmation-message-move';
 
     // Add CSS animation
     const style = document.createElement('style');
@@ -1364,18 +1399,7 @@ export class MoveDialog
   showCancelConfirmation(fromStar, toStar) {
     const confirmation = document.createElement('div');
     confirmation.textContent = `Move order cancelled: ${fromStar} → ${toStar}`;
-    confirmation.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #ff4444;
-      color: #fff;
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-weight: bold;
-      z-index: 3000;
-      animation: slideIn 0.3s ease-out;
-    `;
+    confirmation.className = 'confirmation-message-move';
 
     // Add CSS animation
     const style = document.createElement('style');

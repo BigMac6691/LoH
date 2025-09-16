@@ -153,7 +153,8 @@ export class MapFactory {
             pos_x: x,
             pos_y: y,
             pos_z: z,
-            sector: { row: sector.row, col: sector.col },
+            sector_x: sector.row,
+            sector_y: sector.col,
             resource: resourceValue, // Use only the new resource field
             owner: null,
             color: '#CCCCCC', // Default light gray color
