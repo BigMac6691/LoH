@@ -216,6 +216,8 @@ export class MapViewGenerator
     
     // Process ships - create ship instances and place them in stars
     ships.forEach(shipData => {
+      console.log(shipData);
+
       const star = this.mapModel.getStarById(shipData.location_star_id);
       if (!star) {
         console.warn(`⚠️ MapViewGenerator: Star with ID ${shipData.location_star_id} not found for ship ${shipData.id}`);
@@ -229,7 +231,7 @@ export class MapViewGenerator
       const ship = new Ship({
         id: shipData.id,
         power: shipData.power,
-        damage: shipData.damage,
+        damage: shipData.power - shipData.hp,
         owner: owner,
         location: star
       });

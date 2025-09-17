@@ -1,5 +1,5 @@
 import { MoveOrder, moveOrderStore } from '@loh/shared';
-import { groupShipsByPowerAndDamage, getShipDisplayName, getShipHealthPercentage, canShipMove } from './utils/shipGrouping.js';
+import { getShipDisplayName } from './utils/shipGrouping.js';
 import { eventBus } from './eventBus.js';
 
 /**
@@ -19,8 +19,6 @@ export class MoveDialog
     this.currentPlayer = null;
     this.currentMoveOrder = null;
     this.selectedShipIds = new Set();
-    this.expandedNodes = new Set();
-    this.shipTreeData = null;
     this.starLookupFunction = null; // Function to look up stars by ID
     this.loadedOrders = []; // Track orders loaded from database
     
@@ -141,7 +139,7 @@ export class MoveDialog
         }
         
         // Re-render to show selections
-        this.renderShipTree();
+        this.updateShipList();
         this.updateMoveButton();
       }
       
@@ -418,7 +416,6 @@ export class MoveDialog
     // Clear all state when opening dialog
     this.selectedDestination = null;
     this.selectedShipIds.clear();
-    this.expandedNodes.clear();
     this.currentMoveOrder = null;
     this.loadedOrders = []; // Clear loaded orders
     this.isVisible = true;
@@ -441,8 +438,8 @@ export class MoveDialog
     // Update connected stars list
     this.updateConnectedStarsList();
 
-    // Update ship tree
-    this.updateShipTree();
+    // Update ship list
+    this.updateShipList();
 
     // Reset move button
     this.updateMoveButton();
@@ -631,30 +628,27 @@ export class MoveDialog
   }
 
   /**
-   * Update the ship tree
+   * Update the ship list
    */
-  updateShipTree() {
+  updateShipList() {
     if (!this.currentStar) return;
 
     // Get ships at this star
     const ships = this.currentStar.getShips ? this.currentStar.getShips() : [];
     
-    // Group ships by power and damage
-    this.shipTreeData = groupShipsByPowerAndDamage(ships);
-    
-    // Render the tree (without loading previous selection)
-    this.renderShipTree();
+    // Render the ship list
+    this.renderShipList(ships);
   }
 
   /**
-   * Render the ship tree
+   * Render the ship list
    */
-  renderShipTree() {
-    if (!this.shipTreeContainer || !this.shipTreeData) return;
+  renderShipList(ships) {
+    if (!this.shipTreeContainer) return;
 
     this.shipTreeContainer.innerHTML = '';
 
-    if (this.shipTreeData.totalShips === 0) {
+    if (ships.length === 0) {
       const noShipsMessage = document.createElement('div');
       noShipsMessage.textContent = 'No ships available at this star';
       noShipsMessage.className = 'ship-tree-empty';
@@ -662,9 +656,13 @@ export class MoveDialog
       return;
     }
 
-    // Render power groups
-    this.shipTreeData.powerGroups.forEach(powerGroup => {
-      this.renderPowerGroup(powerGroup);
+    // Sort ships by damage (least damaged first) then power (highest first)
+    const sortedShips = this.sortShips(ships);
+
+    // Render each ship
+    sortedShips.forEach(ship => {
+      const shipElement = this.createShipElement(ship);
+      this.shipTreeContainer.appendChild(shipElement);
     });
 
     // Update selection summary
@@ -672,190 +670,124 @@ export class MoveDialog
   }
 
   /**
-   * Render a power group
+   * Sort ships by power (highest first) then damage (least damaged first)
    */
-  renderPowerGroup(powerGroup) {
-    const groupElement = document.createElement('div');
-    groupElement.className = 'power-group';
-
-    // Power group header
-    const header = document.createElement('div');
-    header.className = 'power-group-header';
-
-         const selectedCount = this.calculatePowerGroupSelectionCount(powerGroup);
-     const availableCount = this.calculatePowerGroupAvailableCount(powerGroup);
-     const immobileCount = this.calculatePowerGroupImmobileCount(powerGroup);
-     
-     // Add checkbox for "select all" in this power group
-     const checkbox = document.createElement('input');
-     checkbox.type = 'checkbox';
-     // Checkbox styles are handled by CSS
-     
-     // Set checkbox state - checked if all available ships (excluding damaged immobile) are selected, unchecked otherwise
-     checkbox.checked = selectedCount > 0 && selectedCount === availableCount;
-    
-         // Add checkbox click handler
-     checkbox.addEventListener('change', (e) => {
-       e.stopPropagation(); // Prevent header click
-       this.togglePowerGroupSelection(powerGroup, checkbox.checked);
-     });
-     
-     // Also prevent click event from bubbling
-     checkbox.addEventListener('click', (e) => {
-      console.log('🚀 MoveDialog: Checkbox clicked');
-       e.stopPropagation();
-     });
-    
-    const headerText = document.createElement('span');
-    headerText.className = 'power-group-title';
-    headerText.innerHTML = `Power ${powerGroup.power} (${selectedCount}/${availableCount}/<span style="color: #ff4444;">${immobileCount}</span> ships)`;
-
-    const expandIcon = document.createElement('span');
-    expandIcon.textContent = '▼';
-    expandIcon.className = 'power-group-expand-icon';
-
-    header.appendChild(checkbox);
-    header.appendChild(headerText);
-    header.appendChild(expandIcon);
-
-    // Content container
-    const content = document.createElement('div');
-    content.className = 'power-group-content';
-
-    // Render categories
-    this.renderCategory(content, 'undamaged', powerGroup.categories.undamaged);
-    this.renderCategory(content, 'damagedMobile', powerGroup.categories.damagedMobile);
-    this.renderCategory(content, 'damagedImmobile', powerGroup.categories.damagedImmobile);
-
-    groupElement.appendChild(header);
-    groupElement.appendChild(content);
-
-    // Handle expand/collapse
-    const groupKey = `power-${powerGroup.power}`;
-    const isExpanded = this.expandedNodes.has(groupKey);
-    
-    if (isExpanded) {
-      content.classList.add('expanded');
-      expandIcon.style.transform = 'rotate(180deg)';
-    }
-
-    header.addEventListener('click', () => {
-      const isCurrentlyExpanded = content.classList.contains('expanded');
+  sortShips(ships) {
+    return ships.sort((a, b) => {
+      // Primary: by power (highest power first)
+      const powerA = a.getPower ? a.getPower() : a.power || 0;
+      const powerB = b.getPower ? b.getPower() : b.power || 0;
+      if (powerA !== powerB) return powerB - powerA;
       
-      if (isCurrentlyExpanded) {
-        content.classList.remove('expanded');
-        expandIcon.style.transform = 'rotate(0deg)';
-        this.expandedNodes.delete(groupKey);
-      } else {
-        content.classList.add('expanded');
-        expandIcon.style.transform = 'rotate(180deg)';
-        this.expandedNodes.add(groupKey);
-      }
+      // Secondary: by damage (least damaged first)
+      const damageA = a.getDamagePercentage ? a.getDamagePercentage() : 0;
+      const damageB = b.getDamagePercentage ? b.getDamagePercentage() : 0;
+      return damageA - damageB;
     });
-
-    this.shipTreeContainer.appendChild(groupElement);
   }
 
   /**
-   * Render a category within a power group
+   * Create a ship element for the list
    */
-  renderCategory(container, categoryType, category) {
-    if (category.count === 0) return;
-
-    const categoryElement = document.createElement('div');
-    categoryElement.className = 'category';
-
-    // Category header
-    const header = document.createElement('div');
-    header.className = 'category-header';
-
-    const categoryName = this.getCategoryDisplayName(categoryType);
-    const selectedCount = this.calculateCategorySelectionCount(category);
-    const availableCount = this.calculateCategoryAvailableCount(category);
-    const totalCount = category.ships.length;
+  createShipElement(ship) {
+    const shipElement = document.createElement('div');
+    shipElement.className = 'ship-item';
     
-    // Add checkbox for "select all" in this category
+    const shipId = this.getShipId(ship);
+    const isSelected = this.selectedShipIds.has(shipId);
+    const canMove = ship.canMove();
+    const damagePercentage = ship.getDamagePercentage();
+    const healthPercentage = 100 - damagePercentage;
+
+    console.log('Ship health debug:', {
+      shipId: ship.id,
+      power: ship.getPower(),
+      damage: ship.getDamage(),
+      damagePercentage: damagePercentage,
+      healthPercentage: healthPercentage,
+      canMove: canMove
+    });
+    
+    // Add color coding based on health
+    if (healthPercentage > 50) {
+      shipElement.classList.add('ship-health-good');
+    } else if (healthPercentage > 0) {
+      shipElement.classList.add('ship-health-warning');
+    } else {
+      shipElement.classList.add('ship-health-critical');
+    }
+    
+    // Add selection state
+    if (isSelected) {
+      shipElement.classList.add('selected');
+    }
+    
+    // Add disabled state for immobile ships
+    if (!canMove) {
+      shipElement.classList.add('disabled');
+    }
+    
+    // Create checkbox
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
-    // Checkbox styles are handled by CSS
+    checkbox.checked = isSelected;
+    checkbox.disabled = !canMove;
+    checkbox.addEventListener('change', () => {
+      this.toggleShipSelection(ship);
+    });
     
-    // Disable checkbox for damaged immobile ships
-    if (categoryType === 'damagedImmobile') {
-      checkbox.disabled = true;
-      // Disabled checkbox styles are handled by CSS
+    // Create ship info
+    const shipInfo = document.createElement('div');
+    shipInfo.className = 'ship-info';
+    
+    // Ship name and power badge
+    const shipName = document.createElement('span');
+    shipName.className = 'ship-name';
+    shipName.textContent = getShipDisplayName(ship);
+    
+    const powerBadge = document.createElement('span');
+    powerBadge.className = 'power-badge';
+    const power = ship.getPower ? ship.getPower() : ship.power || 0;
+    powerBadge.textContent = `P${power}`;
+    
+    // Health bar
+    const healthBar = document.createElement('div');
+    healthBar.className = 'health-bar';
+    const healthFill = document.createElement('div');
+    healthFill.className = 'health-fill';
+    
+    // Set width - use actual percentage, but ensure minimum visibility for very low health
+    let fillWidth = healthPercentage;
+    if (healthPercentage > 0 && healthPercentage < 2) {
+      fillWidth = 2; // Minimum 2% width for visibility when health is very low
     }
+    healthFill.style.width = `${fillWidth}%`;
     
-         // Set checkbox state - checked if all available ships (excluding damaged immobile) are selected, unchecked otherwise
-     checkbox.checked = selectedCount > 0 && selectedCount === availableCount;
-    
-         // Add checkbox click handler
-     checkbox.addEventListener('change', (e) => {
-       e.stopPropagation(); // Prevent header click
-       if (categoryType !== 'damagedImmobile') {
-         this.toggleCategorySelection(category, categoryType, checkbox.checked);
-       }
-     });
-     
-     // Also prevent click event from bubbling
-     checkbox.addEventListener('click', (e) => {
-       e.stopPropagation();
-     });
-    
-    const headerText = document.createElement('span');
-    if (categoryType === 'damagedImmobile') {
-      headerText.innerHTML = `${categoryName} (${selectedCount}/${availableCount}/<span style="color: #ff4444;">${totalCount}</span>)`;
+    // Set health bar color based on health percentage
+    if (healthPercentage > 50) {
+      healthFill.style.background = '#00ff88';
+    } else if (healthPercentage > 0) {
+      healthFill.style.background = '#ffaa00';
     } else {
-      headerText.textContent = `${categoryName} (${selectedCount}/${availableCount})`;
+      healthFill.style.background = '#ff4444';
     }
-    headerText.className = 'category-title';
-    if (selectedCount > 0) {
-      headerText.classList.add('selected');
-    }
-
-    const expandIcon = document.createElement('span');
-    expandIcon.textContent = '▶';
-    expandIcon.className = 'category-expand-icon';
-
-    header.appendChild(checkbox);
-    header.appendChild(headerText);
-    header.appendChild(expandIcon);
-
-    // Ships container
-    const shipsContainer = document.createElement('div');
-    shipsContainer.className = 'ships-container';
-
-    // Render ships
-    category.ships.forEach(ship => {
-      this.renderShipItem(shipsContainer, ship, categoryType);
-    });
-
-    categoryElement.appendChild(header);
-    categoryElement.appendChild(shipsContainer);
-
-    // Handle expand/collapse
-    const categoryKey = `category-${categoryType}`;
-    const isExpanded = this.expandedNodes.has(categoryKey);
     
-    if (isExpanded) {
-      shipsContainer.classList.add('expanded');
-      expandIcon.style.transform = 'rotate(90deg)';
-    }
-
-    header.addEventListener('click', () => {
-      const isCurrentlyExpanded = shipsContainer.classList.contains('expanded');
-      
-      if (isCurrentlyExpanded) {
-        shipsContainer.classList.remove('expanded');
-        expandIcon.style.transform = 'rotate(0deg)';
-        this.expandedNodes.delete(categoryKey);
-      } else {
-        shipsContainer.classList.add('expanded');
-        expandIcon.style.transform = 'rotate(90deg)';
-        this.expandedNodes.add(categoryKey);
-      }
-    });
-
-    container.appendChild(categoryElement);
+    healthBar.appendChild(healthFill);
+    
+    // Health percentage text
+    const healthText = document.createElement('span');
+    healthText.className = 'health-text';
+    healthText.textContent = `${Math.round(healthPercentage)}%`;
+    
+    shipInfo.appendChild(shipName);
+    shipInfo.appendChild(powerBadge);
+    shipInfo.appendChild(healthBar);
+    shipInfo.appendChild(healthText);
+    
+    shipElement.appendChild(checkbox);
+    shipElement.appendChild(shipInfo);
+    
+    return shipElement;
   }
 
   /**
@@ -907,93 +839,13 @@ export class MoveDialog
     return `ship-${ship.constructor.name}-${ship.power || 0}-${ship.damage || 0}`;
   }
 
-  /**
-   * Render a ship item
-   */
-  renderShipItem(container, ship, categoryType) {
-    const shipElement = document.createElement('div');
-    shipElement.className = 'ship-item';
 
-    const shipId = this.getShipId(ship);
-    const isSelected = this.selectedShipIds.has(shipId);
-    const canMove = categoryType !== 'damagedImmobile';
-    
-    // Check if ship is available (not assigned to other destinations)
-    const assignedShipIds = this.calculateAvailableShips();
-    const isAvailable = !assignedShipIds.has(shipId);
-
-    if (isSelected) {
-      shipElement.classList.add('selected');
-    } else if (!canMove || !isAvailable) {
-      shipElement.classList.add('disabled');
-    }
-
-    // Ship name
-    const shipName = document.createElement('span');
-    shipName.textContent = getShipDisplayName(ship);
-    shipName.className = 'ship-name';
-
-    // Ship health (for damaged ships)
-    const healthInfo = document.createElement('span');
-    if (categoryType !== 'undamaged') {
-      const healthPercentage = getShipHealthPercentage(ship);
-      healthInfo.textContent = `${Math.round(healthPercentage)}%`;
-      
-      healthInfo.className = 'ship-health';
-      if (isSelected) {
-        healthInfo.classList.add('selected');
-      } else {
-        if (healthPercentage > 50) {
-          healthInfo.classList.add('healthy');
-        } else if (healthPercentage > 25) {
-          healthInfo.classList.add('warning');
-        } else {
-          healthInfo.classList.add('critical');
-        }
-      }
-    }
-
-    shipElement.appendChild(shipName);
-    shipElement.appendChild(healthInfo);
-
-    // Click handler
-    if (canMove && isAvailable) {
-      shipElement.addEventListener('click', () => {
-        this.toggleShipSelection(shipId);
-      });
-    }
-
-    container.appendChild(shipElement);
-  }
-
-  /**
-   * Get category display name
-   */
-  getCategoryDisplayName(categoryType) {
-    switch (categoryType) {
-      case 'undamaged': return 'Undamaged';
-      case 'damagedMobile': return 'Damaged Mobile';
-      case 'damagedImmobile': return 'Damaged Immobile';
-      default: return 'Unknown';
-    }
-  }
-
-  /**
-   * Get category color
-   */
-  getCategoryColor(categoryType) {
-    switch (categoryType) {
-      case 'undamaged': return '#00ff88';
-      case 'damagedMobile': return '#ffaa00';
-      case 'damagedImmobile': return '#ff4444';
-      default: return '#ccc';
-    }
-  }
 
   /**
    * Toggle ship selection
    */
-  toggleShipSelection(shipId) {
+  toggleShipSelection(ship) {
+    const shipId = this.getShipId(ship);
     if (this.selectedShipIds.has(shipId)) {
       this.selectedShipIds.delete(shipId);
     } else {
@@ -1002,8 +854,8 @@ export class MoveDialog
     
     this.updateSelectionSummary();
     this.updateMoveButton();
-    // Re-render the tree to update selection counts in headers
-    this.renderShipTree();
+    // Re-render the list to update selection counts
+    this.updateShipList();
   }
 
   /**
@@ -1026,164 +878,22 @@ export class MoveDialog
    * Calculate total power of selected ships
    */
   calculateSelectedPower() {
-    if (!this.shipTreeData) return 0;
+    if (!this.currentStar) return 0;
 
+    const ships = this.currentStar.getShips ? this.currentStar.getShips() : [];
     let totalPower = 0;
-    this.shipTreeData.powerGroups.forEach(powerGroup => {
-      ['undamaged', 'damagedMobile', 'damagedImmobile'].forEach(categoryType => {
-        const category = powerGroup.categories[categoryType];
-        category.ships.forEach(ship => {
-          const shipId = this.getShipId(ship);
-          if (this.selectedShipIds.has(shipId)) {
-            const power = ship.getPower ? ship.getPower() : ship.power || 0;
-            totalPower += power;
-          }
-        });
-      });
+    
+    ships.forEach(ship => {
+      const shipId = this.getShipId(ship);
+      if (this.selectedShipIds.has(shipId)) {
+        const power = ship.getPower ? ship.getPower() : ship.power || 0;
+        totalPower += power;
+      }
     });
 
     return totalPower;
   }
 
-  /**
-   * Calculate selection count for a power group
-   */
-  calculatePowerGroupSelectionCount(powerGroup) {
-    let selectedCount = 0;
-    ['undamaged', 'damagedMobile'].forEach(categoryType => {
-      const category = powerGroup.categories[categoryType];
-      category.ships.forEach(ship => {
-        const shipId = this.getShipId(ship);
-        if (this.selectedShipIds.has(shipId)) {
-          selectedCount++;
-        }
-      });
-    });
-    return selectedCount;
-  }
-
-  /**
-   * Calculate available count for a power group (total minus assigned to other destinations)
-   */
-  calculatePowerGroupAvailableCount(powerGroup) {
-    const assignedShipIds = this.calculateAvailableShips();
-    let availableCount = 0;
-    
-    ['undamaged', 'damagedMobile'].forEach(categoryType => {
-      const category = powerGroup.categories[categoryType];
-      category.ships.forEach(ship => {
-        const shipId = this.getShipId(ship);
-        if (!assignedShipIds.has(shipId)) {
-          availableCount++;
-        }
-      });
-    });
-    return availableCount;
-  }
-
-  /**
-   * Calculate immobile count for a power group
-   */
-  calculatePowerGroupImmobileCount(powerGroup) {
-    let immobileCount = 0;
-    const category = powerGroup.categories['damagedImmobile'];
-    if (category) {
-      immobileCount = category.ships.length;
-    }
-    return immobileCount;
-  }
-
-  /**
-   * Calculate immobile count for a category
-   */
-  calculateCategoryImmobileCount(category) {
-    return category.ships.length;
-  }
-
-  /**
-   * Calculate selection count for a category
-   */
-  calculateCategorySelectionCount(category) {
-    let selectedCount = 0;
-    category.ships.forEach(ship => {
-      const shipId = this.getShipId(ship);
-      if (this.selectedShipIds.has(shipId)) {
-        selectedCount++;
-      }
-    });
-    return selectedCount;
-  }
-
-  /**
-   * Calculate available count for a category (total minus assigned to other destinations)
-   */
-  calculateCategoryAvailableCount(category) {
-    const assignedShipIds = this.calculateAvailableShips();
-    let availableCount = 0;
-    
-    category.ships.forEach(ship => {
-      const shipId = this.getShipId(ship);
-      if (!assignedShipIds.has(shipId)) {
-        availableCount++;
-      }
-    });
-    return availableCount;
-  }
-
-  /**
-   * Toggle selection for all ships in a power group
-   */
-  togglePowerGroupSelection(powerGroup, select) {
-    console.log('🚀 MoveDialog: Toggling power group selection:', powerGroup, select);
-    const assignedShipIds = this.calculateAvailableShips();
-    
-    ['undamaged', 'damagedMobile'].forEach(categoryType => {
-      const category = powerGroup.categories[categoryType];
-      category.ships.forEach(ship => {
-        const shipId = this.getShipId(ship);
-        // Only select/deselect available ships
-        if (!assignedShipIds.has(shipId)) {
-          if (select) {
-            this.selectedShipIds.add(shipId);
-          } else {
-            this.selectedShipIds.delete(shipId);
-          }
-        }
-      });
-    });
-    
-    this.updateSelectionSummary();
-    this.updateMoveButton();
-    this.renderShipTree();
-  }
-
-  /**
-   * Toggle selection for all ships in a category
-   */
-  toggleCategorySelection(category, categoryType, select) {
-    // Don't allow selection of damaged immobile ships
-    if (categoryType === 'damagedImmobile') {
-      return;
-    }
-    
-    const assignedShipIds = this.calculateAvailableShips();
-    
-    category.ships.forEach(ship => {
-      const shipId = this.getShipId(ship);
-      // Only select/deselect available ships
-      if (!assignedShipIds.has(shipId)) {
-        if (select) {
-          this.selectedShipIds.add(shipId);
-        } else {
-          this.selectedShipIds.delete(shipId);
-        }
-      }
-    });
-    
-    this.updateSelectionSummary();
-    this.updateMoveButton();
-    this.renderShipTree();
-  }
 
   /**
    * Load previous selection for a specific destination
@@ -1204,7 +914,7 @@ export class MoveDialog
     // For now, clear selection - we'll update when orders are loaded
     this.selectedShipIds.clear();
     this.currentMoveOrder = null;
-    this.renderShipTree();
+    this.updateShipList();
     console.log('🚀 MoveDialog: Requesting orders from database for destination:', destinationStar.getName ? destinationStar.getName() : `Star ${destinationStar.id}`);
   }
 
@@ -1227,7 +937,7 @@ export class MoveDialog
     // For now, clear selection - we'll update when orders are loaded
     this.selectedShipIds.clear();
     this.currentMoveOrder = null;
-    this.renderShipTree();
+    this.updateShipList();
   }
 
   /**
@@ -1309,7 +1019,7 @@ export class MoveDialog
     
          // Update UI
      this.updateMoveButton();
-     this.renderShipTree();
+     this.updateShipList();
      this.updateConnectedStarsList(); // Refresh rocket icons
      
      // Show confirmation
@@ -1359,7 +1069,7 @@ export class MoveDialog
      this.selectedShipIds.clear();
      this.currentMoveOrder = null;
      this.updateMoveButton();
-     this.renderShipTree();
+     this.updateShipList();
   }
 
   /**
@@ -1434,8 +1144,6 @@ export class MoveDialog
     this.currentMoveOrder = null;
     this.selectedDestination = null;
     this.selectedShipIds.clear();
-    this.expandedNodes.clear();
-    this.shipTreeData = null;
     this.dialog.style.display = 'none';
     console.log('🚀 MoveDialog: Closed');
   }

@@ -718,6 +718,104 @@
   color: #000;
 }
 
+/* Simplified Ship List Styles */
+.ship-item {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  background: var(--bg-medium);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.ship-item:hover {
+  background: var(--bg-light);
+  border-color: var(--border-primary);
+}
+
+.ship-item.selected {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #000;
+}
+
+.ship-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--bg-dark);
+}
+
+.ship-item input[type="checkbox"] {
+  margin-right: var(--spacing-sm);
+  cursor: pointer;
+}
+
+.ship-item.disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+.ship-info {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: var(--spacing-sm);
+}
+
+.ship-name {
+  font-weight: 500;
+  min-width: 120px;
+}
+
+.power-badge {
+  background: var(--color-primary);
+  color: #000;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8em;
+  font-weight: bold;
+  min-width: 30px;
+  text-align: center;
+}
+
+.health-bar {
+  flex: 1;
+  min-width: 30px;
+  height: 8px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin: 0 var(--spacing-sm);
+}
+
+.health-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  background: #00ff88; /* Default green color, will be overridden by JavaScript */
+}
+
+.health-text {
+  font-size: 0.8em;
+  min-width: 20px;
+  text-align: right;
+}
+
+/* Color coding for ship health */
+.ship-health-good {
+  border-left: 4px solid #00ff88;
+}
+
+.ship-health-warning {
+  border-left: 4px solid #ffaa00;
+}
+
+.ship-health-critical {
+  border-left: 4px solid #ff4444;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .dialog-base {
@@ -738,5 +836,16 @@
   
   .dialog-panel {
     margin-bottom: var(--spacing-xl);
+  }
+  
+  .ship-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+  
+  .health-bar {
+    width: 100%;
+    margin: var(--spacing-xs) 0;
   }
 }
