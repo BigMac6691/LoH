@@ -13,17 +13,10 @@ export function getShipDisplayName(ship) {
     return ship.getName();
   }
   
-  // Generate a name based on ship properties
-  const power = ship.getPower ? ship.getPower() : ship.power || 0;
-  const damage = ship.getDamage ? ship.getDamage() : ship.damage || 0;
+  // Get ship ID and use last 4 characters
+  const shipId = ship.id || ship.getId?.() || 'Unknown';
+  const shortId = shipId.length > 4 ? shipId.slice(-4) : shipId;
   
-  if (power > 0) {
-    const shipType = power >= 100 ? 'Battleship' : 
-                    power >= 50 ? 'Cruiser' : 
-                    power >= 25 ? 'Destroyer' : 'Frigate';
-    return `${shipType} ${ship.id || 'Unknown'}`;
-  }
-  
-  return `Ship ${ship.id || 'Unknown'}`;
+  return `Ship ${shortId}`;
 }
 

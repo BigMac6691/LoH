@@ -882,6 +882,9 @@ export class MoveDialog
     const canMove = ship.canMove();
     const damagePercentage = ship.getDamagePercentage();
     const healthPercentage = 100 - damagePercentage;
+    
+    // Check if ship has orders to other destinations
+    const hasOrdersToOtherDestinations = this.hasShipOrdersToOtherDestinations(shipId);
 
     // Add color coding based on health
     if (healthPercentage > 50) {
@@ -902,14 +905,41 @@ export class MoveDialog
       shipElement.classList.add('disabled');
     }
     
-    // Create checkbox
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = isSelected;
-    checkbox.disabled = !canMove;
-    checkbox.addEventListener('change', () => {
-      this.toggleShipSelection(ship);
-    });
+    // Create selection control (checkbox or rocket icon)
+    let selectionControl;
+    if (hasOrdersToOtherDestinations) {
+      // Create rocket icon for ships with orders to other destinations
+      const rocketIcon = document.createElement('span');
+      rocketIcon.textContent = '🚀';
+      rocketIcon.className = 'ship-rocket-icon';
+      rocketIcon.addEventListener('click', () => {
+        // Show tooltip on click
+        this.showShipOrderTooltip(rocketIcon, shipId);
+      });
+      rocketIcon.addEventListener('mouseenter', () => {
+        // Show tooltip on hover
+        console.log('🚀 Mouse entered rocket icon for ship:', shipId);
+        this.showShipOrderTooltip(rocketIcon, shipId);
+      });
+      rocketIcon.addEventListener('mouseleave', () => {
+        // Hide tooltip when mouse leaves (but with a small delay to allow moving to tooltip)
+        console.log('🚀 Mouse left rocket icon for ship:', shipId);
+        setTimeout(() => {
+          this.hideShipOrderTooltip();
+        }, 100);
+      });
+      selectionControl = rocketIcon;
+    } else {
+      // Create checkbox for available ships
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = isSelected;
+      checkbox.disabled = !canMove;
+      checkbox.addEventListener('change', () => {
+        this.toggleShipSelection(ship);
+      });
+      selectionControl = checkbox;
+    }
     
     // Create ship info
     const shipInfo = document.createElement('div');
@@ -959,7 +989,7 @@ export class MoveDialog
     shipInfo.appendChild(healthBar);
     shipInfo.appendChild(healthText);
     
-    shipElement.appendChild(checkbox);
+    shipElement.appendChild(selectionControl);
     shipElement.appendChild(shipInfo);
     
     return shipElement;
@@ -1056,6 +1086,105 @@ export class MoveDialog
     if (ship.getId) return ship.getId();
     // Fallback to object reference for consistency
     return `ship-${ship.constructor.name}-${ship.getPower()}-${ship.getDamage()}`;
+  }
+
+  /**
+   * Check if a ship has orders to other destinations (not the currently selected one)
+   */
+  hasShipOrdersToOtherDestinations(shipId) {
+    if (!this.currentOrders.length) return false;
+    
+    return this.currentOrders.some(order => {
+      // Skip if this is for the currently selected destination
+      if (this.selectedDestination && order.payload && order.payload.destinationStarId === this.selectedDestination.getId()) {
+        return false;
+      }
+      
+      // Check if ship is in this order's selected ships
+      return order.payload && order.payload.selectedShipIds && order.payload.selectedShipIds.includes(shipId);
+    });
+  }
+
+  /**
+   * Get tooltip text for a ship with orders to other destinations
+   */
+  getShipOrderTooltip(shipId) {
+    if (!this.currentOrders.length) return '';
+    
+    const orderForShip = this.currentOrders.find(order => {
+      // Skip if this is for the currently selected destination
+      if (this.selectedDestination && order.payload && order.payload.destinationStarId === this.selectedDestination.getId()) {
+        return false;
+      }
+      
+      // Check if ship is in this order's selected ships
+      return order.payload && order.payload.selectedShipIds && order.payload.selectedShipIds.includes(shipId);
+    });
+    
+    if (orderForShip && orderForShip.payload && orderForShip.payload.destinationStarId) {
+      const destinationStarId = orderForShip.payload.destinationStarId;
+      const lookupFunction = this.getStarLookupFunction();
+      if (lookupFunction) {
+        const destinationStar = lookupFunction(destinationStarId);
+        if (destinationStar) {
+          return `Moving to ${destinationStar.getName()}`;
+        }
+      }
+      return `Moving to Star ${destinationStarId}`;
+    }
+    
+    return 'Has move orders to another destination';
+  }
+
+  /**
+   * Show tooltip for ship orders
+   */
+  showShipOrderTooltip(rocketIcon, shipId) {
+    const tooltipText = this.getShipOrderTooltip(shipId);
+    
+    console.log(`🚀 Showing tooltip for ship ${shipId}: ${tooltipText}`);
+    
+    // Remove any existing tooltip
+    this.hideShipOrderTooltip();
+    
+    // Create tooltip element
+    const tooltip = document.createElement('div');
+    tooltip.className = 'ship-order-tooltip';
+    tooltip.textContent = tooltipText;
+    tooltip.id = 'ship-order-tooltip';
+    
+    // Position tooltip near the rocket icon (below it to avoid mouse conflicts)
+    const rect = rocketIcon.getBoundingClientRect();
+    tooltip.style.position = 'fixed';
+    tooltip.style.left = `${rect.left}px`;
+    tooltip.style.top = `${rect.bottom + 5}px`;
+    tooltip.style.zIndex = '10000';
+    
+    document.body.appendChild(tooltip);
+    
+    // Store reference for cleanup
+    this.currentTooltip = tooltip;
+    
+    // Auto-hide after 3 seconds
+    this.tooltipTimeout = setTimeout(() => {
+      console.log(`🚀 Auto-hiding tooltip for ship ${shipId}`);
+      this.hideShipOrderTooltip();
+    }, 3000);
+  }
+
+  /**
+   * Hide ship order tooltip
+   */
+  hideShipOrderTooltip() {
+    console.log('🚀 Hiding tooltip, currentTooltip exists:', !!this.currentTooltip);
+    if (this.currentTooltip) {
+      this.currentTooltip.remove();
+      this.currentTooltip = null;
+    }
+    if (this.tooltipTimeout) {
+      clearTimeout(this.tooltipTimeout);
+      this.tooltipTimeout = null;
+    }
   }
 
 
@@ -1358,6 +1487,7 @@ export class MoveDialog
     this.selectedDestination = null;
     this.selectedShipIds.clear();
     this.currentOrders = []; // Clear current orders
+    this.hideShipOrderTooltip(); // Clean up any tooltips
     this.dialog.style.display = 'none';
     
     // Reset damage threshold to 100% for next time

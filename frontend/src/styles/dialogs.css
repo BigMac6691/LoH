@@ -658,6 +658,34 @@
   text-align: center;
 }
 
+.ship-rocket-icon {
+  font-size: 1em;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s ease;
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  line-height: 1;
+}
+
+.ship-rocket-icon:hover {
+  background: var(--bg-light);
+}
+
+.ship-order-tooltip {
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-secondary);
+  max-width: 200px;
+  word-wrap: break-word;
+}
+
 .health-bar {
   flex: 1;
   min-width: 30px;
