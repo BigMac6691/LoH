@@ -339,22 +339,21 @@ export class IndustryDialog
       return;
     }
 
-    const starId = this.currentStar.getId();
     const orderData = {
+      sourceStarId: this.currentStar.getId(),
       expand: this.spendingOrders.expand,
       research: this.spendingOrders.research,
       build: this.spendingOrders.build,
       timestamp: Date.now()
     };
 
-    console.log('🏭 IndustryDialog: Submitting order via event system:', starId, orderData);
+    console.log('🏭 IndustryDialog: Submitting order via event system:', this.currentStar.getId(), orderData);
 
     // Emit order submission event
     eventBus.emit('order:submit', {
       success: true,
       details: {
         eventType: 'order:submit',
-        starId: starId,
         orderType: 'build',
         payload: orderData
       }
@@ -436,10 +435,10 @@ export class IndustryDialog
   {
     console.log('🏭 IndustryDialog: Orders loaded successfully:', eventData.details);
     
-    const { orders, starId } = eventData.details;
+    const { orders, sourceStarId, orderType } = eventData.details;
     
-    // Check if this is for the star we're currently loading
-    if (starId === this.pendingLoadStarId)
+    // Check if this is for the star we're currently loading AND if it's a build order request
+    if (sourceStarId === this.pendingLoadStarId && orderType === 'build')
     {
       let hasOrders = false;
       
@@ -468,7 +467,7 @@ export class IndustryDialog
 
         console.log(
           '🏭 IndustryDialog: Loaded saved orders for star',
-          starId,
+          sourceStarId,
           ':',
           this.spendingOrders
         );
@@ -518,7 +517,8 @@ export class IndustryDialog
       success: true,
       details: {
         eventType: 'order:loadForStar',
-        starId: starId
+        sourceStarId: starId,
+        orderType: 'build'
       }
     });
 

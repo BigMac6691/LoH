@@ -31,9 +31,10 @@ export class OrdersService
    * @param {string} gameId - Game ID
    * @param {string} starId - Star ID
    * @param {string} playerId - Player ID (optional, to filter by player)
+   * @param {string} orderType - Order type (optional, to filter by order type)
    * @returns {Array} Array of orders
    */
-  async getOrdersForStar(gameId, starId, playerId = null)
+  async getOrdersForStar(gameId, starId, playerId = null, orderType = null)
   {
     // Get the current turn for the game
     const turn = await this.getCurrentTurn(gameId);
@@ -45,15 +46,22 @@ export class OrdersService
     const orders = await findByPayload({
       gameId,
       turnId: turn.id,
-      jsonFilter: { starId }
+      jsonFilter: { sourceStarId: starId }
     });
+
+    let filteredOrders = orders;
 
     // Filter by player if specified
     if (playerId) {
-      return orders.filter(order => order.player_id === playerId);
+      filteredOrders = filteredOrders.filter(order => order.player_id === playerId);
     }
 
-    return orders;
+    // Filter by order type if specified
+    if (orderType) {
+      filteredOrders = filteredOrders.filter(order => order.order_type === orderType);
+    }
+
+    return filteredOrders;
   }
 
   /**

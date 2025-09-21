@@ -40,13 +40,13 @@ export class OrdersRouter
   {
     try
     {
-      const { gameId, starId, orderType, payload, playerId } = req.body;
+      const { gameId, orderType, payload, playerId } = req.body;
       
       // Validate required parameters
-      if (!gameId || !starId || !orderType || !payload || !playerId)
+      if (!gameId || !orderType || !payload || !playerId)
       {
         return res.status(400).json({
-          error: 'Missing required parameters: gameId, starId, orderType, payload, playerId'
+          error: 'Missing required parameters: gameId, orderType, payload, playerId'
         });
       }
 
@@ -67,15 +67,22 @@ export class OrdersRouter
         orderType,
         payload: {
           ...payload,
-          starId,
           version: 'v1',
           timestamp: new Date().toISOString()
         }
       });
 
+      // Get updated orders for the source star
+      const sourceStarId = payload.sourceStarId;
+      let updatedOrders = [];
+      if (sourceStarId) {
+        updatedOrders = await this.ordersService.getOrdersForStar(gameId, sourceStarId, playerId, orderType);
+      }
+
       res.json({
         success: true,
-        order: order
+        order: order,
+        orders: updatedOrders
       });
 
     } catch (error)
@@ -94,10 +101,14 @@ export class OrdersRouter
    */
   async getOrdersForStar(req, res)
   {
+
+    console.log('🔍 getOrdersForStar: params', req.params);
+    console.log('🔍 getOrdersForStar: query', req.query);
+
     try
     {
       const { starId } = req.params;
-      const { gameId, playerId } = req.query;
+      const { gameId, playerId, orderType } = req.query;
 
       if (!gameId)
       {
@@ -106,7 +117,7 @@ export class OrdersRouter
         });
       }
 
-      const orders = await this.ordersService.getOrdersForStar(gameId, starId, playerId);
+      const orders = await this.ordersService.getOrdersForStar(gameId, starId, playerId, orderType);
 
       res.json({
         success: true,

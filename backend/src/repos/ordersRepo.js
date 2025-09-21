@@ -204,6 +204,11 @@ export async function finalizePlayerTurn(gameId, turnId, playerId) {
  * @returns {Promise<Array>} Array of matching orders
  */
 export async function findByPayload({ gameId, turnId, jsonFilter }) {
+
+  console.log('🔍 findByPayload: gameId:', gameId);
+  console.log('🔍 findByPayload: turnId:', turnId);
+  console.log('🔍 findByPayload: jsonFilter:', jsonFilter);
+
   const { rows } = await pool.query(
     `SELECT * FROM order_submission 
      WHERE game_id=$1 AND turn_id=$2 AND payload @> $3::jsonb

@@ -47,13 +47,13 @@ export class OrderEventHandler
         throw new Error('Missing event details');
       }
 
-      const { starId, orderType, payload } = eventData.details;
+      const { orderType, payload } = eventData.details;
       const gameId = context.gameId;
       const playerId = context.user;
 
-      if (!gameId || !starId || !playerId || !orderType || !payload)
+      if (!gameId || !playerId || !orderType || !payload)
       {
-        throw new Error('Missing required parameters: gameId, starId, playerId, orderType, payload');
+        throw new Error('Missing required parameters: gameId, playerId, orderType, payload');
       }
 
       // Make the backend call
@@ -64,7 +64,6 @@ export class OrderEventHandler
         },
         body: JSON.stringify({
           gameId,
-          starId,
           playerId,
           orderType,
           payload
@@ -86,8 +85,8 @@ export class OrderEventHandler
         details: {
           eventType: 'order:submitSuccess',
           order: result.order,
+          orders: result.orders, // Include updated orders from server
           gameId,
-          starId,
           playerId,
           orderType,
           payload
@@ -129,10 +128,10 @@ export class OrderEventHandler
         throw new Error('Missing event details');
       }
 
-      const { starId } = eventData.details;
+      const { sourceStarId, orderType } = eventData.details;
       const { gameId, playerId } = context;
 
-      if (!gameId || !starId)
+      if (!gameId || !sourceStarId)
       {
         throw new Error('Missing required parameters: gameId, starId');
       }
@@ -142,9 +141,12 @@ export class OrderEventHandler
       if (playerId) {
         params.append('playerId', playerId);
       }
+      if (orderType) {
+        params.append('orderType', orderType);
+      }
 
       // Make the backend call
-      const response = await fetch(`/api/orders/star/${starId}?${params}`);
+      const response = await fetch(`/api/orders/star/${sourceStarId}?${params}`);
       
       if (!response.ok)
       {
@@ -153,7 +155,7 @@ export class OrderEventHandler
       }
 
       const result = await response.json();
-      console.log('📋 OrderEventHandler: Orders loaded successfully for star:', starId, result);
+      console.log('📋 OrderEventHandler: Orders loaded successfully for star:', sourceStarId, result);
 
       // Emit success event
       eventBus.emit('order:loadSuccess', {
@@ -162,7 +164,7 @@ export class OrderEventHandler
           eventType: 'order:loadSuccess',
           orders: result.orders,
           gameId,
-          starId,
+          sourceStarId,
           playerId
         }
       });
