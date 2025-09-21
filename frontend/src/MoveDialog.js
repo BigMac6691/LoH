@@ -1,20 +1,20 @@
 import { getShipDisplayName } from './utils/shipGrouping.js';
 import { eventBus } from './eventBus.js';
 import { DualSlider } from './DualSlider.js';
+import { BaseDialog } from './BaseDialog.js';
+import { MoveDialogView } from './MoveDialogView.js';
 
 /**
  * MoveDialog - A draggable dialog for managing fleet movement
  * Shows connected stars for movement selection and hierarchical ship tree
  */
-export class MoveDialog
+export class MoveDialog extends BaseDialog
 {
   constructor()
   {
-    this.isVisible = false;
+    super(); // Call BaseDialog constructor
+    
     this.currentStar = null;
-    this.dialog = null;
-    this.isDragging = false;
-    this.dragOffset = { x: 0, y: 0 };
     this.selectedDestination = null;
     this.currentPlayer = null;
     this.currentMoveOrder = null;
@@ -23,8 +23,24 @@ export class MoveDialog
     this.currentOrders = []; // Current move orders for the current star
     this.isSubmitting = false; // Track if currently submitting an order
     
-    this.createDialog();
-    this.setupEventListeners();
+    // Create view instance
+    this.view = new MoveDialogView();
+    this.view.createDialog(
+      () => this.handleCloseClick(),
+      this.view.getDragHandle()
+    );
+    
+    // Set BaseDialog's dialog property to point to the view's dialog
+    this.dialog = this.view.dialog;
+    
+    // Setup drag handlers using the view's drag handle
+    this.setupDragHandlers(this.view.getDragHandle());
+    
+    // Setup view event listeners
+    this.setupViewEventListeners();
+    
+    // Setup order event listeners
+    this.setupOrderEventListeners();
   }
 
 
@@ -40,9 +56,22 @@ export class MoveDialog
   }
 
   /**
+   * Set up event listeners for view interactions
+   */
+  setupViewEventListeners() {
+    this.view.setupEventListeners({
+      onDamageThresholdChange: (threshold) => this.updateDamageThreshold(threshold),
+      onSelectAllMobile: () => this.selectAllMobileShips(),
+      onClearSelection: () => this.clearShipSelection(),
+      onSubmitOrder: () => this.moveFleet(),
+      onCancelOrder: () => this.cancelOrder()
+    });
+  }
+
+  /**
    * Set up event listeners for order responses
    */
-  setupEventListeners() {
+  setupOrderEventListeners() {
     // Listen for order submission success
     eventBus.on('order:move.submitSuccess', this.handleOrderSubmitSuccess.bind(this));
     
@@ -94,27 +123,17 @@ export class MoveDialog
         this.selectedShipIds.clear();
         this.currentMoveOrder = null;
         this.updateShipList();
-        this.showCancelConfirmation(fromStar, toStar);
+        this.view.showCancelConfirmation(fromStar, toStar);
         console.log('🚀 MoveDialog: Selections cleared after successful cancellation');
       } else {
         // For move orders, preserve selections (both destination and ships)
-        this.showMoveConfirmation(fromStar, toStar);
+        this.view.showMoveConfirmation(fromStar, toStar);
         
         // Explicitly preserve the destination selection
         this.selectedDestination = preservedDestination;
         
         // Re-apply the selected styling to the destination star
-        if (this.selectedDestination) {
-          const starItems = this.starsListContainer.querySelectorAll('.star-item');
-          starItems.forEach(item => {
-            const starNameElement = item.querySelector('.star-name');
-            if (starNameElement && starNameElement.textContent === this.selectedDestination.getName()) {
-              item.classList.add('selected');
-              item.style.background = 'var(--color-primary)';
-              starNameElement.style.color = '#000';
-            }
-          });
-        }
+        this.view.updateDestinationSelection(this.selectedDestination);
         
         console.log('🚀 MoveDialog: Selections preserved after successful submission');
       }
@@ -176,278 +195,40 @@ export class MoveDialog
     console.error('🚀 MoveDialog: Order loading failed:', eventData);
   }
 
-  createDialog()
-  {
-    this.dialog = document.createElement('div');
-    this.dialog.className = 'move-dialog dialog-base';
 
-    // Header for dragging
-    const header = document.createElement('div');
-    header.className = 'dialog-header';
 
-    // Title
-    const title = document.createElement('h2');
-    title.textContent = 'Fleet Manager';
-    title.className = 'dialog-title';
-
-    // Close button
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '×';
-    closeBtn.className = 'dialog-close-btn';
-    
-    closeBtn.addEventListener('click', () =>
-    {
-      if (this.isSubmitting) {
-        console.log('🚀 MoveDialog: Cannot close dialog during submission');
-        return;
-      }
-      this.hide();
-    });
-
-    header.appendChild(title);
-    header.appendChild(closeBtn);
-
-    // Star name
-    this.starNameElement = document.createElement('div');
-    this.starNameElement.className = 'star-name-display';
-
-    // Content container
-    const content = document.createElement('div');
-    content.className = 'dialog-content';
-
-    // Left panel - Connected stars
-    const leftPanel = document.createElement('div');
-    leftPanel.className = 'dialog-panel';
-    this.createConnectedStarsSection(leftPanel);
-
-    // Right panel - Ship tree
-    const rightPanel = document.createElement('div');
-    rightPanel.className = 'dialog-panel';
-    this.createShipTreeSection(rightPanel);
-
-    content.appendChild(leftPanel);
-    content.appendChild(rightPanel);
-
-    this.dialog.appendChild(header);
-    this.dialog.appendChild(this.starNameElement);
-    this.dialog.appendChild(content);
-
-    // Setup drag handlers
-    this.setupDragHandlers(header);
-
-    // Setup keyboard handlers
-    this.setupKeyboardHandlers();
-
-    document.body.appendChild(this.dialog);
-  }
-
-  /**
-   * Create the ship tree section
-   */
-  createShipTreeSection(container)
-  {
-    const section = document.createElement('div');
-    section.className = 'dialog-section';
-
-    // Section title
-    const title = document.createElement('h3');
-    title.textContent = 'Fleet Selection';
-    title.className = 'dialog-section-title';
-    section.appendChild(title);
-
-    // Damage threshold slider
-    const damageThresholdContainer = document.createElement('div');
-    damageThresholdContainer.className = 'damage-threshold-container';
-    
-    const damageThresholdLabel = document.createElement('label');
-    damageThresholdLabel.textContent = 'Damage Threshold:';
-    damageThresholdLabel.className = 'damage-threshold-label';
-    
-    const damageThresholdSlider = document.createElement('input');
-    damageThresholdSlider.type = 'range';
-    damageThresholdSlider.min = '0';
-    damageThresholdSlider.max = '100';
-    damageThresholdSlider.value = '100';
-    damageThresholdSlider.className = 'damage-threshold-slider';
-    damageThresholdSlider.addEventListener('input', () => {
-      this.updateDamageThreshold(parseInt(damageThresholdSlider.value));
-    });
-    
-    const damageThresholdValue = document.createElement('span');
-    damageThresholdValue.textContent = '100%';
-    damageThresholdValue.className = 'damage-threshold-value';
-    
-    damageThresholdContainer.appendChild(damageThresholdLabel);
-    damageThresholdContainer.appendChild(damageThresholdSlider);
-    damageThresholdContainer.appendChild(damageThresholdValue);
-    section.appendChild(damageThresholdContainer);
-    
-    // Store references
-    this.damageThresholdSlider = damageThresholdSlider;
-    this.damageThresholdValue = damageThresholdValue;
-
-    // Power range slider container
-    const powerRangeContainer = document.createElement('div');
-    powerRangeContainer.className = 'power-range-container';
-    
-    const powerRangeLabel = document.createElement('label');
-    powerRangeLabel.textContent = 'Power Range:';
-    powerRangeLabel.className = 'power-range-label';
-    
-    const powerRangeSliderContainer = document.createElement('div');
-    powerRangeSliderContainer.className = 'power-range-slider-container';
-    
-    powerRangeContainer.appendChild(powerRangeLabel);
-    powerRangeContainer.appendChild(powerRangeSliderContainer);
-    section.appendChild(powerRangeContainer);
-    
-    // Store references
-    this.powerRangeContainer = powerRangeContainer;
-    this.powerRangeSliderContainer = powerRangeSliderContainer;
-
-    // Ship list container
-    this.shipTreeContainer = document.createElement('div');
-    this.shipTreeContainer.className = 'ship-tree-container disabled';
-    section.appendChild(this.shipTreeContainer);
-
-    // Selection summary
-    this.selectionSummary = document.createElement('div');
-    this.selectionSummary.className = 'selection-summary';
-    this.selectionSummary.textContent = 'No ships selected';
-    section.appendChild(this.selectionSummary);
-
-    // Quick select buttons
-    const quickSelectContainer = document.createElement('div');
-    quickSelectContainer.className = 'quick-select-container';
-    
-    const selectAllMobileBtn = document.createElement('button');
-    selectAllMobileBtn.textContent = 'Select All Mobile';
-    selectAllMobileBtn.className = 'quick-select-btn';
-    selectAllMobileBtn.addEventListener('click', () => {
-      this.selectAllMobileShips();
-    });
-    
-    const clearSelectionBtn = document.createElement('button');
-    clearSelectionBtn.textContent = 'Clear Selection';
-    clearSelectionBtn.className = 'quick-select-btn';
-    clearSelectionBtn.addEventListener('click', () => {
-      this.clearShipSelection();
-    });
-    
-    quickSelectContainer.appendChild(selectAllMobileBtn);
-    quickSelectContainer.appendChild(clearSelectionBtn);
-    section.appendChild(quickSelectContainer);
-
-    container.appendChild(section);
-  }
-
-  /**
-   * Create the connected stars selection section
-   */
-  createConnectedStarsSection(container)
-  {
-    const section = document.createElement('div');
-    section.className = 'dialog-section';
-
-    // Section title
-    const title = document.createElement('h3');
-    title.textContent = 'Connected Stars';
-    title.className = 'dialog-section-title';
-    section.appendChild(title);
-
-    // Stars list container
-    this.starsListContainer = document.createElement('div');
-    this.starsListContainer.className = 'list-container';
-    section.appendChild(this.starsListContainer);
-
-    // Button container
-    const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'dialog-btn-container';
-
-    // Submit button
-    const submitButton = document.createElement('button');
-    submitButton.textContent = 'Submit Order';
-    submitButton.className = 'dialog-btn';
-    
-    this.moveButton = submitButton;
-    
-    submitButton.addEventListener('click', () =>
-    {
-      this.moveFleet();
-    });
-
-    // Cancel button
-    const cancelButton = document.createElement('button');
-    cancelButton.textContent = 'Cancel Order';
-    cancelButton.className = 'dialog-btn dialog-btn-danger';
-    
-    this.cancelButton = cancelButton;
-    
-    cancelButton.addEventListener('click', () =>
-    {
-      this.cancelOrder();
-    });
-    
-    buttonContainer.appendChild(submitButton);
-    buttonContainer.appendChild(cancelButton);
-    section.appendChild(buttonContainer);
-    container.appendChild(section);
-  }
-
-  /**
-   * Setup drag handlers for the dialog
-   */
-  setupDragHandlers(dragHandle) {
-    dragHandle.addEventListener('mousedown', (e) => {
-      this.isDragging = true;
-      const rect = this.dialog.getBoundingClientRect();
-      this.dragOffset = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      };
-      e.preventDefault();
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!this.isDragging) return;
-      
-      const x = e.clientX - this.dragOffset.x;
-      const y = e.clientY - this.dragOffset.y;
-      
-      // Keep dialog within viewport bounds
-      const maxX = window.innerWidth - this.dialog.offsetWidth;
-      const maxY = window.innerHeight - this.dialog.offsetHeight;
-      
-      const clampedX = Math.max(0, Math.min(x, maxX));
-      const clampedY = Math.max(0, Math.min(y, maxY));
-      
-      this.dialog.style.left = clampedX + 'px';
-      this.dialog.style.top = clampedY + 'px';
-      this.dialog.style.transform = 'none';
-    });
-
-    document.addEventListener('mouseup', () => {
-      this.isDragging = false;
-    });
-  }
 
   /**
    * Setup keyboard handlers for accessibility
    */
   setupKeyboardHandlers() {
-    document.addEventListener('keydown', (e) => {
-      if (!this.isVisible) return;
+    // Call parent setupKeyboardHandlers first
+    super.setupKeyboardHandlers();
+  }
 
-      // Prevent ESC from closing dialog during submission
-      if (e.key === 'Escape' && this.isSubmitting) {
-        console.log('🚀 MoveDialog: Cannot close dialog with ESC during submission');
-        e.preventDefault();
-        return;
-      }
+  /**
+   * Handle close button click
+   */
+  handleCloseClick() {
+    if (this.isSubmitting) {
+      console.log('🚀 MoveDialog: Cannot close dialog during submission');
+      return;
+    }
+    this.hide();
+  }
 
-      // TODO: Add keyboard navigation for ship selection
-      // Arrow keys, space, and enter could be used for accessibility
-    });
+  /**
+   * Handle ESC key press - override BaseDialog behavior
+   */
+  handleEscapeKey() {
+    // Prevent ESC from closing dialog during submission
+    if (this.isSubmitting) {
+      console.log('🚀 MoveDialog: Cannot close dialog with ESC during submission');
+      return;
+    }
+    
+    // Call parent hide method
+    super.hide();
   }
 
 
@@ -481,19 +262,20 @@ export class MoveDialog
     this.selectedShipIds.clear();
     this.currentMoveOrder = null;
     this.loadedOrders = []; // Clear loaded orders
-    this.isVisible = true;
-    this.dialog.style.display = 'block';
+    
+    // Call parent show method
+    super.show();
     
     // Reset damage threshold to 100% (show all ships)
-    if (this.damageThresholdSlider) {
-      this.damageThresholdSlider.value = '100';
-      this.damageThresholdValue.textContent = '100%';
+    if (this.view.damageThresholdSlider) {
+      this.view.damageThresholdSlider.value = '100';
+      this.view.damageThresholdValue.textContent = '100%';
     }
     
 
     // Update star name
     const starName = star.getName();
-    this.starNameElement.textContent = starName;
+    this.view.updateStarName(starName);
 
     // Update connected stars list (initially without rocket icons)
     this.updateConnectedStarsList();
@@ -526,9 +308,6 @@ export class MoveDialog
   updateConnectedStarsList() {
     if (!this.currentStar) return;
 
-    // Clear existing list
-    this.starsListContainer.innerHTML = '';
-
     // Get connected star IDs and look up the actual star objects
     const connectedStarIds = this.currentStar.getConnectedStarIds ? this.currentStar.getConnectedStarIds() : [];
     const lookupFunction = this.getStarLookupFunction();
@@ -536,113 +315,27 @@ export class MoveDialog
       .map(starId => lookupFunction ? lookupFunction(starId) : null)
       .filter(star => star !== null);
 
-    if (connectedStars.length === 0) {
-      const noStarsMessage = document.createElement('div');
-      noStarsMessage.textContent = 'No connected stars available';
-      noStarsMessage.className = 'star-list-empty';
-      this.starsListContainer.appendChild(noStarsMessage);
-      return;
-    }
-
-    // Create star selection items
-    connectedStars.forEach(star => {
-      const starItem = document.createElement('div');
-      starItem.className = 'star-item';
-
-      // Check if there's an existing move order to this star
-      const hasMoveOrder = this.checkForExistingMoveOrder(star);
-
-      const starName = star.getName();
-      const starNameElement = document.createElement('span');
-      starNameElement.textContent = starName;
-      
-      // Use star's color (owner's color) or light gray if unowned
-      const starColor = star.getColor();
-      starNameElement.className = 'star-name';
-      starNameElement.style.color = starColor;
-
-      // Create right side container for owner and rocket icon
-      const rightSide = document.createElement('div');
-      rightSide.className = 'star-item-meta';
-
-      // Show star owner if any
-      const ownerElement = document.createElement('span');
-      if (star.getOwner()) {
-        ownerElement.textContent = `(${star.getOwner().name || 'Owned'})`;
-      }
-      ownerElement.className = 'star-owner';
-
-      // Add rocket icon if there's an existing move order
-      if (hasMoveOrder) {
-        const rocketIcon = document.createElement('span');
-        rocketIcon.textContent = '🚀';
-        rocketIcon.className = 'star-icon';
-        rocketIcon.title = 'Has existing move order';
-        rightSide.appendChild(rocketIcon);
-      }
-
-      rightSide.appendChild(ownerElement);
-      starItem.appendChild(starNameElement);
-      starItem.appendChild(rightSide);
-
-      // Hover effects
-      starItem.addEventListener('mouseenter', () => {
-        if (this.selectedDestination !== star) {
-          starItem.style.background = 'var(--bg-light)';
-        }
-      });
-
-      starItem.addEventListener('mouseleave', () => {
-        if (this.selectedDestination !== star) {
-          starItem.style.background = 'transparent';
-        }
-      });
-
-      // Click handler
-      starItem.addEventListener('click', () => {
-        this.selectDestination(star, starItem);
-      });
-
-      this.starsListContainer.appendChild(starItem);
-    });
+    // Update view with connected stars
+    this.view.updateConnectedStarsList(
+      connectedStars,
+      (star, starItem) => this.selectDestination(star, starItem),
+      (star) => this.checkForExistingMoveOrder(star)
+    );
   }
 
      /**
     * Clear destination selection
     */
    clearDestinationSelection() {
-    console.log('🚀 MoveDialog: Clearing destination selection');
-     // Clear previous selection
-     const previousSelected = this.starsListContainer.querySelector('.selected');
-     if (previousSelected) {
-       previousSelected.classList.remove('selected');
-       previousSelected.style.background = 'transparent';
-       previousSelected.style.border = 'none';
-       
-       // Restore original star name color
-       const starNameElement = previousSelected.querySelector('span:first-child');
-       if (starNameElement) {
-         const connectedStarIds = this.currentStar.getConnectedStarIds ? this.currentStar.getConnectedStarIds() : [];
-         const lookupFunction = this.getStarLookupFunction();
-         const connectedStars = connectedStarIds
-           .map(starId => lookupFunction ? lookupFunction(starId) : null)
-           .filter(star => star !== null);
-        const originalStar = connectedStars.find(s => 
-          s.getName() === starNameElement.textContent
-        );
-        if (originalStar) {
-          const starColor = originalStar.getColor();
-          starNameElement.style.color = starColor;
-        }
-       }
-     }
+     console.log('🚀 MoveDialog: Clearing destination selection');
+     
+     // Clear previous selection styling
+     this.view.clearDestinationSelection(this.currentStar, () => this.getStarLookupFunction());
      
      this.selectedDestination = null;
      
      // Disable ship tree
-     if (this.shipTreeContainer) {
-      this.shipTreeContainer.classList.add('disabled');
-     }
+     this.view.disableShipTree();
    }
 
    /**
@@ -650,56 +343,22 @@ export class MoveDialog
     */
    selectDestination(star, element) {
     // Clear previous selection
-    const previousSelected = this.starsListContainer.querySelector('.selected');
-    if (previousSelected) {
-      previousSelected.classList.remove('selected');
-      previousSelected.style.background = 'transparent';
-      previousSelected.style.border = 'none';
-      
-      // Restore original star name color
-      const starNameElement = previousSelected.querySelector('span:first-child');
-      if (starNameElement) {
-        const connectedStarIds = this.currentStar.getConnectedStarIds ? this.currentStar.getConnectedStarIds() : [];
-        const lookupFunction = this.getStarLookupFunction();
-        const connectedStars = connectedStarIds
-          .map(starId => lookupFunction ? lookupFunction(starId) : null)
-          .filter(star => star !== null);
-        const originalStar = connectedStars.find(s => 
-          s.getName() === starNameElement.textContent
-        );
-        if (originalStar) {
-          const starColor = originalStar.getColor();
-          starNameElement.style.color = starColor;
-        }
-      }
-    }
+    this.view.clearDestinationSelection(this.currentStar, () => this.getStarLookupFunction());
 
     // Select new destination
     this.selectedDestination = star;
-    element.classList.add('selected');
     
-    // Change star name to black for better contrast on green background
-    const starNameElement = element.querySelector('span:first-child');
-    if (starNameElement) {
-      starNameElement.style.color = '#000';
-    }
+    // Apply selection styling
+    this.view.applySelectionStyling(element);
 
     // Enable ship tree and update ship selection based on current orders
-    this.enableShipTree();
+    this.view.enableShipTree();
     this.updateShipSelection();
     this.updateMoveButton();
 
     console.log(`🚀 MoveDialog: Selected destination: ${star.getName()}(${star.getId()})`);
   }
 
-  /**
-   * Enable ship tree when destination is selected
-   */
-  enableShipTree() {
-    if (this.shipTreeContainer) {
-      this.shipTreeContainer.classList.remove('disabled');
-    }
-  }
 
   /**
    * Calculate power range from ships
@@ -725,8 +384,8 @@ export class MoveDialog
    * Initialize the power range slider
    */
   initializePowerRangeSlider() {
-    if (!this.currentStar || !this.powerRangeSliderContainer) return;
-    
+    if (!this.currentStar || !this.view.powerRangeSliderContainer) return;
+
     // Get ships at this star
     const ships = this.currentStar.getShips();
     
@@ -734,12 +393,12 @@ export class MoveDialog
     const powerRange = this.calculatePowerRange(ships);
     
     // Destroy existing slider if it exists
-    if (this.powerRangeSlider) {
-      this.powerRangeSlider.destroy();
+    if (this.view.powerRangeSlider) {
+      this.view.powerRangeSlider.destroy();
     }
     
     // Create new DualSlider
-    this.powerRangeSlider = new DualSlider(this.powerRangeSliderContainer, {
+    this.view.powerRangeSlider = new DualSlider(this.view.powerRangeSliderContainer, {
       min: powerRange.min,
       max: powerRange.max,
       minValue: powerRange.min,
@@ -787,7 +446,7 @@ export class MoveDialog
    * @returns {Array<Ship>} Filtered ships
    */
   filterShipsByDamageThreshold(ships) {
-    const threshold = this.damageThresholdSlider ? parseInt(this.damageThresholdSlider.value) : 100;
+    const threshold = this.view.damageThresholdSlider ? parseInt(this.view.damageThresholdSlider.value) : 100;
     
     return ships.filter(ship => {
       const damagePercentage = ship.getDamagePercentage();
@@ -801,11 +460,11 @@ export class MoveDialog
    * @returns {Array<Ship>} Filtered ships
    */
   filterShipsByPowerRange(ships) {
-    if (!this.powerRangeSlider) {
+    if (!this.view.powerRangeSlider) {
       return ships; // No filtering if slider not initialized
     }
     
-    const values = this.powerRangeSlider.getValues();
+    const values = this.view.powerRangeSlider.getValues();
     const minPower = values.min;
     const maxPower = values.max;
     
@@ -821,8 +480,8 @@ export class MoveDialog
    */
   updateDamageThreshold(threshold) {
     // Update the display value
-    if (this.damageThresholdValue) {
-      this.damageThresholdValue.textContent = `${threshold}%`;
+    if (this.view.damageThresholdValue) {
+      this.view.damageThresholdValue.textContent = `${threshold}%`;
     }
     
     // Clear current selection if ships are filtered out
@@ -884,26 +543,11 @@ export class MoveDialog
    * Render the ship list
    */
   renderShipList(ships) {
-    if (!this.shipTreeContainer) return;
-
-    this.shipTreeContainer.innerHTML = '';
-
-    if (ships.length === 0) {
-      const noShipsMessage = document.createElement('div');
-      noShipsMessage.textContent = 'No ships available at this star';
-      noShipsMessage.className = 'ship-list-empty';
-      this.shipTreeContainer.appendChild(noShipsMessage);
-      return;
-    }
-
     // Sort ships by damage (least damaged first) then power (highest first)
     const sortedShips = this.sortShips(ships);
 
-    // Render each ship
-    sortedShips.forEach(ship => {
-      const shipElement = this.createShipElement(ship);
-      this.shipTreeContainer.appendChild(shipElement);
-    });
+    // Delegate to view for rendering
+    this.view.renderShipList(sortedShips, (ship) => this.createShipElement(ship));
 
     // Update selection summary
     this.updateSelectionSummary();
@@ -930,125 +574,15 @@ export class MoveDialog
    * Create a ship element for the list
    */
   createShipElement(ship) {
-    const shipElement = document.createElement('div');
-    shipElement.className = 'ship-item';
-    
-    const shipId = this.getShipId(ship);
-    const isSelected = this.selectedShipIds.has(shipId);
-    const canMove = ship.canMove();
-    const damagePercentage = ship.getDamagePercentage();
-    const healthPercentage = 100 - damagePercentage;
-    
-    // Check if ship has orders to other destinations
-    const hasOrdersToOtherDestinations = this.hasShipOrdersToOtherDestinations(shipId);
-
-    // Add color coding based on health
-    if (healthPercentage > 50) {
-      shipElement.classList.add('ship-health-good');
-    } else if (healthPercentage > 0) {
-      shipElement.classList.add('ship-health-warning');
-    } else {
-      shipElement.classList.add('ship-health-critical');
-    }
-    
-    // Add selection state
-    if (isSelected) {
-      shipElement.classList.add('selected');
-    }
-    
-    // Add disabled state for immobile ships
-    if (!canMove) {
-      shipElement.classList.add('disabled');
-    }
-    
-    // Create selection control (checkbox or rocket icon)
-    let selectionControl;
-    if (hasOrdersToOtherDestinations) {
-      // Create rocket icon for ships with orders to other destinations
-      const rocketIcon = document.createElement('span');
-      rocketIcon.textContent = '🚀';
-      rocketIcon.className = 'ship-rocket-icon';
-      rocketIcon.addEventListener('click', () => {
-        // Show tooltip on click
-        this.showShipOrderTooltip(rocketIcon, shipId);
-      });
-      rocketIcon.addEventListener('mouseenter', () => {
-        // Show tooltip on hover
-        console.log('🚀 Mouse entered rocket icon for ship:', shipId);
-        this.showShipOrderTooltip(rocketIcon, shipId);
-      });
-      rocketIcon.addEventListener('mouseleave', () => {
-        // Hide tooltip when mouse leaves (but with a small delay to allow moving to tooltip)
-        console.log('🚀 Mouse left rocket icon for ship:', shipId);
-        setTimeout(() => {
-          this.hideShipOrderTooltip();
-        }, 100);
-      });
-      selectionControl = rocketIcon;
-    } else {
-      // Create checkbox for available ships
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.checked = isSelected;
-      checkbox.disabled = !canMove;
-      checkbox.addEventListener('change', () => {
-        this.toggleShipSelection(ship);
-      });
-      selectionControl = checkbox;
-    }
-    
-    // Create ship info
-    const shipInfo = document.createElement('div');
-    shipInfo.className = 'ship-info';
-    
-    // Ship name and power badge
-    const shipName = document.createElement('span');
-    shipName.className = 'ship-name';
-    shipName.textContent = getShipDisplayName(ship);
-    
-    const powerBadge = document.createElement('span');
-    powerBadge.className = 'power-badge';
-    const power = ship.getPower();
-    powerBadge.textContent = `P${power}`;
-    
-    // Health bar
-    const healthBar = document.createElement('div');
-    healthBar.className = 'health-bar';
-    const healthFill = document.createElement('div');
-    healthFill.className = 'health-fill';
-    
-    // Set width - use actual percentage, but ensure minimum visibility for very low health
-    let fillWidth = healthPercentage;
-    if (healthPercentage > 0 && healthPercentage < 2) {
-      fillWidth = 2; // Minimum 2% width for visibility when health is very low
-    }
-    healthFill.style.width = `${fillWidth}%`;
-    
-    // Set health bar color based on health percentage
-    if (healthPercentage > 50) {
-      healthFill.style.background = '#00ff88';
-    } else if (healthPercentage > 0) {
-      healthFill.style.background = '#ffaa00';
-    } else {
-      healthFill.style.background = '#ff4444';
-    }
-    
-    healthBar.appendChild(healthFill);
-    
-    // Health percentage text
-    const healthText = document.createElement('span');
-    healthText.className = 'health-text';
-    healthText.textContent = `${Math.round(healthPercentage)}%`;
-    
-    shipInfo.appendChild(shipName);
-    shipInfo.appendChild(powerBadge);
-    shipInfo.appendChild(healthBar);
-    shipInfo.appendChild(healthText);
-    
-    shipElement.appendChild(selectionControl);
-    shipElement.appendChild(shipInfo);
-    
-    return shipElement;
+    return this.view.createShipElement(
+      ship,
+      (ship) => this.getShipId(ship),
+      (shipId) => this.hasShipOrdersToOtherDestinations(shipId),
+      (rocketIcon, shipId) => this.showShipOrderTooltip(rocketIcon, shipId),
+      (ship) => this.toggleShipSelection(ship),
+      this.selectedShipIds,
+      (ship) => getShipDisplayName(ship)
+    );
   }
 
   /**
@@ -1077,7 +611,7 @@ export class MoveDialog
         selectedShipIds: Array.from(this.selectedShipIds),
         orderPayload: orderForDestination.payload
       });
-    } else {
+      } else {
       // Clear selection if no order for this destination
       this.selectedShipIds.clear();
       this.currentMoveOrder = null;
@@ -1196,51 +730,14 @@ export class MoveDialog
    * Show tooltip for ship orders
    */
   showShipOrderTooltip(rocketIcon, shipId) {
-    const tooltipText = this.getShipOrderTooltip(shipId);
-    
-    console.log(`🚀 Showing tooltip for ship ${shipId}: ${tooltipText}`);
-    
-    // Remove any existing tooltip
-    this.hideShipOrderTooltip();
-    
-    // Create tooltip element
-    const tooltip = document.createElement('div');
-    tooltip.className = 'ship-order-tooltip';
-    tooltip.textContent = tooltipText;
-    tooltip.id = 'ship-order-tooltip';
-    
-    // Position tooltip near the rocket icon (below it to avoid mouse conflicts)
-    const rect = rocketIcon.getBoundingClientRect();
-    tooltip.style.position = 'fixed';
-    tooltip.style.left = `${rect.left}px`;
-    tooltip.style.top = `${rect.bottom + 5}px`;
-    tooltip.style.zIndex = '10000';
-    
-    document.body.appendChild(tooltip);
-    
-    // Store reference for cleanup
-    this.currentTooltip = tooltip;
-    
-    // Auto-hide after 3 seconds
-    this.tooltipTimeout = setTimeout(() => {
-      console.log(`🚀 Auto-hiding tooltip for ship ${shipId}`);
-      this.hideShipOrderTooltip();
-    }, 3000);
+    this.view.showShipOrderTooltip(rocketIcon, shipId, (shipId) => this.getShipOrderTooltip(shipId));
   }
 
   /**
    * Hide ship order tooltip
    */
   hideShipOrderTooltip() {
-    console.log('🚀 Hiding tooltip, currentTooltip exists:', !!this.currentTooltip);
-    if (this.currentTooltip) {
-      this.currentTooltip.remove();
-      this.currentTooltip = null;
-    }
-    if (this.tooltipTimeout) {
-      clearTimeout(this.tooltipTimeout);
-      this.tooltipTimeout = null;
-    }
+    this.view.hideShipOrderTooltip();
   }
 
 
@@ -1249,7 +746,7 @@ export class MoveDialog
    * Toggle ship selection
    */
   toggleShipSelection(ship) {
-    const shipId = this.getShipId(ship);
+      const shipId = this.getShipId(ship);
     if (this.selectedShipIds.has(shipId)) {
       this.selectedShipIds.delete(shipId);
     } else {
@@ -1274,11 +771,11 @@ export class MoveDialog
     ships.forEach(ship => {
       const damagePercentage = ship.getDamagePercentage();
       if (damagePercentage < 50) {
-        const shipId = this.getShipId(ship);
-        this.selectedShipIds.add(shipId);
-        selectedCount++;
-      }
-    });
+          const shipId = this.getShipId(ship);
+            this.selectedShipIds.add(shipId);
+          selectedCount++;
+        }
+      });
     
     this.updateSelectionSummary();
     this.updateMoveButton();
@@ -1303,15 +800,15 @@ export class MoveDialog
    * Update selection summary
    */
   updateSelectionSummary() {
-    if (!this.selectionSummary) return;
+    if (!this.view.selectionSummary) return;
 
     const selectedCount = this.selectedShipIds.size;
     const totalPower = this.calculateSelectedPower();
 
     if (selectedCount === 0) {
-      this.selectionSummary.textContent = 'No ships selected';
-    } else {
-      this.selectionSummary.textContent = `${selectedCount} ships selected (${totalPower} power)`;
+      this.view.selectionSummary.textContent = 'No ships selected';
+          } else {
+      this.view.selectionSummary.textContent = `${selectedCount} ships selected (${totalPower} power)`;
     }
   }
 
@@ -1325,7 +822,7 @@ export class MoveDialog
     let totalPower = 0;
     
     ships.forEach(ship => {
-          const shipId = this.getShipId(ship);
+      const shipId = this.getShipId(ship);
           if (this.selectedShipIds.has(shipId)) {
             const power = ship.getPower();
             totalPower += power;
@@ -1356,23 +853,7 @@ export class MoveDialog
    * Update the button states
    */
   updateMoveButton() {
-    // Update submit button
-    if (this.canSubmit()) {
-      this.moveButton.classList.remove('btn-disabled');
-      this.moveButton.classList.add('btn-enabled');
-    } else {
-      this.moveButton.classList.remove('btn-enabled');
-      this.moveButton.classList.add('btn-disabled');
-    }
-
-    // Update cancel button
-    if (this.canCancel()) {
-      this.cancelButton.classList.remove('btn-disabled');
-      this.cancelButton.classList.add('btn-enabled');
-    } else {
-      this.cancelButton.classList.remove('btn-enabled');
-      this.cancelButton.classList.add('btn-disabled');
-    }
+    this.view.updateButtonStates(this.canSubmit(), this.canCancel());
   }
 
   /**
@@ -1469,73 +950,12 @@ export class MoveDialog
     // Selections are preserved for user to retry if needed
   }
 
-  /**
-   * Show move confirmation feedback
-   */
-  showMoveConfirmation(fromStar, toStar) {
-    const confirmation = document.createElement('div');
-    confirmation.textContent = `Move order submitted: ${fromStar} → ${toStar}`;
-    confirmation.className = 'confirmation-message-move';
-
-    // Add CSS animation
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-      }
-    `;
-    document.head.appendChild(style);
-
-    document.body.appendChild(confirmation);
-
-    // Remove after 3 seconds
-    setTimeout(() => {
-      if (confirmation.parentNode) {
-        confirmation.parentNode.removeChild(confirmation);
-      }
-      if (style.parentNode) {
-        style.parentNode.removeChild(style);
-      }
-    }, 3000);
-  }
-
-  /**
-   * Show cancel confirmation feedback
-   */
-  showCancelConfirmation(fromStar, toStar) {
-    const confirmation = document.createElement('div');
-    confirmation.textContent = `Move order cancelled: ${fromStar} → ${toStar}`;
-    confirmation.className = 'confirmation-message-move';
-
-    // Add CSS animation
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-      }
-    `;
-    document.head.appendChild(style);
-
-    document.body.appendChild(confirmation);
-
-    // Remove after 3 seconds
-    setTimeout(() => {
-      if (confirmation.parentNode) {
-        confirmation.parentNode.removeChild(confirmation);
-      }
-      if (style.parentNode) {
-        style.parentNode.removeChild(style);
-      }
-    }, 3000);
-  }
 
   /**
    * Hide the dialog
    */
   hide() {
-    this.isVisible = false;
+    // Clear MoveDialog specific state
     this.currentStar = null;
     this.currentPlayer = null;
     this.currentMoveOrder = null;
@@ -1543,45 +963,33 @@ export class MoveDialog
     this.selectedShipIds.clear();
     this.currentOrders = []; // Clear current orders
     this.isSubmitting = false; // Reset submission state
-    this.hideShipOrderTooltip(); // Clean up any tooltips
-    this.dialog.style.display = 'none';
+    this.view.hideShipOrderTooltip(); // Clean up any tooltips
+    
+    // Call parent hide method
+    super.hide();
     
     // Reset damage threshold to 100% for next time
-    if (this.damageThresholdSlider) {
-      this.damageThresholdSlider.value = '100';
-      this.damageThresholdValue.textContent = '100%';
+    if (this.view.damageThresholdSlider) {
+      this.view.damageThresholdSlider.value = '100';
+      this.view.damageThresholdValue.textContent = '100%';
     }
     
     // Clean up power range slider
-    if (this.powerRangeSlider) {
-      this.powerRangeSlider.destroy();
-      this.powerRangeSlider = null;
+    if (this.view.powerRangeSlider) {
+      this.view.powerRangeSlider.destroy();
+      this.view.powerRangeSlider = null;
     }
     
     console.log('🚀 MoveDialog: Closed');
   }
 
-  /**
-   * Check if the dialog is currently open
-   */
-  isOpen() {
-    return this.isVisible;
-  }
 
   /**
    * Enable UI controls during submission
    */
   enableSubmissionUI() {
     this.isSubmitting = true;
-    
-    // Disable buttons
-    this.moveButton.disabled = true;
-    this.cancelButton.disabled = true;
-    this.moveButton.textContent = 'Submitting...';
-    
-    // Add visual feedback
-    this.dialog.classList.add('submitting');
-    
+    this.view.enableSubmissionUI();
     console.log('🚀 MoveDialog: UI locked for submission');
   }
 
@@ -1590,15 +998,7 @@ export class MoveDialog
    */
   disableSubmissionUI() {
     this.isSubmitting = false;
-    
-    // Re-enable buttons
-    this.moveButton.disabled = false;
-    this.cancelButton.disabled = false;
-    this.moveButton.textContent = 'Submit Order';
-    
-    // Remove visual feedback
-    this.dialog.classList.remove('submitting');
-    
+    this.view.disableSubmissionUI();
     console.log('🚀 MoveDialog: UI unlocked after submission');
   }
 
