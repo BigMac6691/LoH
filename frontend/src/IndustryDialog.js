@@ -83,16 +83,16 @@ export class IndustryDialog
   setupEventListeners()
   {
     // Listen for order submission success
-    eventBus.on('order:submitSuccess', this.handleOrderSubmitSuccess.bind(this));
+    eventBus.on('order:build.submitSuccess', this.handleOrderSubmitSuccess.bind(this));
     
     // Listen for order submission error
-    eventBus.on('order:submitError', this.handleOrderSubmitError.bind(this));
+    eventBus.on('order:build.submitError', this.handleOrderSubmitError.bind(this));
     
     // Listen for order loading success
-    eventBus.on('order:loadSuccess', this.handleOrderLoadSuccess.bind(this));
+    eventBus.on('order:build.loadSuccess', this.handleOrderLoadSuccess.bind(this));
     
     // Listen for order loading error
-    eventBus.on('order:loadError', this.handleOrderLoadError.bind(this));
+    eventBus.on('order:build.loadError', this.handleOrderLoadError.bind(this));
     
     console.log('🏭 IndustryDialog: Event listeners set up');
   }
@@ -350,10 +350,10 @@ export class IndustryDialog
     console.log('🏭 IndustryDialog: Submitting order via event system:', this.currentStar.getId(), orderData);
 
     // Emit order submission event
-    eventBus.emit('order:submit', {
+    eventBus.emit('order:build.submit', {
       success: true,
       details: {
-        eventType: 'order:submit',
+        eventType: 'order:build.submit',
         orderType: 'build',
         payload: orderData
       }
@@ -437,8 +437,8 @@ export class IndustryDialog
     
     const { orders, sourceStarId, orderType } = eventData.details;
     
-    // Check if this is for the star we're currently loading AND if it's a build order request
-    if (sourceStarId === this.pendingLoadStarId && orderType === 'build')
+    // Check if this is for the star we're currently loading
+    if (sourceStarId === this.pendingLoadStarId)
     {
       let hasOrders = false;
       
@@ -513,10 +513,10 @@ export class IndustryDialog
     this.pendingLoadStarId = starId;
 
     // Emit order loading event
-    eventBus.emit('order:loadForStar', {
+    eventBus.emit('order:build.loadForStar', {
       success: true,
       details: {
-        eventType: 'order:loadForStar',
+        eventType: 'order:build.loadForStar',
         sourceStarId: starId,
         orderType: 'build'
       }

@@ -686,6 +686,32 @@
   word-wrap: break-word;
 }
 
+/* Submission State Styles */
+.dialog-base.submitting {
+  pointer-events: none; /* Prevent all interactions */
+  opacity: 0.7;
+}
+
+.dialog-base.submitting .dialog-close-btn {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.dialog-base.submitting button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dialog-base.submitting input[type="checkbox"] {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.dialog-base.submitting .star-item {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
 .health-bar {
   flex: 1;
   min-width: 30px;

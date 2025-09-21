@@ -21,6 +21,7 @@ export class MoveDialog
     this.selectedShipIds = new Set();
     this.loadedOrders = []; // Track orders loaded from database (deprecated)
     this.currentOrders = []; // Current move orders for the current star
+    this.isSubmitting = false; // Track if currently submitting an order
     
     this.createDialog();
     this.setupEventListeners();
@@ -43,16 +44,16 @@ export class MoveDialog
    */
   setupEventListeners() {
     // Listen for order submission success
-    eventBus.on('order:submitSuccess', this.handleOrderSubmitSuccess.bind(this));
+    eventBus.on('order:move.submitSuccess', this.handleOrderSubmitSuccess.bind(this));
     
     // Listen for order submission error
-    eventBus.on('order:submitError', this.handleOrderSubmitError.bind(this));
+    eventBus.on('order:move.submitError', this.handleOrderSubmitError.bind(this));
     
     // Listen for order loading success
-    eventBus.on('order:loadSuccess', this.handleOrderLoadSuccess.bind(this));
+    eventBus.on('order:move.loadSuccess', this.handleOrderLoadSuccess.bind(this));
     
     // Listen for order loading error
-    eventBus.on('order:loadError', this.handleOrderLoadError.bind(this));
+    eventBus.on('order:move.loadError', this.handleOrderLoadError.bind(this));
     
     console.log('🚀 MoveDialog: Event listeners set up');
   }
@@ -64,10 +65,13 @@ export class MoveDialog
    */
   handleOrderSubmitSuccess(context, eventData) {
     console.log('🚀 MoveDialog: Order submitted successfully:', eventData);
+    console.log('🚀 MoveDialog: context:', context);
     
-    // Check if this is a move order for the current star
-    if (eventData.details.orderType === 'move' && 
-        eventData.details.payload?.sourceStarId === this.currentStar?.getId()) {
+    // Always unlock UI after submission completes
+    this.disableSubmissionUI();
+    
+    // Check if this is for the current star
+    if (eventData.details.payload?.sourceStarId === this.currentStar?.getId()) {
       
       // Update current orders with the returned orders from the server
       if (eventData.details.orders) {
@@ -75,14 +79,48 @@ export class MoveDialog
         console.log('🚀 MoveDialog: Updated currentOrders with server response:', this.currentOrders.length);
       }
       
+      // Store destination before any UI updates that might clear it
+      const preservedDestination = this.selectedDestination;
+      
       // Update UI to reflect the saved order
       this.updateConnectedStarsList(); // Refresh rocket icons
-      this.updateMoveButton();
       
-      // Show confirmation
+      // Show appropriate confirmation based on action
       const fromStar = this.currentStar.getName();
-      const toStar = this.selectedDestination.getName();
-      this.showMoveConfirmation(fromStar, toStar);
+      const toStar = preservedDestination.getName();
+      
+      if (eventData.details.payload.action === 'cancel') {
+        // For cancellation, clear selections after successful cancel
+        this.selectedShipIds.clear();
+        this.currentMoveOrder = null;
+        this.updateShipList();
+        this.showCancelConfirmation(fromStar, toStar);
+        console.log('🚀 MoveDialog: Selections cleared after successful cancellation');
+      } else {
+        // For move orders, preserve selections (both destination and ships)
+        this.showMoveConfirmation(fromStar, toStar);
+        
+        // Explicitly preserve the destination selection
+        this.selectedDestination = preservedDestination;
+        
+        // Re-apply the selected styling to the destination star
+        if (this.selectedDestination) {
+          const starItems = this.starsListContainer.querySelectorAll('.star-item');
+          starItems.forEach(item => {
+            const starNameElement = item.querySelector('.star-name');
+            if (starNameElement && starNameElement.textContent === this.selectedDestination.getName()) {
+              item.classList.add('selected');
+              item.style.background = 'var(--color-primary)';
+              starNameElement.style.color = '#000';
+            }
+          });
+        }
+        
+        console.log('🚀 MoveDialog: Selections preserved after successful submission');
+      }
+      
+      // Update button states after preserving selections
+      this.updateMoveButton();
     }
   }
 
@@ -93,13 +131,19 @@ export class MoveDialog
    */
   handleOrderSubmitError(context, eventData) {
     console.error('🚀 MoveDialog: Order submission failed:', eventData);
+    console.log('🚀 MoveDialog: context:', context);
     
-    // Check if this is a move order for the current star
-    if (eventData.details.orderType === 'move' && 
-        eventData.details.payload?.sourceStarId === this.currentStar?.getId()) {
+    // Always unlock UI after submission completes (even on error)
+    this.disableSubmissionUI();
+    
+    // Check if this is for the current star
+    if (eventData.details.payload?.sourceStarId === this.currentStar?.getId()) {
       
       // Show error message to user
-      alert(`Failed to submit move order: ${eventData.error}`);
+      alert(`Failed to submit move order: ${eventData.details.error || 'Unknown error'}`);
+      
+      // Preserve selections on error - user can try again!
+      console.log('🚀 MoveDialog: Selections preserved after failed submission - user can retry');
     }
   }
 
@@ -153,6 +197,10 @@ export class MoveDialog
     
     closeBtn.addEventListener('click', () =>
     {
+      if (this.isSubmitting) {
+        console.log('🚀 MoveDialog: Cannot close dialog during submission');
+        return;
+      }
       this.hide();
     });
 
@@ -390,6 +438,13 @@ export class MoveDialog
     document.addEventListener('keydown', (e) => {
       if (!this.isVisible) return;
 
+      // Prevent ESC from closing dialog during submission
+      if (e.key === 'Escape' && this.isSubmitting) {
+        console.log('🚀 MoveDialog: Cannot close dialog with ESC during submission');
+        e.preventDefault();
+        return;
+      }
+
       // TODO: Add keyboard navigation for ship selection
       // Arrow keys, space, and enter could be used for accessibility
     });
@@ -444,10 +499,10 @@ export class MoveDialog
     this.updateConnectedStarsList();
 
     // Load orders from database for this star
-    eventBus.emit('order:loadForStar', {
+    eventBus.emit('order:move.loadForStar', {
       success: true,
       details: {
-        eventType: 'order:loadForStar',
+        eventType: 'order:move.loadForStar',
         sourceStarId: this.currentStar.getId(),
         orderType: 'move'
       }
@@ -556,6 +611,7 @@ export class MoveDialog
     * Clear destination selection
     */
    clearDestinationSelection() {
+    console.log('🚀 MoveDialog: Clearing destination selection');
      // Clear previous selection
      const previousSelected = this.starsListContainer.querySelector('.selected');
      if (previousSelected) {
@@ -1328,12 +1384,20 @@ export class MoveDialog
       return;
     }
 
+    if (this.isSubmitting) {
+      console.warn('MoveDialog: Already submitting an order, please wait');
+      return;
+    }
+
     const fromStar = this.currentStar.getName();
     const toStar = this.selectedDestination.getName();
     
     console.log(`🚀 MoveDialog: Cancelling move order from ${fromStar} to ${toStar}`);
     
-      // Submit order cancellation to database
+    // Lock UI before submission
+    this.enableSubmissionUI();
+    
+    // Submit order cancellation to database
     if (this.currentPlayer) {
         const orderData = {
           action: 'cancel',
@@ -1345,27 +1409,18 @@ export class MoveDialog
         console.log('🚀 MoveDialog: Submitting order cancellation via event system');
 
         // Emit order submission event for cancellation
-        eventBus.emit('order:submit', {
+        eventBus.emit('order:move.submit', {
           success: true,
           details: {
-            eventType: 'order:submit',
+            eventType: 'order:move.submit',
             orderType: 'move',
             payload: orderData
           }
         });
     }
     
-    // Clear current selection
-    this.selectedShipIds.clear();
-    this.currentMoveOrder = null;
-    
-         // Update UI
-     this.updateMoveButton();
-     this.updateShipList();
-     this.updateConnectedStarsList(); // Refresh rocket icons
-     
-     // Show confirmation
-     this.showCancelConfirmation(fromStar, toStar);
+    // Note: UI updates and confirmations are handled in the response handlers
+    // Selections are preserved for user to retry if needed
   }
 
   /**
@@ -1377,10 +1432,18 @@ export class MoveDialog
       return;
     }
 
+    if (this.isSubmitting) {
+      console.warn('MoveDialog: Already submitting an order, please wait');
+      return;
+    }
+
     const fromStar = this.currentStar.getName();
     const toStar = this.selectedDestination.getName();
     
     console.log(`🚀 MoveDialog: Submitting move order from ${fromStar} to ${toStar}`);
+    
+    // Lock UI before submission
+    this.enableSubmissionUI();
     
     // Prepare order data for database submission
     const orderData = {
@@ -1393,25 +1456,17 @@ export class MoveDialog
     console.log('🚀 MoveDialog: Submitting move order via event system', orderData);
 
     // Emit order submission event
-    eventBus.emit('order:submit', {
+    eventBus.emit('order:move.submit', {
       success: true,
       details: {
-        eventType: 'order:submit',
+        eventType: 'order:move.submit',
         orderType: 'move',
         payload: orderData
       }
     });
     
-         // Show confirmation and refresh UI
-     this.showMoveConfirmation(fromStar, toStar);
-     this.updateConnectedStarsList(); // Refresh rocket icons
-     
-     // Clear destination selection and ship selection after successful submit
-     this.clearDestinationSelection();
-     this.selectedShipIds.clear();
-     this.currentMoveOrder = null;
-     this.updateMoveButton();
-     this.updateShipList();
+    // Note: UI updates and confirmations are handled in the response handlers
+    // Selections are preserved for user to retry if needed
   }
 
   /**
@@ -1487,6 +1542,7 @@ export class MoveDialog
     this.selectedDestination = null;
     this.selectedShipIds.clear();
     this.currentOrders = []; // Clear current orders
+    this.isSubmitting = false; // Reset submission state
     this.hideShipOrderTooltip(); // Clean up any tooltips
     this.dialog.style.display = 'none';
     
@@ -1510,6 +1566,40 @@ export class MoveDialog
    */
   isOpen() {
     return this.isVisible;
+  }
+
+  /**
+   * Enable UI controls during submission
+   */
+  enableSubmissionUI() {
+    this.isSubmitting = true;
+    
+    // Disable buttons
+    this.moveButton.disabled = true;
+    this.cancelButton.disabled = true;
+    this.moveButton.textContent = 'Submitting...';
+    
+    // Add visual feedback
+    this.dialog.classList.add('submitting');
+    
+    console.log('🚀 MoveDialog: UI locked for submission');
+  }
+
+  /**
+   * Disable UI controls after submission completes
+   */
+  disableSubmissionUI() {
+    this.isSubmitting = false;
+    
+    // Re-enable buttons
+    this.moveButton.disabled = false;
+    this.cancelButton.disabled = false;
+    this.moveButton.textContent = 'Submit Order';
+    
+    // Remove visual feedback
+    this.dialog.classList.remove('submitting');
+    
+    console.log('🚀 MoveDialog: UI unlocked after submission');
   }
 
   /**

@@ -18,13 +18,16 @@ export class OrderEventHandler
   setupEventListeners()
   {
     // Listen for order submission requests
-    eventBus.on('order:submit', this.handleOrderSubmit.bind(this));
+    eventBus.on('order:move.submit', this.handleOrderSubmit.bind(this));
+    eventBus.on('order:build.submit', this.handleOrderSubmit.bind(this));
     
     // Listen for order loading requests
-    eventBus.on('order:loadForStar', this.handleLoadOrdersForStar.bind(this));
+    eventBus.on('order:move.loadForStar', this.handleLoadOrdersForStar.bind(this));
+    eventBus.on('order:build.loadForStar', this.handleLoadOrdersForStar.bind(this));
     
     // Listen for order loading requests by turn
-    eventBus.on('order:loadForTurn', this.handleLoadOrdersForTurn.bind(this));
+    eventBus.on('order:move.loadForTurn', this.handleLoadOrdersForTurn.bind(this));
+    eventBus.on('order:build.loadForTurn', this.handleLoadOrdersForTurn.bind(this));
     
     console.log('📋 OrderEventHandler: Event listeners set up');
   }
@@ -79,11 +82,12 @@ export class OrderEventHandler
       const result = await response.json();
       console.log('📋 OrderEventHandler: Order submitted successfully:', result);
 
-      // Emit success event
-      eventBus.emit('order:submitSuccess', {
+      // Emit success event with order type specific naming
+      const eventName = `order:${orderType}.submitSuccess`;
+      eventBus.emit(eventName, {
         success: true,
         details: {
-          eventType: 'order:submitSuccess',
+          eventType: eventName,
           order: result.order,
           orders: result.orders, // Include updated orders from server
           gameId,
@@ -98,11 +102,12 @@ export class OrderEventHandler
     {
       console.error('📋 OrderEventHandler: Error submitting order:', error);
       
-      // Emit error event
-      eventBus.emit('order:submitError', {
+      // Emit error event with order type specific naming
+      const eventName = `order:${orderType}.submitError`;
+      eventBus.emit(eventName, {
         success: false,
         details: {
-          eventType: 'order:submitError',
+          eventType: eventName,
           error: error.message,
           originalEventData: eventData
         }
@@ -157,15 +162,17 @@ export class OrderEventHandler
       const result = await response.json();
       console.log('📋 OrderEventHandler: Orders loaded successfully for star:', sourceStarId, result);
 
-      // Emit success event
-      eventBus.emit('order:loadSuccess', {
+      // Emit success event with order type specific naming
+      const eventName = `order:${orderType}.loadSuccess`;
+      eventBus.emit(eventName, {
         success: true,
         details: {
-          eventType: 'order:loadSuccess',
+          eventType: eventName,
           orders: result.orders,
           gameId,
           sourceStarId,
-          playerId
+          playerId,
+          orderType
         }
       });
 
@@ -174,11 +181,12 @@ export class OrderEventHandler
     {
       console.error('📋 OrderEventHandler: Error loading orders for star:', error);
       
-      // Emit error event
-      eventBus.emit('order:loadError', {
+      // Emit error event with order type specific naming
+      const eventName = `order:${orderType}.loadError`;
+      eventBus.emit(eventName, {
         success: false,
         details: {
-          eventType: 'order:loadError',
+          eventType: eventName,
           error: error.message,
           originalEventData: eventData
         }
