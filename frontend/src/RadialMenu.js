@@ -218,6 +218,16 @@ export class RadialMenu {
    * @param {Object} star - Star object for context
    */
   show(position, star) {
+    // Check if current user equals the owner of the passed star
+    const currentUser = eventBus.getContext().user;
+    const starOwner = star.getOwner();
+    
+    if (currentUser && starOwner && currentUser !== starOwner.id) {
+      console.log('🚫 RadialMenu: Current user does not own this star, hiding menu');
+      this.hide();
+      return;
+    }
+
     if (this.isVisible && this.currentStar === star) {
       // Already showing for this star - don't update position to avoid reset
       return;

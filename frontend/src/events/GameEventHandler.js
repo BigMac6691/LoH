@@ -35,7 +35,7 @@ export class GameEventHandler {
    * @param {string} gameId - Game ID to load
    */
   handleGameLoad(context, gameId) {
-    console.log('🎮 GameEventHandler: Processing game load for game:', gameId);
+    console.log('🎮 GameEventHandler:(1) Processing game load for game:', gameId);
     console.log('🎮 GameEventHandler: Context:', context);
     
     // Set game in context via event bus
@@ -229,7 +229,7 @@ export class GameEventHandler {
    * @param {string} gameId - Game ID to load
    */
   handleLoadGame(context, gameId) {
-    console.log('🎮 GameEventHandler: Loading game:', gameId);
+    console.log('🎮 GameEventHandler:(2) Loading game:', gameId);
     console.log('🎮 GameEventHandler: Context:', context);
     
     // TODO: Implement game loading logic

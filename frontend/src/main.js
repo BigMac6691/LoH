@@ -118,6 +118,9 @@ document.addEventListener('DOMContentLoaded', () =>
     loadingElement.style.display = 'none';
   }
   
+  // Create refresh button
+  createRefreshButton();
+  
   // Log development mode status
   logDevModeStatus();
   
@@ -193,6 +196,59 @@ function onGameStart(players)
   
   // Fleet icons are now handled automatically in updateStarGroups()
   // No need to manually create them here
+}
+
+// Create refresh button
+function createRefreshButton()
+{
+  const refreshButton = document.createElement('button');
+  refreshButton.id = 'refresh-button';
+  refreshButton.innerHTML = '🔄 Refresh';
+  refreshButton.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    padding: 10px 15px;
+    background: rgba(0, 255, 136, 0.2);
+    border: 2px solid #00ff88;
+    border-radius: 8px;
+    color: #00ff88;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+  `;
+  
+  // Hover effects
+  refreshButton.addEventListener('mouseenter', () => {
+    refreshButton.style.background = 'rgba(0, 255, 136, 0.3)';
+    refreshButton.style.transform = 'scale(1.05)';
+    refreshButton.style.boxShadow = '0 0 15px rgba(0, 255, 136, 0.5)';
+  });
+  
+  refreshButton.addEventListener('mouseleave', () => {
+    refreshButton.style.background = 'rgba(0, 255, 136, 0.2)';
+    refreshButton.style.transform = 'scale(1)';
+    refreshButton.style.boxShadow = 'none';
+  });
+  
+  // Click handler
+  refreshButton.addEventListener('click', () => {
+    console.log('🔄 Refresh button clicked - emitting game:startGame event');
+    eventBus.emit('game:startGame', {
+      success: true,
+      details: {
+        eventType: 'game:startGame',
+        reason: 'manual_refresh'
+      }
+    });
+  });
+  
+  // Add to DOM
+  document.body.appendChild(refreshButton);
 }
 
 // Make mapGenerator available globally for development scenarios

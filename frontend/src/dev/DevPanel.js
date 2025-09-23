@@ -293,7 +293,7 @@ export class DevPanel
     // Add player options to dropdown
     players.forEach(player => {
       const option = document.createElement('option');
-      option.value = player.user_id;
+      option.value = player.id;
       option.textContent = `${player.name} (${player.color_hex})`;
       option.style.color = player.color_hex;
       currentPlayerSelect.appendChild(option);
@@ -304,7 +304,7 @@ export class DevPanel
     
     // Set default selection
     if (currentPlayer) {
-      currentPlayerSelect.value = currentPlayer.user_id;
+      currentPlayerSelect.value = currentPlayer.id;
     }
     
     // Show the section
@@ -322,15 +322,8 @@ export class DevPanel
       console.log('🎯 DevPanel: No player selected');
       return;
     }
-    
-    // Emit currentPlayerChanged event
-    eventBus.emit('dev:currentPlayerChanged', {
-      success: true,
-      details: {
-        eventType: 'dev:currentPlayerChanged',
-        playerId: playerId
-      }
-    });
+
+    eventBus.setUser(playerId);
   }
 
   /**
@@ -359,12 +352,12 @@ export class DevPanel
     const playerDetails = document.createElement('div');
     playerDetails.innerHTML = `
       <div style="color: ${player.color_hex}; font-weight: bold;">${player.name}</div>
-      <div id="turn-status-${player.user_id}" style="font-size: 12px; color: #888;">Turn: Active</div>
+      <div id="turn-status-${player.id}" style="font-size: 12px; color: #888;">Turn: Active</div>
     `;
     
     // End turn button/toggle
     const endTurnButton = document.createElement('button');
-    endTurnButton.id = `end-turn-btn-${player.user_id}`;
+    endTurnButton.id = `end-turn-btn-${player.id}`;
     endTurnButton.textContent = 'End Turn';
     endTurnButton.className = 'dev-tools-btn';
     endTurnButton.style.padding = '4px 8px';
@@ -377,7 +370,7 @@ export class DevPanel
     
     // Add event listener for end turn button
     endTurnButton.addEventListener('click', () => {
-      this.handleEndTurn(player.user_id);
+      this.handleEndTurn(player.id);
     });
     
     // Assemble the player item
@@ -387,10 +380,10 @@ export class DevPanel
     playerList.appendChild(playerItem);
     
     // Store turn status tracking
-    this.playerTurnStatus.set(player.user_id, {
+    this.playerTurnStatus.set(player.id, {
       hasEndedTurn: false,
       buttonElement: endTurnButton,
-      statusElement: playerItem.querySelector(`#turn-status-${player.user_id}`)
+      statusElement: playerItem.querySelector(`#turn-status-${player.id}`)
     });
   }
 
@@ -400,6 +393,7 @@ export class DevPanel
    */
   handleEndTurn(playerId) {
     console.log(`🎯 DevPanel: End turn requested for player: ${playerId}`);
+    console.log('🎯 DevPanel: Player turn status:', this.playerTurnStatus);
     
     const turnStatus = this.playerTurnStatus.get(playerId);
     if (!turnStatus) {
