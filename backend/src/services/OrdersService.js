@@ -1,23 +1,23 @@
-import { createDraft, findByPayload, listFinalOrdersForTurn } from '../repos/ordersRepo.js';
+import { upsertOrder, getOrder, getOrdersForTurn, getOrdersForStar, findOrdersByPayload } from '../repos/ordersRepo.js';
 import { getOpenTurn } from '../repos/turnsRepo.js';
 
 export class OrdersService
 {
   /**
-   * Create a new order submission
+   * Create or update an order submission
    * @param {Object} orderData - Order data
    * @param {string} orderData.gameId - Game ID
    * @param {string} orderData.turnId - Turn ID
    * @param {string} orderData.playerId - Player ID
    * @param {string} orderData.orderType - Type of order (e.g., 'build', 'move')
    * @param {Object} orderData.payload - Order payload data
-   * @returns {Object} Created order
+   * @returns {Object} Created or updated order
    */
   async createOrder(orderData)
   {
     const { gameId, turnId, playerId, orderType, payload } = orderData;
     
-    return await createDraft({
+    return await upsertOrder({
       gameId,
       turnId,
       playerId,
@@ -42,26 +42,8 @@ export class OrdersService
       return [];
     }
 
-    // Use findByPayload to find orders for this star
-    const orders = await findByPayload({
-      gameId,
-      turnId: turn.id,
-      jsonFilter: { sourceStarId: starId }
-    });
-
-    let filteredOrders = orders;
-
-    // Filter by player if specified
-    if (playerId) {
-      filteredOrders = filteredOrders.filter(order => order.player_id === playerId);
-    }
-
-    // Filter by order type if specified
-    if (orderType) {
-      filteredOrders = filteredOrders.filter(order => order.order_type === orderType);
-    }
-
-    return filteredOrders;
+    // Use the simplified getOrdersForStar function with turnId
+    return await getOrdersForStar(gameId, turn.id, starId, playerId, orderType);
   }
 
   /**
@@ -73,7 +55,7 @@ export class OrdersService
    */
   async getOrdersForTurn(gameId, turnId, playerId = null)
   {
-    const orders = await listFinalOrdersForTurn(gameId, turnId);
+    const orders = await getOrdersForTurn(gameId, turnId);
     
     // Filter by player if specified
     if (playerId) {

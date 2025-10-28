@@ -3,235 +3,176 @@ import { pool } from '../db/pool.js';
 import { randomUUID } from 'crypto';
 
 /**
- * Create a new draft order
+ * Create or update an order for a player in a turn
  * @param {Object} params
  * @param {string} params.gameId - Game UUID
  * @param {string} params.turnId - Turn UUID
  * @param {string} params.playerId - Player UUID
  * @param {string} params.orderType - Type of order (move, industry, etc.)
  * @param {Object} params.payload - Order data as JSONB
- * @returns {Promise<Object>} The inserted order row
+ * @returns {Promise<Object>} The upserted order row
  */
-export async function createDraft({ gameId, turnId, playerId, orderType, payload }) {
+export async function upsertOrder({ gameId, turnId, playerId, orderType, payload }) {
   const id = randomUUID();
-  const clientOrderId = randomUUID();
   
   const { rows } = await pool.query(
-    `INSERT INTO order_submission (
-      id, game_id, turn_id, player_id, client_order_id, revision, 
-      order_type, payload, is_deleted, is_final
-    ) VALUES ($1, $2, $3, $4, $5, 1, $6, $7, false, false) 
-    RETURNING *`,
-    [id, gameId, turnId, playerId, clientOrderId, orderType, payload]
+    `INSERT INTO orders (id, game_id, turn_id, player_id, order_type, payload)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (game_id, turn_id, player_id)
+     DO UPDATE SET 
+       order_type = EXCLUDED.order_type,
+       payload = EXCLUDED.payload,
+       created_at = now()
+     RETURNING *`,
+    [id, gameId, turnId, playerId, orderType, payload]
   );
   
   return rows[0];
 }
 
 /**
- * Edit an existing draft order by creating a new revision
- * @param {Object} params
- * @param {string} params.gameId - Game UUID
- * @param {string} params.turnId - Turn UUID
- * @param {string} params.playerId - Player UUID
- * @param {string} params.clientOrderId - Client order UUID
- * @param {string} params.orderType - Type of order
- * @param {Object} params.payload - Order data as JSONB
- * @returns {Promise<Object>} The new revision row
- * @throws {Error} If no existing draft found
- */
-export async function editDraft({ gameId, turnId, playerId, clientOrderId, orderType, payload }) {
-  // Find latest revision
-  const { rows: latest } = await pool.query(
-    `SELECT revision FROM order_submission
-     WHERE game_id=$1 AND turn_id=$2 AND player_id=$3 AND client_order_id=$4
-     ORDER BY revision DESC LIMIT 1`,
-    [gameId, turnId, playerId, clientOrderId]
-  );
-  
-  if (latest.length === 0) {
-    throw new Error('No existing draft found for this client order ID');
-  }
-  
-  const newRevision = latest[0].revision + 1;
-  const id = randomUUID();
-  
-  const { rows } = await pool.query(
-    `INSERT INTO order_submission (
-      id, game_id, turn_id, player_id, client_order_id, revision,
-      order_type, payload, is_deleted, is_final
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, false)
-    RETURNING *`,
-    [id, gameId, turnId, playerId, clientOrderId, newRevision, orderType, payload]
-  );
-  
-  return rows[0];
-}
-
-/**
- * Delete a draft order by creating a deleted revision
- * @param {Object} params
- * @param {string} params.gameId - Game UUID
- * @param {string} params.turnId - Turn UUID
- * @param {string} params.playerId - Player UUID
- * @param {string} params.clientOrderId - Client order UUID
- * @returns {Promise<Object>} The deleted revision row
- * @throws {Error} If no existing draft found
- */
-export async function deleteDraft({ gameId, turnId, playerId, clientOrderId }) {
-  // Find latest revision to copy order_type/payload
-  const { rows: latest } = await pool.query(
-    `SELECT revision, order_type, payload FROM order_submission
-     WHERE game_id=$1 AND turn_id=$2 AND player_id=$3 AND client_order_id=$4
-     ORDER BY revision DESC LIMIT 1`,
-    [gameId, turnId, playerId, clientOrderId]
-  );
-  
-  if (latest.length === 0) {
-    throw new Error('No existing draft found for this client order ID');
-  }
-  
-  const newRevision = latest[0].revision + 1;
-  const id = randomUUID();
-  
-  const { rows } = await pool.query(
-    `INSERT INTO order_submission (
-      id, game_id, turn_id, player_id, client_order_id, revision,
-      order_type, payload, is_deleted, is_final
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, false)
-    RETURNING *`,
-    [id, gameId, turnId, playerId, clientOrderId, newRevision, latest[0].order_type, latest[0].payload]
-  );
-  
-  return rows[0];
-}
-
-/**
- * List the latest non-deleted drafts for a player in a turn
+ * Get an order for a specific player in a turn
  * @param {string} gameId - Game UUID
  * @param {string} turnId - Turn UUID
  * @param {string} playerId - Player UUID
- * @returns {Promise<Array>} Array of latest draft orders
+ * @returns {Promise<Object|null>} The order row or null if not found
  */
-export async function listLatestDrafts(gameId, turnId, playerId) {
+export async function getOrder(gameId, turnId, playerId) {
   const { rows } = await pool.query(
-    `WITH ranked AS (
-       SELECT os.*,
-              ROW_NUMBER() OVER (
-                PARTITION BY client_order_id
-                ORDER BY revision DESC, created_at DESC
-              ) AS rn
-       FROM order_submission os
-       WHERE game_id=$1 AND turn_id=$2 AND player_id=$3 AND is_final=false
-     )
-     SELECT * FROM ranked WHERE rn=1 AND is_deleted=false ORDER BY created_at`,
+    `SELECT * FROM orders 
+     WHERE game_id=$1 AND turn_id=$2 AND player_id=$3`,
     [gameId, turnId, playerId]
+  );
+  
+  return rows[0] || null;
+}
+
+/**
+ * Get all orders for a specific turn
+ * @param {string} gameId - Game UUID
+ * @param {string} turnId - Turn UUID
+ * @returns {Promise<Array>} Array of order rows
+ */
+export async function getOrdersForTurn(gameId, turnId) {
+  const { rows } = await pool.query(
+    `SELECT * FROM orders 
+     WHERE game_id=$1 AND turn_id=$2
+     ORDER BY created_at ASC`,
+    [gameId, turnId]
   );
   
   return rows;
 }
 
 /**
- * Finalize all drafts for a player in a turn
+ * Get orders for a specific star (by filtering payload)
  * @param {string} gameId - Game UUID
  * @param {string} turnId - Turn UUID
- * @param {string} playerId - Player UUID
- * @returns {Promise<Array>} Array of finalized order rows
+ * @param {string} starId - Star ID
+ * @param {string} playerId - Player UUID (optional)
+ * @param {string} orderType - Order type (optional)
+ * @returns {Promise<Array>} Array of matching order rows
  */
-export async function finalizePlayerTurn(gameId, turnId, playerId) {
-  const client = await pool.connect();
+export async function getOrdersForStar(gameId, turnId, starId, playerId = null, orderType = null) {
+  let query = `
+    SELECT * FROM orders 
+    WHERE game_id=$1 AND turn_id=$2 AND payload->>'sourceStarId'=$3
+  `;
+  let params = [gameId, turnId, starId];
   
-  try {
-    await client.query('BEGIN');
-    
-    // Get latest non-deleted drafts
-    const { rows: drafts } = await client.query(
-      `WITH ranked AS (
-         SELECT os.*,
-                ROW_NUMBER() OVER (
-                  PARTITION BY client_order_id
-                  ORDER BY revision DESC, created_at DESC
-                ) AS rn
-         FROM order_submission os
-         WHERE game_id=$1 AND turn_id=$2 AND player_id=$3 AND is_final=false
-       )
-       SELECT * FROM ranked WHERE rn=1 AND is_deleted=false`,
-      [gameId, turnId, playerId]
-    );
-    
-    // Clear existing final orders
-    await client.query(
-      `UPDATE order_submission SET is_final=false 
-       WHERE game_id=$1 AND turn_id=$2 AND player_id=$3 AND is_final=true`,
-      [gameId, turnId, playerId]
-    );
-    
-    // Create final copies
-    const finalOrders = [];
-    for (const draft of drafts) {
-      const id = randomUUID();
-      const newRevision = draft.revision + 1;
-      
-      const { rows } = await client.query(
-        `INSERT INTO order_submission (
-          id, game_id, turn_id, player_id, client_order_id, revision,
-          order_type, payload, is_deleted, is_final, finalized_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, true, now())
-        RETURNING *`,
-        [id, gameId, turnId, playerId, draft.client_order_id, newRevision, draft.order_type, draft.payload]
-      );
-      
-      finalOrders.push(rows[0]);
-    }
-    
-    await client.query('COMMIT');
-    return finalOrders;
-    
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
+  if (playerId) {
+    query += ` AND player_id=$${params.length + 1}`;
+    params.push(playerId);
   }
+  
+  if (orderType) {
+    query += ` AND order_type=$${params.length + 1}`;
+    params.push(orderType);
+  }
+  
+  query += ` ORDER BY created_at DESC`;
+  
+  const { rows } = await pool.query(query, params);
+  return rows;
 }
 
 /**
- * Find orders by JSONB payload filter
+ * Delete an order for a specific player in a turn
+ * @param {string} gameId - Game UUID
+ * @param {string} turnId - Turn UUID
+ * @param {string} playerId - Player UUID
+ * @returns {Promise<boolean>} True if an order was deleted
+ */
+export async function deleteOrder(gameId, turnId, playerId) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM orders 
+     WHERE game_id=$1 AND turn_id=$2 AND player_id=$3`,
+    [gameId, turnId, playerId]
+  );
+  
+  return rowCount > 0;
+}
+
+/**
+ * Get orders by JSONB payload filter
  * @param {Object} params
  * @param {string} params.gameId - Game UUID
  * @param {string} params.turnId - Turn UUID
  * @param {Object} params.jsonFilter - JSONB filter object
  * @returns {Promise<Array>} Array of matching orders
  */
-export async function findByPayload({ gameId, turnId, jsonFilter }) {
-
-  console.log('🔍 findByPayload: gameId:', gameId);
-  console.log('🔍 findByPayload: turnId:', turnId);
-  console.log('🔍 findByPayload: jsonFilter:', jsonFilter);
-
+export async function findOrdersByPayload({ gameId, turnId, jsonFilter }) {
+  const conditions = [];
+  const params = [gameId, turnId];
+  
+  // Build dynamic WHERE conditions for JSONB filtering
+  for (const [key, value] of Object.entries(jsonFilter)) {
+    params.push(value);
+    conditions.push(`payload->>'${key}' = $${params.length}`);
+  }
+  
+  const whereClause = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+  
   const { rows } = await pool.query(
-    `SELECT * FROM order_submission 
-     WHERE game_id=$1 AND turn_id=$2 AND payload @> $3::jsonb
-     ORDER BY created_at`,
-    [gameId, turnId, JSON.stringify(jsonFilter)]
+    `SELECT * FROM orders 
+     WHERE game_id=$1 AND turn_id=$2 ${whereClause}
+     ORDER BY created_at ASC`,
+    params
   );
   
   return rows;
 }
 
 /**
- * List all final orders for a turn (legacy function - keep for compatibility)
+ * Get orders by order type for a turn
  * @param {string} gameId - Game UUID
  * @param {string} turnId - Turn UUID
- * @returns {Promise<Array>} Array of final orders
+ * @param {string} orderType - Order type
+ * @returns {Promise<Array>} Array of order rows
  */
-export async function listFinalOrdersForTurn(gameId, turnId) {
+export async function getOrdersByType(gameId, turnId, orderType) {
   const { rows } = await pool.query(
-    `SELECT * FROM order_submission
-     WHERE game_id=$1 AND turn_id=$2 AND is_final=true
-     ORDER BY created_at`,
-    [gameId, turnId]
+    `SELECT * FROM orders 
+     WHERE game_id=$1 AND turn_id=$2 AND order_type=$3
+     ORDER BY created_at ASC`,
+    [gameId, turnId, orderType]
   );
   
   return rows;
+}
+
+/**
+ * Count orders for a turn
+ * @param {string} gameId - Game UUID
+ * @param {string} turnId - Turn UUID
+ * @returns {Promise<number>} Number of orders
+ */
+export async function countOrdersForTurn(gameId, turnId) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) as count FROM orders 
+     WHERE game_id=$1 AND turn_id=$2`,
+    [gameId, turnId]
+  );
+  
+  return parseInt(rows[0].count);
 }

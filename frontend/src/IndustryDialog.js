@@ -269,15 +269,22 @@ export class IndustryDialog
   {
     if (!this.currentStar || !this.currentStar.economy) return;
 
-    const available = this.currentStar.economy.available || 0;
+    const capacity = this.currentStar.economy.capacity || 0;
     const currentTotal = Object.values(this.spendingOrders).reduce(
       (sum, val) => sum + val,
       0
     );
 
-    // If total exceeds available, we need to constrain the inputs
-    if (currentTotal > available)
+    console.log('🏭 IndustryDialog: updateSpendingConstraints:');
+    console.log('  - Capacity:', capacity);
+    console.log('  - Current total:', currentTotal);
+    console.log('  - Spending orders:', this.spendingOrders);
+
+    // If total exceeds capacity, we need to constrain the inputs
+    if (currentTotal > capacity)
     {
+      console.log('🏭 IndustryDialog: Total exceeds capacity, constraining inputs');
+      
       // Find which input was just changed (the one with the highest value)
       let maxKey = null;
       let maxValue = -1;
@@ -292,26 +299,50 @@ export class IndustryDialog
 
       if (maxKey)
       {
-        // Cap the changed input to available
-        this.spendingOrders[maxKey] = available;
-        this.spendingControls[maxKey].slider.value = available;
-        this.spendingControls[maxKey].numberInput.value = available;
+        // Cap the changed input to capacity
+        this.spendingOrders[maxKey] = capacity;
+        this.spendingControls[maxKey].slider.value = capacity;
+        this.spendingControls[maxKey].numberInput.value = capacity;
+        console.log(`🏭 IndustryDialog: Capped ${maxKey} to capacity: ${capacity}`);
       }
     }
 
-    // Update max values for all inputs
-    const remaining =
-      available -
-      Object.values(this.spendingOrders).reduce((sum, val) => sum + val, 0);
+    // Update max values for all inputs based on remaining capacity
+    const remaining = capacity - currentTotal;
 
     for (const [key, controls] of Object.entries(this.spendingControls))
     {
       const currentValue = this.spendingOrders[key];
       const maxForThisInput = currentValue + remaining;
 
-      controls.slider.max = maxForThisInput;
-      controls.numberInput.max = maxForThisInput;
+      controls.slider.max = Math.max(maxForThisInput, currentValue);
+      controls.numberInput.max = Math.max(maxForThisInput, currentValue);
+      
+      console.log(`🏭 IndustryDialog: ${key} - current: ${currentValue}, max: ${Math.max(maxForThisInput, currentValue)}`);
     }
+  }
+
+  /**
+   * Calculate the actual available build points (capacity minus all existing spending orders)
+   */
+  getActualAvailable()
+  {
+    if (!this.currentStar || !this.currentStar.economy) return 0;
+
+    const capacity = this.currentStar.economy.capacity || 0;
+    const totalSpendingOrders = Object.values(this.spendingOrders).reduce(
+      (sum, val) => sum + val,
+      0
+    );
+    
+    console.log('🏭 IndustryDialog: getActualAvailable calculation:');
+    console.log('  - Capacity:', capacity);
+    console.log('  - Spending orders:', this.spendingOrders);
+    console.log('  - Total spending:', totalSpendingOrders);
+    console.log('  - Available:', Math.max(0, capacity - totalSpendingOrders));
+    
+    // Calculate available as capacity minus all spending orders
+    return Math.max(0, capacity - totalSpendingOrders);
   }
 
   /**
@@ -325,6 +356,11 @@ export class IndustryDialog
       (sum, val) => sum + val,
       0
     );
+    
+    console.log('🏭 IndustryDialog: updateTotalSpending:');
+    console.log('  - Spending orders:', this.spendingOrders);
+    console.log('  - Total calculated:', total);
+    
     this.totalSpendingElement.textContent = total;
   }
 
@@ -454,16 +490,24 @@ export class IndustryDialog
           build: payload.build || 0,
         };
 
+        console.log('🏭 IndustryDialog: Raw payload from database:', payload);
+        console.log('🏭 IndustryDialog: Parsed spendingOrders:', this.spendingOrders);
+
         // Update the UI controls
         if (this.spendingControls)
         {
           for (const [key, controls] of Object.entries(this.spendingControls))
           {
             const value = this.spendingOrders[key];
+            console.log(`🏭 IndustryDialog: Updating ${key} controls to value:`, value);
             controls.slider.value = value;
             controls.numberInput.value = value;
+            console.log(`🏭 IndustryDialog: After update - slider.value: ${controls.slider.value}, numberInput.value: ${controls.numberInput.value}`);
           }
         }
+
+        // Update economy values to reflect the new available amount
+        this.updateEconomyValues();
 
         console.log(
           '🏭 IndustryDialog: Loaded saved orders for star',
@@ -651,11 +695,12 @@ export class IndustryDialog
         capacityElement.textContent = economy.capacity || 0;
       }
 
-      // Update available
+      // Update available (calculated as capacity minus existing build orders)
       const availableElement = this.dialog.querySelector('.value-available');
       if (availableElement)
       {
-        availableElement.textContent = economy.available || 0;
+        const actualAvailable = this.getActualAvailable();
+        availableElement.textContent = actualAvailable;
       }
 
       // Update tech level

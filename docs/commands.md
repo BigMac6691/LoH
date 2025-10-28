@@ -1,5 +1,11 @@
 # LoH – Common Commands
 
+## Getting everything started
+- The backend is managed as a Docker container so:
+  `docker compose up -d`
+- Then the frontend from the frontend folder:
+  `npm run dev`
+
 ## Docker / Compose
 - Start stack (build if needed):  
   `docker compose up -d --build`

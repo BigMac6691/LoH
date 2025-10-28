@@ -4,7 +4,6 @@
  */
 import { pool } from '../db/pool.js';
 import crypto from 'crypto';
-import { finalizePlayerTurn } from '../repos/ordersRepo.js';
 
 export class TurnService
 {
@@ -59,18 +58,9 @@ export class TurnService
 
       const turnId = currentTurn[0].id;
       
-      // Finalize this player's orders for the current turn
-      console.log(`🔄 TurnService: Finalizing orders for player ${playerId} in turn ${turnId}`);
-      try
-      {
-        const finalizedOrders = await finalizePlayerTurn(gameId, turnId, playerId);
-        console.log(`🔄 TurnService: Finalized ${finalizedOrders.length} orders for player ${playerId}`);
-      }
-      catch (error)
-      {
-        console.error(`🔄 TurnService: Error finalizing orders for player ${playerId}:`, error);
-        // Continue with turn processing even if finalization fails
-      }
+      // With simplified orders schema, orders are already final when created
+      // No need to finalize orders anymore
+      console.log(`🔄 TurnService: Orders are already final in simplified schema`);
       
       // Check if all players are now waiting
       const { rows: allPlayers } = await pool.query(
@@ -87,6 +77,10 @@ export class TurnService
         // Process build orders
         const buildResults = await this.processBuildOrders(gameId, turnId);
         console.log(`🏗️ TurnService: Build orders processed:`, buildResults.results);
+        
+        // Process expansion orders
+        const expansionResults = await this.processExpansionOrders(gameId, turnId);
+        console.log(`🏗️ TurnService: Expansion orders processed:`, expansionResults.results);
         
         // TODO: Add other order processing here (moves, combat, etc.)
       }
@@ -187,19 +181,17 @@ export class TurnService
       // Get all build orders with star state information
       const { rows: buildOrders } = await pool.query(
         `SELECT 
-           os.payload,
+           o.payload,
            ss.id as star_state_id,
            ss.star_id,
            ss.owner_player,
            ss.economy,
            ss.damage
-         FROM order_submission os
-         JOIN star_state ss ON os.payload->>'sourceStarId' = ss.star_id
-         WHERE os.game_id = $1 
-           AND os.turn_id = $2
-           AND os.order_type = 'build'
-           AND os.is_final = true
-           AND os.is_deleted = false
+         FROM orders o
+         JOIN star_state ss ON o.payload->>'sourceStarId' = ss.star_id
+         WHERE o.game_id = $1 
+           AND o.turn_id = $2
+           AND o.order_type = 'build'
            AND ss.game_id = $1`,
         [gameId, turnId]
       );
@@ -287,6 +279,118 @@ export class TurnService
     catch (error)
     {
       console.error('🏗️ TurnService: Error processing build orders:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process expansion orders for a turn
+   * @param {string} gameId - Game ID
+   * @param {string} turnId - Turn ID
+   * @returns {Promise<Object>} Result object with expansion processing results
+   */
+  async processExpansionOrders(gameId, turnId)
+  {
+    console.log(`🏗️ TurnService: Processing expansion orders for game ${gameId}, turn ${turnId}`);
+    
+    try
+    {
+      // Get all expansion orders with star state information
+      const { rows: expansionOrders } = await pool.query(
+        `SELECT 
+           o.payload,
+           ss.id as star_state_id,
+           ss.star_id,
+           ss.owner_player,
+           ss.economy
+         FROM orders o
+         JOIN star_state ss ON o.payload->>'sourceStarId' = ss.star_id
+         WHERE o.game_id = $1 
+           AND o.turn_id = $2
+           AND o.order_type = 'build'
+           AND ss.game_id = $1`,
+        [gameId, turnId]
+      );
+
+      console.log(`🏗️ TurnService: Found ${expansionOrders.length} expansion orders to process`);
+
+      const results = {
+        totalOrders: expansionOrders.length,
+        starsExpanded: 0,
+        totalSpent: 0,
+        errors: []
+      };
+
+      // Process each expansion order
+      for (const order of expansionOrders)
+      {
+        try
+        {
+          const payload = order.payload;
+          const expandAmount = payload.expand || 0;
+          const economy = order.economy;
+          const available = economy.available || 0;
+          const currentIndustry = economy.industry || 0;
+
+          console.log(`🏗️ TurnService: Processing expansion order for star ${order.star_id}: available=${available}, expand=${expandAmount}, currentIndustry=${currentIndustry}`);
+
+          // Calculate how much expansion can be done
+          const expansionAmount = Math.min(expandAmount, available);
+
+          if (expansionAmount > 0)
+          {
+            // Calculate new industry value incrementally for each unit spent
+            // Formula: sqrt(1 + currentIndustry) - 1
+            let newIndustry = currentIndustry + Math.sqrt(1 + expandAmount) - 1;
+            
+            // Round to two decimal places
+            const roundedIndustry = Math.round(newIndustry * 100) / 100;
+            
+            // Update industry and available economy
+            const updatedEconomy = { 
+              ...economy, 
+              industry: roundedIndustry,
+              available: available - expansionAmount
+            };
+            
+            await pool.query(
+              `UPDATE star_state 
+               SET economy = $1, updated_at = now()
+               WHERE id = $2`,
+              [JSON.stringify(updatedEconomy), order.star_state_id]
+            );
+
+            results.starsExpanded += 1;
+            results.totalSpent += expansionAmount;
+
+            console.log(`🏗️ TurnService: Expanded industry at star ${order.star_id} from ${currentIndustry} to ${roundedIndustry}, spent ${expansionAmount}, remaining available: ${updatedEconomy.available}`);
+          }
+          else
+          {
+            console.log(`🏗️ TurnService: No expansion funds for star ${order.star_id} (available: ${available}, requested: ${expandAmount})`);
+          }
+        }
+        catch (error)
+        {
+          console.error(`🏗️ TurnService: Error processing expansion order for star ${order.star_id}:`, error);
+          results.errors.push({
+            starId: order.star_id,
+            error: error.message
+          });
+        }
+      }
+
+      console.log(`🏗️ TurnService: Expansion processing complete - ${results.starsExpanded} stars expanded, ${results.totalSpent} total spent`);
+      
+      return {
+        success: true,
+        results
+      };
+
+    }
+    catch (error)
+    {
+      console.error('🏗️ TurnService: Error processing expansion orders:', error);
       throw error;
     }
   }
