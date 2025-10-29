@@ -10,21 +10,33 @@ import { randomUUID } from 'crypto';
  * @param {string} params.playerId - Player UUID
  * @param {string} params.orderType - Type of order (move, industry, etc.)
  * @param {Object} params.payload - Order data as JSONB
+ * @param {number} params.sequence - Sequence number for multiple orders of same type (optional, auto-assigned if not provided)
  * @returns {Promise<Object>} The upserted order row
  */
-export async function upsertOrder({ gameId, turnId, playerId, orderType, payload }) {
+export async function upsertOrder({ gameId, turnId, playerId, orderType, payload, sequence = null }) {
   const id = randomUUID();
   
+  // If sequence not provided, find the next available sequence number
+  let orderSequence = sequence;
+  if (orderSequence === null) {
+    const { rows: maxSeq } = await pool.query(
+      `SELECT COALESCE(MAX(sequence), -1) + 1 as next_seq 
+       FROM orders 
+       WHERE game_id = $1 AND turn_id = $2 AND player_id = $3 AND order_type = $4`,
+      [gameId, turnId, playerId, orderType]
+    );
+    orderSequence = maxSeq[0].next_seq;
+  }
+  
   const { rows } = await pool.query(
-    `INSERT INTO orders (id, game_id, turn_id, player_id, order_type, payload)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (game_id, turn_id, player_id)
+    `INSERT INTO orders (id, game_id, turn_id, player_id, order_type, sequence, payload)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (game_id, turn_id, player_id, order_type, sequence)
      DO UPDATE SET 
-       order_type = EXCLUDED.order_type,
        payload = EXCLUDED.payload,
        created_at = now()
      RETURNING *`,
-    [id, gameId, turnId, playerId, orderType, payload]
+    [id, gameId, turnId, playerId, orderType, orderSequence, payload]
   );
   
   return rows[0];
@@ -90,7 +102,7 @@ export async function getOrdersForStar(gameId, turnId, starId, playerId = null, 
     params.push(orderType);
   }
   
-  query += ` ORDER BY created_at DESC`;
+  query += ` ORDER BY sequence ASC, created_at DESC`;
   
   const { rows } = await pool.query(query, params);
   return rows;

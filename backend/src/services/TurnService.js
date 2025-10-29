@@ -2,302 +2,409 @@
  * TurnService - Business logic for turn management
  * Handles turn state changes and player status updates
  */
-import { pool } from '../db/pool.js';
+import
+{
+   pool
+}
+from '../db/pool.js';
 import crypto from 'crypto';
 
 export class TurnService
 {
-  /**
-   * End a player's turn by updating their status to "waiting"
-   * @param {string} gameId - Game ID
-   * @param {string} playerId - Player ID
-   * @returns {Promise<Object>} Result object with success status and updated player info
-   */
-  async endPlayerTurn(gameId, playerId)
-  {
-    console.log(`🔄 TurnService: Ending turn for player ${playerId} in game ${gameId}`);
-    
-    try
-    {
-      // Update the player's status to "waiting"
-      const { rows } = await pool.query(
-        `UPDATE game_player 
+   /**
+    * End a player's turn by updating their status to "waiting"
+    * @param {string} gameId - Game ID
+    * @param {string} playerId - Player ID
+    * @returns {Promise<Object>} Result object with success status and updated player info
+    */
+   async endPlayerTurn(gameId, playerId)
+   {
+      console.log(`🔄 TurnService: Ending turn for player ${playerId} in game ${gameId}`);
+
+      try
+      {
+         // Update the player's status to "waiting"
+         const
+         {
+            rows
+         } = await pool.query(
+            `UPDATE game_player 
          SET status = 'waiting'
          WHERE game_id = $1 AND id = $2
          RETURNING *`,
-        [gameId, playerId]
-      );
+            [gameId, playerId]
+         );
 
-      if (rows.length === 0)
-      {
-        throw new Error(`Player ${playerId} not found in game ${gameId}`);
-      }
+         if (rows.length === 0)
+         {
+            throw new Error(`Player ${playerId} not found in game ${gameId}`);
+         }
 
-      const updatedPlayer = rows[0];
-      
-      console.log(`🔄 TurnService: Player ${playerId} status updated to waiting`);
-      
-      // Get the current turn ID
-      const { rows: currentTurn } = await pool.query(
-        `SELECT id FROM game_turn 
+         const updatedPlayer = rows[0];
+
+         console.log(`🔄 TurnService: Player ${playerId} status updated to waiting`);
+
+         // Get the current turn ID
+         const
+         {
+            rows: currentTurn
+         } = await pool.query(
+            `SELECT id FROM game_turn 
          WHERE game_id = $1 AND status = 'open'
          ORDER BY number DESC LIMIT 1`,
-        [gameId]
-      );
+            [gameId]
+         );
 
-      if (currentTurn.length === 0)
-      {
-        console.warn(`🔄 TurnService: No open turn found for game ${gameId}`);
-        return {
-          success: true,
-          player: updatedPlayer,
-          message: `Player ${updatedPlayer.name} has ended their turn`,
-          allPlayersWaiting: false
-        };
+         if (currentTurn.length === 0)
+         {
+            console.warn(`🔄 TurnService: No open turn found for game ${gameId}`);
+            return {
+               success: true,
+               player: updatedPlayer,
+               message: `Player ${updatedPlayer.name} has ended their turn`,
+               allPlayersWaiting: false
+            };
+         }
+
+         const turnId = currentTurn[0].id;
+
+         // With simplified orders schema, orders are already final when created
+         // No need to finalize orders anymore
+         console.log(`🔄 TurnService: Orders are already final in simplified schema`);
+
+         // Check if all players are now waiting
+         const
+         {
+            rows: allPlayers
+         } = await pool.query(
+            `SELECT status FROM game_player WHERE game_id = $1`,
+            [gameId]
+         );
+
+         const allWaiting = allPlayers.every(player => player.status === 'waiting');
+
+         if (allWaiting)
+         {
+            console.log(`🔄 TurnService: All players are waiting, processing orders for game ${gameId}`);
+
+            // Process move orders first
+            const moveResults = await this.processMoveOrders(gameId, turnId);
+            console.log(`🚀 TurnService: Move orders processed:`, moveResults);
+
+            // Then process all build orders (build, expand, research) per star
+            const buildResults = await this.processAllBuildOrders(gameId, turnId);
+            console.log(`🏗️ TurnService: Build orders processed:`, buildResults);
+
+            // Prepare for next turn
+            await this.prepareNextTurn(gameId, turnId);
+         }
+
+         return {
+            success: true,
+            player: updatedPlayer,
+            message: `Player ${updatedPlayer.name} has ended their turn`,
+            allPlayersWaiting: allWaiting
+         };
+
       }
-
-      const turnId = currentTurn[0].id;
-      
-      // With simplified orders schema, orders are already final when created
-      // No need to finalize orders anymore
-      console.log(`🔄 TurnService: Orders are already final in simplified schema`);
-      
-      // Check if all players are now waiting
-      const { rows: allPlayers } = await pool.query(
-        `SELECT status FROM game_player WHERE game_id = $1`,
-        [gameId]
-      );
-
-      const allWaiting = allPlayers.every(player => player.status === 'waiting');
-      
-      if (allWaiting)
+      catch (error)
       {
-        console.log(`🔄 TurnService: All players are waiting, processing orders for game ${gameId}`);
-        
-        // Process build orders
-        const buildResults = await this.processBuildOrders(gameId, turnId);
-        console.log(`🏗️ TurnService: Build orders processed:`, buildResults.results);
-        
-        // Process expansion orders
-        const expansionResults = await this.processExpansionOrders(gameId, turnId);
-        console.log(`🏗️ TurnService: Expansion orders processed:`, expansionResults.results);
-        
-        // TODO: Add other order processing here (moves, combat, etc.)
+         console.error('🔄 TurnService: Error ending player turn:', error);
+         throw error;
       }
-      
-      return {
-        success: true,
-        player: updatedPlayer,
-        message: `Player ${updatedPlayer.name} has ended their turn`,
-        allPlayersWaiting: allWaiting
-      };
+   }
 
-    }
-    catch (error)
-    {
-      console.error('🔄 TurnService: Error ending player turn:', error);
-      throw error;
-    }
-  }
+   /**
+    * Get all players and their current turn status for a game
+    * @param {string} gameId - Game ID
+    * @returns {Promise<Array>} Array of players with their status
+    */
+   async getPlayersTurnStatus(gameId)
+   {
+      console.log(`🔄 TurnService: Getting turn status for all players in game ${gameId}`);
 
-  /**
-   * Get all players and their current turn status for a game
-   * @param {string} gameId - Game ID
-   * @returns {Promise<Array>} Array of players with their status
-   */
-  async getPlayersTurnStatus(gameId)
-  {
-    console.log(`🔄 TurnService: Getting turn status for all players in game ${gameId}`);
-    
-    try
-    {
-      const { rows } = await pool.query(
-        `SELECT id, name, color_hex, status
+      try
+      {
+         const
+         {
+            rows
+         } = await pool.query(
+            `SELECT id, name, color_hex, status
          FROM game_player 
          WHERE game_id = $1
          ORDER BY name`,
-        [gameId]
-      );
+            [gameId]
+         );
 
-      console.log(`🔄 TurnService: Found ${rows.length} players in game ${gameId}`);
-      
-      return rows;
+         console.log(`🔄 TurnService: Found ${rows.length} players in game ${gameId}`);
 
-    }
-    catch (error)
-    {
-      console.error('🔄 TurnService: Error getting players turn status:', error);
-      throw error;
-    }
-  }
+         return rows;
 
-  /**
-   * Reset all players to "active" status (for new turn)
-   * @param {string} gameId - Game ID
-   * @returns {Promise<Object>} Result object with success status
-   */
-  async resetPlayersForNewTurn(gameId)
-  {
-    console.log(`🔄 TurnService: Resetting all players to active status for game ${gameId}`);
-    
-    try
-    {
-      const { rows } = await pool.query(
-        `UPDATE game_player 
+      }
+      catch (error)
+      {
+         console.error('🔄 TurnService: Error getting players turn status:', error);
+         throw error;
+      }
+   }
+
+   /**
+    * Reset all players to "active" status (for new turn)
+    * @param {string} gameId - Game ID
+    * @returns {Promise<Object>} Result object with success status
+    */
+   async resetPlayersForNewTurn(gameId)
+   {
+      console.log(`🔄 TurnService: Resetting all players to active status for game ${gameId}`);
+
+      try
+      {
+         const
+         {
+            rows
+         } = await pool.query(
+            `UPDATE game_player 
          SET status = 'active'
          WHERE game_id = $1
          RETURNING id, name, status`,
-        [gameId]
-      );
+            [gameId]
+         );
 
-      console.log(`🔄 TurnService: Reset ${rows.length} players to active status`);
-      
-      return {
-        success: true,
-        playersUpdated: rows.length,
-        players: rows
-      };
+         console.log(`🔄 TurnService: Reset ${rows.length} players to active status`);
 
-    }
-    catch (error)
-    {
-      console.error('🔄 TurnService: Error resetting players for new turn:', error);
-      throw error;
-    }
-  }
+         return {
+            success: true,
+            playersUpdated: rows.length,
+            players: rows
+         };
 
-  /**
-   * Process build orders for a turn
-   * @param {string} gameId - Game ID
-   * @param {string} turnId - Turn ID
-   * @returns {Promise<Object>} Result object with build processing results
-   */
-  async processBuildOrders(gameId, turnId)
-  {
-    console.log(`🏗️ TurnService: Processing build orders for game ${gameId}, turn ${turnId}`);
-    
-    try
-    {
-      // Get all build orders with star state information
-      const { rows: buildOrders } = await pool.query(
-        `SELECT 
-           o.payload,
-           ss.id as star_state_id,
-           ss.star_id,
-           ss.owner_player,
-           ss.economy,
-           ss.damage
-         FROM orders o
-         JOIN star_state ss ON o.payload->>'sourceStarId' = ss.star_id
-         WHERE o.game_id = $1 
-           AND o.turn_id = $2
-           AND o.order_type = 'build'
-           AND ss.game_id = $1`,
-        [gameId, turnId]
-      );
-
-      console.log(`🏗️ TurnService: Found ${buildOrders.length} build orders to process`);
-
-      const results = {
-        totalOrders: buildOrders.length,
-        shipsBuilt: 0,
-        totalSpent: 0,
-        errors: []
-      };
-
-      // Process each build order
-      for (const order of buildOrders)
-      {
-        try
-        {
-          const payload = order.payload;
-          const economy = order.economy;
-          const available = economy.available || 0;
-          const technology = economy.technology || 1;
-          const shipCost = technology;
-          const requestedShips = payload.ships || 1;
-
-          console.log(`🏗️ TurnService: Processing build order for star ${order.star_id}: available=${available}, tech=${technology}, requested=${requestedShips}`);
-
-          // Calculate how many ships can be built
-          const maxShips = Math.floor(available / shipCost);
-          const shipsToBuild = Math.min(requestedShips, maxShips);
-          const totalCost = shipsToBuild * shipCost;
-
-          if (shipsToBuild > 0)
-          {
-            // Create ships
-            for (let i = 0; i < shipsToBuild; i++)
-            {
-              const shipId = crypto.randomUUID();
-              await pool.query(
-                `INSERT INTO ship (id, game_id, owner_player, location_star_id, hp, power, status, details)
-                 VALUES ($1, $2, $3, $4, $5, $6, 'active', '{}')`,
-                [shipId, gameId, order.owner_player, order.star_id, technology, technology]
-              );
-            }
-
-            // Update available economy
-            const newAvailable = available - totalCost;
-            const updatedEconomy = { ...economy, available: newAvailable };
-            
-            await pool.query(
-              `UPDATE star_state 
-               SET economy = $1, updated_at = now()
-               WHERE id = $2`,
-              [JSON.stringify(updatedEconomy), order.star_state_id]
-            );
-
-            results.shipsBuilt += shipsToBuild;
-            results.totalSpent += totalCost;
-
-            console.log(`🏗️ TurnService: Built ${shipsToBuild} ships at star ${order.star_id}, spent ${totalCost}, remaining available: ${newAvailable}`);
-          }
-          else
-          {
-            console.log(`🏗️ TurnService: Insufficient funds for star ${order.star_id} (available: ${available}, cost per ship: ${shipCost})`);
-          }
-        }
-        catch (error)
-        {
-          console.error(`🏗️ TurnService: Error processing build order for star ${order.star_id}:`, error);
-          results.errors.push({
-            starId: order.star_id,
-            error: error.message
-          });
-        }
       }
+      catch (error)
+      {
+         console.error('🔄 TurnService: Error resetting players for new turn:', error);
+         throw error;
+      }
+   }
 
-      console.log(`🏗️ TurnService: Build processing complete - ${results.shipsBuilt} ships built, ${results.totalSpent} total spent`);
-      
-      return {
-        success: true,
-        results
-      };
+   /**
+    * Process move orders for a turn
+    * @param {string} gameId - Game ID
+    * @param {string} turnId - Turn ID
+    * @returns {Promise<Object>} Result object with move processing results
+    */
+   async processMoveOrders(gameId, turnId)
+   {
+      console.log(`🚀 TurnService: Processing move orders for game ${gameId}, turn ${turnId}`);
 
-    }
-    catch (error)
-    {
-      console.error('🏗️ TurnService: Error processing build orders:', error);
-      throw error;
-    }
-  }
+      try
+      {
+         // Get all move orders
+         const
+         {
+            rows: moveOrders
+         } = await pool.query(
+            `SELECT * FROM orders 
+         WHERE game_id = $1 AND turn_id = $2 AND order_type = 'move'`,
+            [gameId, turnId]
+         );
 
-  /**
-   * Process expansion orders for a turn
-   * @param {string} gameId - Game ID
-   * @param {string} turnId - Turn ID
-   * @returns {Promise<Object>} Result object with expansion processing results
-   */
-  async processExpansionOrders(gameId, turnId)
-  {
-    console.log(`🏗️ TurnService: Processing expansion orders for game ${gameId}, turn ${turnId}`);
-    
-    try
-    {
-      // Get all expansion orders with star state information
-      const { rows: expansionOrders } = await pool.query(
-        `SELECT 
+         console.log(`🚀 TurnService: Found ${moveOrders.length} move orders to process`);
+
+         const results = {
+            totalOrders: moveOrders.length,
+            shipsMoved: 0,
+            starsCaptured: 0,
+            errors: []
+         };
+
+         // Step 1: Move all ships to their destination
+         for (const order of moveOrders)
+         {
+            try
+            {
+               const payload = order.payload;
+               const sourceStarId = payload.sourceStarId;
+               const destinationStarId = payload.destinationStarId;
+               const shipIds = payload.selectedShipIds || [];
+
+               if (!sourceStarId || !destinationStarId || shipIds.length === 0)
+               {
+                  console.warn(`🚀 TurnService: Invalid move order, skipping:`, payload);
+                  continue;
+               }
+
+               // Update ship locations
+               const
+               {
+                  rowCount
+               } = await pool.query(
+                  `UPDATE ship 
+             SET location_star_id = $1
+             WHERE game_id = $2 AND id = ANY($3::uuid[])`,
+                  [destinationStarId, gameId, shipIds]
+               );
+
+               results.shipsMoved += rowCount;
+               console.log(`🚀 TurnService: Moved ${rowCount} ships from ${sourceStarId} to ${destinationStarId}`);
+            }
+            catch (error)
+            {
+               console.error(`🚀 TurnService: Error processing move order:`, error);
+               results.errors.push(
+               {
+                  orderId: order.id,
+                  error: error.message
+               });
+            }
+         }
+
+         // Step 2: Determine star ownership based on ships at each star
+         // After all moves, check which player has ships at each star
+         const
+         {
+            rows: starShips
+         } = await pool.query(
+            `SELECT location_star_id, owner_player, COUNT(*) as ship_count
+         FROM ship
+         WHERE game_id = $1 AND status = 'active'
+         GROUP BY location_star_id, owner_player
+         ORDER BY location_star_id, ship_count DESC`,
+            [gameId]
+         );
+
+         // Group by star and find the player with the most ships
+         const starOwnership = {};
+         for (const row of starShips)
+         {
+            const starId = row.location_star_id;
+            if (!starOwnership[starId] || row.ship_count > starOwnership[starId].count)
+            {
+               starOwnership[starId] = {
+                  owner: row.owner_player,
+                  count: row.ship_count
+               };
+            }
+         }
+
+         // Step 3: Update star ownership and ensure economy exists
+         for (const [starId, ownership] of Object.entries(starOwnership))
+         {
+            try
+            {
+               // Check if star_state exists for this star
+               const
+               {
+                  rows: existingStar
+               } = await pool.query(
+                  `SELECT id, economy, owner_player FROM star_state 
+             WHERE game_id = $1 AND star_id = $2`,
+                  [gameId, starId]
+               );
+
+               if (existingStar.length > 0)
+               {
+                  const starState = existingStar[0];
+                  const currentOwner = starState.owner_player;
+                  const economy = starState.economy ||
+                  {};
+
+                  // Update owner if changed
+                  if (currentOwner !== ownership.owner)
+                  {
+                     await pool.query(
+                        `UPDATE star_state 
+                 SET owner_player = $1, updated_at = now()
+                 WHERE id = $2`,
+                        [ownership.owner, starState.id]
+                     );
+
+                     results.starsCaptured += 1;
+                     console.log(`🚀 TurnService: Star ${starId} captured by player ${ownership.owner} (${ownership.count} ships)`);
+                  }
+
+                  // Ensure economy has industry and technology set to 1 if missing
+                  if (economy.industry === undefined || economy.technology === undefined)
+                  {
+                     const updatedEconomy = {
+                        ...economy,
+                        industry: economy.industry !== undefined ? economy.industry : 1,
+                        technology: economy.technology !== undefined ? economy.technology : 1,
+                        available: economy.available || 0
+                     };
+
+                     await pool.query(
+                        `UPDATE star_state 
+                 SET economy = $1, updated_at = now()
+                 WHERE id = $2`,
+                        [JSON.stringify(updatedEconomy), starState.id]
+                     );
+
+                     console.log(`🚀 TurnService: Initialized economy for star ${starId}`);
+                  }
+               }
+               else
+               {
+                  // Create new star_state entry
+                  const newEconomy = {
+                     industry: 1,
+                     technology: 1,
+                     available: 0
+                  };
+
+                  await pool.query(
+                     `INSERT INTO star_state (id, game_id, star_id, owner_player, economy)
+               VALUES (gen_random_uuid(), $1, $2, $3, $4)`,
+                     [gameId, starId, ownership.owner, JSON.stringify(newEconomy)]
+                  );
+
+                  results.starsCaptured += 1;
+                  console.log(`🚀 TurnService: Created star_state for star ${starId} owned by player ${ownership.owner}`);
+               }
+            }
+            catch (error)
+            {
+               console.error(`🚀 TurnService: Error updating star ${starId}:`, error);
+               results.errors.push(
+               {
+                  starId,
+                  error: error.message
+               });
+            }
+         }
+
+         console.log(`🚀 TurnService: Move processing complete - ${results.shipsMoved} ships moved, ${results.starsCaptured} stars captured`);
+
+         return {
+            success: true,
+            results
+         };
+
+      }
+      catch (error)
+      {
+         console.error('🚀 TurnService: Error processing move orders:', error);
+         throw error;
+      }
+   }
+
+   /**
+    * Process all build orders for a turn (build, expand, research) - optimized per star
+    * @param {string} gameId - Game ID
+    * @param {string} turnId - Turn ID
+    * @returns {Promise<Object>} Result object with all processing results
+    */
+   async processAllBuildOrders(gameId, turnId)
+   {
+      console.log(`🏗️ TurnService: Processing all orders for game ${gameId}, turn ${turnId}`);
+
+      try
+      {
+         // Get all build orders with star state information
+         const
+         {
+            rows: orders
+         } = await pool.query(
+            `SELECT 
            o.payload,
            ss.id as star_state_id,
            ss.star_id,
@@ -309,89 +416,265 @@ export class TurnService
            AND o.turn_id = $2
            AND o.order_type = 'build'
            AND ss.game_id = $1`,
-        [gameId, turnId]
-      );
+            [gameId, turnId]
+         );
 
-      console.log(`🏗️ TurnService: Found ${expansionOrders.length} expansion orders to process`);
+         console.log(`🏗️ TurnService: Found ${orders.length} orders to process`, orders);
 
-      const results = {
-        totalOrders: expansionOrders.length,
-        starsExpanded: 0,
-        totalSpent: 0,
-        errors: []
-      };
+         const results = {
+            totalOrders: orders.length,
+            starsProcessed: 0,
+            shipsBuilt: 0,
+            starsExpanded: 0,
+            starsResearched: 0,
+            totalBuildSpent: 0,
+            totalExpandSpent: 0,
+            totalResearchSpent: 0,
+            errors: []
+         };
 
-      // Process each expansion order
-      for (const order of expansionOrders)
-      {
-        try
-        {
-          const payload = order.payload;
-          const expandAmount = payload.expand || 0;
-          const economy = order.economy;
-          const available = economy.available || 0;
-          const currentIndustry = economy.industry || 0;
+         // Process each star's orders sequentially: build -> expand -> research
+         for (const order of orders)
+         {
+            console.log(`🏗️ TurnService: Processing order payload:`, order.payload);
 
-          console.log(`🏗️ TurnService: Processing expansion order for star ${order.star_id}: available=${available}, expand=${expandAmount}, currentIndustry=${currentIndustry}`);
+            try
+            {
+               const payload = order.payload;
+               const economy = {
+                  ...order.economy
+               }; // Clone economy for this star
 
-          // Calculate how much expansion can be done
-          const expansionAmount = Math.min(expandAmount, available);
+               // Build ships first
+               if (payload.build && payload.build > 0)
+               {
+                  const available = economy.available || 0;
+                  const technology = economy.technology || 1;
+                  const shipCost = technology;
+                  const requestedShips = Math.floor(payload.build / shipCost);
 
-          if (expansionAmount > 0)
-          {
-            // Calculate new industry value incrementally for each unit spent
-            // Formula: sqrt(1 + currentIndustry) - 1
-            let newIndustry = currentIndustry + Math.sqrt(1 + expandAmount) - 1;
-            
-            // Round to two decimal places
-            const roundedIndustry = Math.round(newIndustry * 100) / 100;
-            
-            // Update industry and available economy
-            const updatedEconomy = { 
-              ...economy, 
-              industry: roundedIndustry,
-              available: available - expansionAmount
-            };
-            
-            await pool.query(
-              `UPDATE star_state 
+                  const maxShips = Math.floor(available / shipCost);
+                  const shipsToBuild = Math.min(requestedShips, maxShips);
+                  const totalCost = shipsToBuild * shipCost;
+
+                  console.log(`🏗️ TurnService: Ship build=${payload.build}, requested=${requestedShips}, built=${shipsToBuild}, cost=${shipCost}`);
+
+                  if (shipsToBuild > 0)
+                  {
+                     // Create ships
+                     for (let i = 0; i < shipsToBuild; i++)
+                     {
+                        const shipId = crypto.randomUUID();
+                        await pool.query(
+                           `INSERT INTO ship (id, game_id, owner_player, location_star_id, hp, power, status, details)
+                 VALUES ($1, $2, $3, $4, $5, $6, 'active', '{}')`,
+                           [shipId, gameId, order.owner_player, order.star_id, technology, technology]
+                        );
+                     }
+
+                     economy.available = available - totalCost;
+                     results.shipsBuilt += shipsToBuild;
+                     results.totalBuildSpent += totalCost;
+
+                     console.log(`🏗️ TurnService: Built ${shipsToBuild} ships at star ${order.star_id}, spent ${totalCost}`);
+                  }
+               }
+
+               // Then expand industry
+               if (payload.expand && payload.expand > 0)
+               {
+                  const available = economy.available || 0;
+                  const expandAmount = payload.expand || 0;
+                  const expansionSpent = Math.min(expandAmount, available);
+
+                  if (expansionSpent > 0)
+                  {
+                     const currentIndustry = economy.industry || 0;
+                     // Formula: currentIndustry + sqrt(1 + expansionSpent) - 1
+                     let newIndustry = currentIndustry + Math.sqrt(1 + expansionSpent) - 1;
+
+                     // Round to two decimal places
+                     economy.industry = Math.round(newIndustry * 100) / 100;
+                     economy.available = available - expansionSpent;
+
+                     results.starsExpanded += 1;
+                     results.totalExpandSpent += expansionSpent;
+
+                     console.log(`🏗️ TurnService: Expanded industry at star ${order.star_id} to ${economy.industry}, spent ${expansionSpent}`);
+                  }
+               }
+
+               // Finally research technology
+               if (payload.research && payload.research > 0)
+               {
+                  const available = economy.available || 0;
+                  const researchAmount = payload.research || 0;
+                  const researchSpent = Math.min(researchAmount, available);
+
+                  if (researchSpent > 0)
+                  {
+                     const currentTechnology = economy.technology || 1;
+                     // Formula: currentTechnology + sqrt(1 + researchSpent) - 1
+                     let newTechnology = currentTechnology + Math.sqrt(1 + researchSpent) - 1;
+
+                     // Round to two decimal places
+                     economy.technology = Math.round(newTechnology * 100) / 100;
+                     economy.available = available - researchSpent;
+
+                     results.starsResearched += 1;
+                     results.totalResearchSpent += researchSpent;
+
+                     console.log(`🏗️ TurnService: Researched technology at star ${order.star_id} to ${economy.technology}, spent ${researchSpent}`);
+                  }
+               }
+
+               // Update star state with final economy values (single update per star)
+               await pool.query(
+                  `UPDATE star_state 
                SET economy = $1, updated_at = now()
                WHERE id = $2`,
-              [JSON.stringify(updatedEconomy), order.star_state_id]
+                  [JSON.stringify(economy), order.star_state_id]
+               );
+
+               results.starsProcessed += 1;
+
+               console.log(`🏗️ TurnService: Completed processing for star ${order.star_id}, final available: ${economy.available}`);
+            }
+            catch (error)
+            {
+               console.error(`🏗️ TurnService: Error processing orders for star ${order.star_id}:`, error);
+               results.errors.push(
+               {
+                  starId: order.star_id,
+                  error: error.message
+               });
+            }
+         }
+
+         console.log(`🏗️ TurnService: Order processing complete - ${results.starsProcessed} stars processed, ${results.shipsBuilt} ships built, ${results.starsExpanded} expanded, ${results.starsResearched} researched`);
+
+         return {
+            success: true,
+            results
+         };
+
+      }
+      catch (error)
+      {
+         console.error('🏗️ TurnService: Error processing all orders:', error);
+         throw error;
+      }
+   }
+
+   /**
+    * Prepare for the next turn by closing current turn, creating new turn, and updating economies
+    * @param {string} gameId - Game ID
+    * @param {string} turnId - Current turn ID to close
+    * @returns {Promise<Object>} Result object with next turn information
+    */
+   async prepareNextTurn(gameId, turnId)
+   {
+      console.log(`🔄 TurnService: Preparing next turn for game ${gameId}, closing turn ${turnId}`);
+
+      const client = await pool.connect();
+
+      try
+      {
+         await client.query('BEGIN');
+
+         // Step 1: Close the current turn
+         const
+         {
+            rows: closedTurn
+         } = await client.query(
+            `UPDATE game_turn 
+         SET status = 'closed', closed_at = now()
+         WHERE id = $1
+         RETURNING *`,
+            [turnId]
+         );
+
+         if (closedTurn.length === 0)
+         {
+            throw new Error(`Turn ${turnId} not found`);
+         }
+
+         const currentTurnNumber = closedTurn[0].number;
+         const nextTurnNumber = currentTurnNumber + 1;
+
+         console.log(`🔄 TurnService: Closed turn ${currentTurnNumber}, preparing turn ${nextTurnNumber}`);
+
+         // Step 2: Create new turn
+         const newTurnId = crypto.randomUUID();
+         const
+         {
+            rows: newTurn
+         } = await client.query(
+            `INSERT INTO game_turn (id, game_id, number, status)
+         VALUES ($1, $2, $3, 'open')
+         RETURNING *`,
+            [newTurnId, gameId, nextTurnNumber]
+         );
+
+         console.log(`🔄 TurnService: Created new turn ${nextTurnNumber} with id ${newTurnId}`);
+
+         // Step 3: Update star economies - add industry to available
+         const
+         {
+            rows: stars
+         } = await client.query(
+            `SELECT id, star_id, economy FROM star_state WHERE game_id = $1`,
+            [gameId]
+         );
+
+         let starsUpdated = 0;
+         for (const star of stars)
+         {
+            const economy = star.economy;
+            const currentAvailable = economy.available || 0;
+            const industry = economy.industry || 0;
+
+            // Update available = current available + industry
+            const newAvailable = currentAvailable + industry;
+            const updatedEconomy = {
+               ...economy,
+               available: newAvailable
+            };
+
+            await client.query(
+               `UPDATE star_state 
+           SET economy = $1, updated_at = now()
+           WHERE id = $2`,
+               [JSON.stringify(updatedEconomy), star.id]
             );
 
-            results.starsExpanded += 1;
-            results.totalSpent += expansionAmount;
+            starsUpdated++;
+         }
 
-            console.log(`🏗️ TurnService: Expanded industry at star ${order.star_id} from ${currentIndustry} to ${roundedIndustry}, spent ${expansionAmount}, remaining available: ${updatedEconomy.available}`);
-          }
-          else
-          {
-            console.log(`🏗️ TurnService: No expansion funds for star ${order.star_id} (available: ${available}, requested: ${expandAmount})`);
-          }
-        }
-        catch (error)
-        {
-          console.error(`🏗️ TurnService: Error processing expansion order for star ${order.star_id}:`, error);
-          results.errors.push({
-            starId: order.star_id,
-            error: error.message
-          });
-        }
+         console.log(`🔄 TurnService: Updated economy for ${starsUpdated} stars (added industry to available)`);
+
+         await client.query('COMMIT');
+
+         // Step 4: Reset players for new turn (outside transaction for safety)
+         await this.resetPlayersForNewTurn(gameId);
+
+         return {
+            success: true,
+            closedTurn: closedTurn[0],
+            newTurn: newTurn[0],
+            starsUpdated
+         };
+
       }
-
-      console.log(`🏗️ TurnService: Expansion processing complete - ${results.starsExpanded} stars expanded, ${results.totalSpent} total spent`);
-      
-      return {
-        success: true,
-        results
-      };
-
-    }
-    catch (error)
-    {
-      console.error('🏗️ TurnService: Error processing expansion orders:', error);
-      throw error;
-    }
-  }
+      catch (error)
+      {
+         await client.query('ROLLBACK');
+         console.error('🔄 TurnService: Error preparing next turn:', error);
+         throw error;
+      }
+      finally
+      {
+         client.release();
+      }
+   }
 }
