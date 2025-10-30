@@ -11,9 +11,13 @@ import { SystemEventHandler, GameEventHandler, DevEventHandler, OrderEventHandle
 import { MapModel } from '@loh/shared';
 
 import { DevPanel } from './dev/DevPanel.js';
+import { TurnEventsPanel } from './TurnEventsPanel.js';
 
 // Global MapModel instance
 window.globalMapModel = null;
+
+// Global instances
+let turnEventsPanel = new TurnEventsPanel();
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -118,8 +122,9 @@ document.addEventListener('DOMContentLoaded', () =>
     loadingElement.style.display = 'none';
   }
   
-  // Create refresh button
+  // Create refresh button and events button
   createRefreshButton();
+  createEventsButton();
   
   // Log development mode status
   logDevModeStatus();
@@ -249,6 +254,61 @@ function createRefreshButton()
   
   // Add to DOM
   document.body.appendChild(refreshButton);
+}
+
+// Create events button
+function createEventsButton()
+{
+  const eventsButton = document.createElement('button');
+  eventsButton.id = 'events-button';
+  eventsButton.innerHTML = '📝 Events';
+  eventsButton.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 120px;
+    z-index: 1000;
+    padding: 10px 15px;
+    background: rgba(0, 150, 255, 0.2);
+    border: 2px solid #0096ff;
+    border-radius: 8px;
+    color: #0096ff;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+  `;
+  
+  // Hover effects
+  eventsButton.addEventListener('mouseenter', () => {
+    eventsButton.style.background = 'rgba(0, 150, 255, 0.3)';
+    eventsButton.style.transform = 'scale(1.05)';
+    eventsButton.style.boxShadow = '0 0 15px rgba(0, 150, 255, 0.5)';
+  });
+  
+  eventsButton.addEventListener('mouseleave', () => {
+    eventsButton.style.background = 'rgba(0, 150, 255, 0.2)';
+    eventsButton.style.transform = 'scale(1)';
+    eventsButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+  });
+  
+  // Click handler
+  eventsButton.addEventListener('click', () => {
+    console.log('📝 Events button clicked');
+    
+    // Initialize turn events panel if not already created
+    if (!turnEventsPanel) {
+      turnEventsPanel = new TurnEventsPanel();
+    }
+    
+    // Show the panel
+    turnEventsPanel.show();
+  });
+  
+  // Add to DOM
+  document.body.appendChild(eventsButton);
 }
 
 // Make mapGenerator available globally for development scenarios

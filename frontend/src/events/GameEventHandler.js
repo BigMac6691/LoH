@@ -496,6 +496,7 @@ export class GameEventHandler {
       const currentTurn = await this.getCurrentTurn(gameId);
       
       // Emit success event with complete game data including current turn
+      console.log(eventBus.listeners)
       eventBus.emit('game:gameLoaded', {
         success: true,
         details: {

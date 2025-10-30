@@ -44,6 +44,9 @@ export class GameRouter
     
     // POST /api/games/:gameId/turn - Create a new turn for a game
     this.router.post('/:gameId/turn', this.createTurn.bind(this));
+    
+    // GET /api/games/:gameId/turns - Get all turns for a game
+    this.router.get('/:gameId/turns', this.getTurns.bind(this));
   }
 
   /**
@@ -477,6 +480,48 @@ export class GameRouter
       console.error('Error creating turn:', error);
       res.status(500).json({
         error: 'Failed to create turn',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * GET /api/games/:gameId/turns
+   * Get all turns for a game
+   */
+  async getTurns(req, res)
+  {
+    try
+    {
+      const { gameId } = req.params;
+      
+      if (!gameId)
+      {
+        return res.status(400).json({
+          error: 'Game ID is required'
+        });
+      }
+
+      // Get all turns for the game, ordered by number
+      const { rows: turns } = await pool.query(
+        `SELECT id, number, status, opened_at, closed_at
+         FROM game_turn 
+         WHERE game_id = $1
+         ORDER BY number ASC`,
+        [gameId]
+      );
+
+      res.json({
+        success: true,
+        turns: turns
+      });
+
+    }
+    catch (error)
+    {
+      console.error('Error getting turns:', error);
+      res.status(500).json({
+        error: 'Failed to get turns',
         details: error.message
       });
     }

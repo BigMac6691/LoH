@@ -7,6 +7,7 @@ import { GameRouter } from './src/routes/GameRouter.js';
 import { OrdersRouter } from './src/routes/OrdersRouter.js';
 import { TurnRouter } from './src/routes/TurnRouter.js';
 import { DevRouter } from './src/routes/DevRouter.js';
+import turnEventRouter from './src/routes/TurnEventRouter.js';
 
 const app = express();
 app.use(cors());
@@ -32,6 +33,7 @@ const devRouter = new DevRouter();
 app.use('/api/games', gameRouter.getRouter());
 app.use('/api/orders', ordersRouter.getRouter());
 app.use('/api/turns', turnRouter.getRouter());
+app.use('/api/turn-events', turnEventRouter);
 app.use('/api/dev', devRouter.router);
 
 // DEV-only routes (for backward compatibility during transition)
