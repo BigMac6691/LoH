@@ -44,6 +44,7 @@ export class DevPanel
           <label class="form-label">Scenario:</label>
           <select id="scenario-select" class="form-input">
             <option value="simple-two-player">Simple Two Player</option>
+            <option value="tiny-combat-tester">Tiny Combat Tester</option>
           </select>
         </div>
         

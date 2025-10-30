@@ -463,22 +463,24 @@ export class TurnEventsPanel extends BaseDialog
     const details = event.details;
     let content = '';
 
+    console.log(details);
+
     switch (event.kind)
     {
       case 'move':
-        content = `Moved ${details.shipsMoved} ship${details.shipsMoved !== 1 ? 's' : ''} to destination`;
+        content = `Moved ${details.shipsMoved} ship${details.shipsMoved !== 1 ? 's' : ''} from ${window.globalMapModel.getStarById(details.sourceStarId).getName()} to ${window.globalMapModel.getStarById(details.destinationStarId).getName()}`;
         break;
       case 'star_capture':
-        content = `Captured star with ${details.shipCount} ship${details.shipCount !== 1 ? 's' : ''}`;
+        content = `Captured ${window.globalMapModel.getStarById(details.starId).getName()} from ${details.previousOwner}`;
         break;
       case 'build.ships':
-        content = `Built ${details.shipsBuilt} ship${details.shipsBuilt !== 1 ? 's' : ''} (cost: ${details.totalCost})`;
+        content = `Built ${details.shipsBuilt} ship${details.shipsBuilt !== 1 ? 's' : ''} (cost: ${details.totalCost}) at ${window.globalMapModel.getStarById(details.starId).getName()}`;
         break;
       case 'build.industry':
-        content = `Expanded industry: ${details.previousIndustry} → ${details.newIndustry} (spent: ${details.expansionSpent})`;
+        content = `Expanded industry: ${details.previousIndustry} → ${details.newIndustry} (spent: ${details.expansionSpent}) at ${window.globalMapModel.getStarById(details.starId).getName()}`;
         break;
       case 'build.research':
-        content = `Researched technology: ${details.previousTechnology} → ${details.newTechnology} (spent: ${details.researchSpent})`;
+        content = `Researched technology: ${details.previousTechnology} → ${details.newTechnology} (spent: ${details.researchSpent}) at ${window.globalMapModel.getStarById(details.starId).getName()}`;
         break;
       case 'turn_completion':
         content = details.message || 'Turn completed';
