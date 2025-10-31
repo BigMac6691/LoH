@@ -8,6 +8,7 @@ import
 }
 from '../db/pool.js';
 import crypto from 'crypto';
+import SeededRandom from '../../../packages/shared/src/SeededRandom.js';
 
 export class TurnService
 {
@@ -423,12 +424,12 @@ export class TurnService
 
                   // Record star capture event for the capturing player
                   await this.recordTurnEvent(gameId, turnId, ownership.owner, 'star_capture',
-                    {
-                       starId,
-                       previousOwner: "None",
-                       newOwner: ownership.owner,
-                       shipCount: ownership.count
-                    });
+                  {
+                     starId,
+                     previousOwner: "None",
+                     newOwner: ownership.owner,
+                     shipCount: ownership.count
+                  });
                }
             }
             catch (error)
@@ -442,6 +443,9 @@ export class TurnService
             }
          }
 
+         // Step 4: Resolve combat at contested stars
+         await this.resolveCombat(gameId, turnId);
+
          console.log(`🚀 TurnService: Move processing complete - ${results.shipsMoved} ships moved, ${results.starsCaptured} stars captured`);
 
          return {
@@ -453,6 +457,343 @@ export class TurnService
       catch (error)
       {
          console.error('🚀 TurnService: Error processing move orders:', error);
+         throw error;
+      }
+   }
+
+   /**
+    * Generate a seed from location_star_id and turn_id for deterministic combat
+    * @param {string} starId - Star ID
+    * @param {string} turnId - Turn ID
+    * @returns {number} Numeric seed value
+    */
+   _generateCombatSeed(starId, turnId)
+   {
+      // Combine UUIDs into a hash to create a deterministic seed
+      const hash = crypto.createHash('md5').update(`${starId}:${turnId}`).digest('hex');
+      // Convert first 8 hex characters to integer
+      return parseInt(hash.substring(0, 8), 16);
+   }
+
+   /**
+    * Resolve combat at a single contested star
+    * @param {string} gameId - Game ID
+    * @param {string} turnId - Turn ID
+    * @param {string} starId - Star ID where combat occurs
+    * @param {Array} ships - Array of ships at this star
+    * @returns {Promise<Object>} Combat result
+    */
+   async _resolveCombatAtStar(gameId, turnId, starId, ships)
+   {
+      console.log(`⚔️ TurnService: Resolving combat at star ${starId} with ${ships.length} ships`);
+
+      // Generate seed for this battle
+      const battleSeed = this._generateCombatSeed(starId, turnId);
+      const rng = new SeededRandom(battleSeed);
+      console.log(`⚔️ TurnService: Battle seed: ${battleSeed}`);
+
+      // Capture initial ship state for replayability (before any modifications)
+      // Store essential combat attributes - can be expanded with more ship properties later
+      const initialShipStates = ships.map(ship => (
+      {
+         id: ship.id,
+         owner_player: ship.owner_player,
+         hp: parseFloat(ship.hp),
+         power: parseFloat(ship.power),
+         // Note: Add more attributes here (status, details, etc.) if needed for replay
+         // by updating the SELECT query in resolveCombat() to include them
+      }));
+
+      // Sort ships by owner into a map (player_id -> ships array)
+      const shipsByPlayer = new Map();
+      const playerIds = [];
+
+      for (const ship of ships)
+      {
+         const playerId = ship.owner_player;
+         if (!shipsByPlayer.has(playerId))
+         {
+            shipsByPlayer.set(playerId, []);
+            playerIds.push(playerId);
+         }
+         // Store ship with current HP for tracking
+         shipsByPlayer.get(playerId).push(
+         {
+            id: ship.id,
+            owner_player: ship.owner_player,
+            hp: parseFloat(ship.hp),
+            power: parseFloat(ship.power),
+            destroyed: false
+         });
+      }
+
+      // Sort player IDs in ascending order for consistent processing order
+      playerIds.sort();
+
+      // Track ships lost by player
+      const shipsLostByPlayer = new Map();
+      for (const playerId of playerIds)
+      {
+         shipsLostByPlayer.set(playerId, 0);
+      }
+
+      // Round loop - continue until only one player has ships or no ships remain
+      let round = 0;
+      let winner = null;
+      let remainingShips = 0;
+
+      while (true)
+      {
+         round++;
+         console.log(`⚔️ TurnService: Round ${round} at star ${starId}`);
+
+         // Check if combat is over
+         const playersWithShips = [];
+         for (const [playerId, playerShips] of shipsByPlayer.entries())
+         {
+            const activeShips = playerShips.filter(s => !s.destroyed);
+            if (activeShips.length > 0)
+            {
+               playersWithShips.push(playerId);
+            }
+         }
+
+         // Combat ends if 0 or 1 players have ships
+         if (playersWithShips.length <= 1)
+         {
+            winner = playersWithShips.length === 1 ? playersWithShips[0] : null;
+            console.log(`⚔️ TurnService: Combat ended at round ${round}, winner: ${winner || 'none'}`);
+
+            // Record remaining ships count for the winner
+            if (winner)
+            {
+               const winnerShips = shipsByPlayer.get(winner);
+               const activeShips = winnerShips.filter(s => !s.destroyed);
+               remainingShips = activeShips.length;
+            }
+            else
+            {
+               remainingShips = 0; // No winner means no ships left
+            }
+            break;
+         }
+
+         // Firing phase: collect all attacks first (simultaneous firing)
+         const attacks = [];
+
+         for (const attackerPlayerId of playerIds)
+         {
+            const attackerShips = shipsByPlayer.get(attackerPlayerId).filter(s => !s.destroyed);
+
+            // Get all enemy ships (ships from other players) - snapshot at start of round
+            const enemyShips = [];
+            for (const enemyPlayerId of playerIds)
+            {
+               if (enemyPlayerId !== attackerPlayerId)
+               {
+                  const enemyPlayerShips = shipsByPlayer.get(enemyPlayerId).filter(s => !s.destroyed);
+                  enemyShips.push(...enemyPlayerShips);
+               }
+            }
+
+            // Skip if no attackers or no enemies
+            if (attackerShips.length === 0 || enemyShips.length === 0)
+            {
+               continue;
+            }
+
+            // Each attacker ship fires at a random enemy (collect attacks, don't apply yet)
+            for (const attacker of attackerShips)
+            {
+               // Randomly select target from all enemy ships (using snapshot from start of round)
+               const targetIndex = rng.nextInt(0, enemyShips.length - 1);
+               const defender = enemyShips[targetIndex];
+
+               // Calculate accuracy: attacker power / (attacker power + defender power)
+               const accuracy = attacker.power / (attacker.power + defender.power);
+
+               // Determine if hit
+               const roll = rng.nextFloat(0, 1);
+               const isHit = roll < accuracy;
+
+               let damage = 0;
+               if (isHit)
+               {
+                  // Calculate damage: attacker power * random(0..1)
+                  const damageMultiplier = rng.nextFloat(0, 1);
+                  damage = attacker.power * damageMultiplier;
+               }
+
+               // Store attack to apply after all ships have fired
+               attacks.push(
+               {
+                  attacker: attacker,
+                  defender: defender,
+                  isHit: isHit,
+                  damage: damage,
+                  roll: roll,
+                  accuracy: accuracy
+               });
+
+               console.log(`⚔️ TurnService: Ship ${attacker.id} firing at ship ${defender.id} and ${isHit ? 'hits' : 'misses'}`);
+            }
+         }
+
+         // Now apply all damage simultaneously
+         for (const attack of attacks)
+         {
+            if (attack.isHit)
+            {
+               // Apply damage
+               attack.defender.hp -= attack.damage;
+
+               console.log(`⚔️ TurnService: Ship ${attack.attacker.id} hits ship ${attack.defender.id} for ${attack.damage.toFixed(2)} damage (HP: ${attack.defender.hp.toFixed(2)})`);
+
+               // Check if ship is destroyed
+               if (attack.defender.hp <= 0 && !attack.defender.destroyed)
+               {
+                  attack.defender.destroyed = true;
+                  attack.defender.hp = 0;
+                  console.log(`⚔️ TurnService: Ship ${attack.defender.id} destroyed!`);
+
+                  // Track ship loss
+                  const currentLosses = shipsLostByPlayer.get(attack.defender.owner_player);
+                  shipsLostByPlayer.set(attack.defender.owner_player, currentLosses + 1);
+               }
+            }
+            else
+            {
+               console.log(`⚔️ TurnService: Ship ${attack.attacker.id} misses ship ${attack.defender.id} (roll: ${attack.roll.toFixed(3)}, accuracy: ${attack.accuracy.toFixed(3)})`);
+            }
+         }
+      }
+
+      // Record combat event
+      const combatDetails = {
+         starId,
+         battleSeed,
+         rounds: round,
+         winner,
+         remainingShips,
+         shipsLostByPlayer: Object.fromEntries(shipsLostByPlayer),
+         initialShipStates // Complete ship state at battle start for replayability
+      };
+
+      // Update ship HP and destroy ships in database
+      for (const [playerId, playerShips] of shipsByPlayer.entries())
+      {
+         for (const ship of playerShips)
+         {
+            if (ship.destroyed)
+            {
+               // Mark ship as destroyed (set status to destroyed or delete)
+               await pool.query(
+                  `UPDATE ship 
+                   SET status = 'destroyed', hp = 0
+                   WHERE id = $1 AND game_id = $2`,
+                  [ship.id, gameId]
+               );
+            }
+            else
+            {
+               // Update ship HP
+               await pool.query(
+                  `UPDATE ship 
+                   SET hp = $1
+                   WHERE id = $2 AND game_id = $3`,
+                  [ship.hp, ship.id, gameId]
+               );
+            }
+         }
+      }
+
+      // Record combat event for all participants (each player gets their own event)
+      for (const playerId of playerIds)
+      {
+         await this.recordTurnEvent(gameId, turnId, playerId, 'combat', combatDetails);
+      }
+
+      return {
+         starId,
+         battleSeed,
+         rounds: round,
+         winner,
+         remainingShips,
+         shipsLostByPlayer: Object.fromEntries(shipsLostByPlayer)
+      };
+   }
+
+   /**
+    * Resolve combat at contested stars
+    * @param {string} gameId - Game ID
+    * @param {string} turnId - Turn ID
+    * @returns {Promise<Object>} Result object with combat resolution results
+    */
+   async resolveCombat(gameId, turnId)
+   {
+      console.log(`⚔️ TurnService: Resolving combat for game ${gameId}, turn ${turnId}`);
+
+      try
+      {
+         // Detect contested stars (stars with ships from multiple owners)
+         const
+         {
+            rows: contestedShips
+         } = await pool.query(
+            `WITH contested AS (
+               SELECT location_star_id
+               FROM ship
+               WHERE game_id = $1 AND status = 'active'
+               GROUP BY location_star_id
+               HAVING COUNT(DISTINCT owner_player) > 1
+            )
+            SELECT s.id, s.owner_player, s.location_star_id, s.hp, s.power
+            FROM ship s
+            JOIN contested c ON c.location_star_id = s.location_star_id
+            WHERE s.game_id = $1 AND s.status = 'active'
+            ORDER BY s.location_star_id, s.owner_player`,
+            [gameId]
+         );
+
+         // Group by star
+         const combatMap = new Map();
+         for (const ship of contestedShips)
+         {
+            const key = ship.location_star_id;
+            if (!combatMap.has(key)) combatMap.set(key, []);
+            combatMap.get(key).push(ship);
+         }
+
+         if (combatMap.size === 0)
+         {
+            console.log('⚔️ TurnService: No contested stars detected after moves');
+            return {
+               success: true,
+               contestedStars: 0,
+               combatResults: []
+            };
+         }
+
+         console.log(`⚔️ TurnService: Detected ${combatMap.size} contested star(s) after moves`);
+
+         // Resolve combat at each contested star
+         const combatResults = [];
+         for (const [starId, ships] of combatMap.entries())
+         {
+            const result = await this._resolveCombatAtStar(gameId, turnId, starId, ships);
+            combatResults.push(result);
+         }
+
+         return {
+            success: true,
+            contestedStars: combatMap.size,
+            combatResults
+         };
+
+      }
+      catch (error)
+      {
+         console.error('⚔️ TurnService: Error resolving combat:', error);
          throw error;
       }
    }

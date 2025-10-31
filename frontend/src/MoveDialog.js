@@ -389,8 +389,16 @@ export class MoveDialog extends BaseDialog
     // Get ships at this star
     const ships = this.currentStar.getShips();
     
+    // Filter out destroyed ships
+    const activeShips = ships.filter(ship => {
+      if (ship.status !== undefined) {
+        return ship.status !== 'destroyed';
+      }
+      return true;
+    });
+    
     // Calculate power range
-    const powerRange = this.calculatePowerRange(ships);
+    const powerRange = this.calculatePowerRange(activeShips);
     
     // Destroy existing slider if it exists
     if (this.view.powerRangeSlider) {
@@ -423,8 +431,18 @@ export class MoveDialog extends BaseDialog
     // Get ships at this star
     const ships = this.currentStar.getShips();
     
+    // Filter out destroyed ships
+    const activeShips = ships.filter(ship => {
+      // Check if ship has status property and exclude destroyed ships
+      if (ship.status !== undefined) {
+        return ship.status !== 'destroyed';
+      }
+      // If ship doesn't have status property, include it (for backwards compatibility)
+      return true;
+    });
+    
     // Filter ships by damage threshold
-    const damageFilteredShips = this.filterShipsByDamageThreshold(ships);
+    const damageFilteredShips = this.filterShipsByDamageThreshold(activeShips);
     
     // Filter ships by power range
     const filteredShips = this.filterShipsByPowerRange(damageFilteredShips);

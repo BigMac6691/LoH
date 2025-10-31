@@ -234,6 +234,11 @@ export class MapViewGenerator
         location: star
       });
       
+      // Store status property on ship for filtering destroyed ships
+      if (shipData.status !== undefined) {
+        ship.status = shipData.status;
+      }
+      
       // Ship is automatically added to star via constructor
     });
     
