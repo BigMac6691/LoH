@@ -189,6 +189,13 @@ export class MapViewGenerator
       return;
     }
     
+    // Create global player lookup Map for easy access by UI classes
+    window.globalPlayers = new Map();
+    players.forEach(player => {
+      window.globalPlayers.set(player.id, player);
+    });
+    console.log(`👥 MapViewGenerator: Created global player lookup with ${players.length} players`);
+    
     // Process star states - assign owners and economies
     starStates.forEach(starState => {
       const star = this.mapModel.getStarById(starState.star_id);

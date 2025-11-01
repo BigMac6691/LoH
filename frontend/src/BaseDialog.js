@@ -90,18 +90,24 @@ export class BaseDialog
       this.hide();
    }
 
-   /**
-    * Show the dialog
-    * Override this method in subclasses to add custom show logic
-    */
-   show()
-   {
-      this.isVisible = true;
-      if (this.dialog)
-      {
-         this.dialog.style.display = 'block';
-      }
-   }
+  /**
+   * Show the dialog
+   * Override this method in subclasses to add custom show logic
+   */
+  show()
+  {
+     this.isVisible = true;
+     if (this.dialog)
+     {
+        // Preserve existing display style (flex, block, etc.) or default to 'block'
+        const currentDisplay = window.getComputedStyle(this.dialog).display;
+        if (currentDisplay === 'none')
+        {
+           this.dialog.style.display = 'block';
+        }
+        // Otherwise keep the existing display value (flex, grid, etc.)
+     }
+  }
 
    /**
     * Hide the dialog

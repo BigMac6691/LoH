@@ -1,5 +1,6 @@
 import { BaseDialog } from './BaseDialog.js';
 import { eventBus } from './eventBus.js';
+import { SpaceCombatViewer } from './SpaceCombatViewer.js';
 
 /**
  * TurnEventsPanel - A draggable panel for displaying turn events
@@ -18,6 +19,7 @@ export class TurnEventsPanel extends BaseDialog
     this.currentPlayer = null;
     this.events = [];
     this.isLoading = false;
+    this.combatDetailsPanel = null;
     
     // Create the panel
     this.createPanel();
@@ -32,9 +34,9 @@ export class TurnEventsPanel extends BaseDialog
   createPanel()
   {
     // Create main container
-    this.panel = document.createElement('div');
-    this.panel.id = 'turn-events-panel';
-    this.panel.style.cssText = `
+    this.dialog = document.createElement('div');
+    this.dialog.id = 'turn-events-panel';
+    this.dialog.style.cssText = `
       position: fixed;
       top: 50%;
       left: 50%;
@@ -143,14 +145,14 @@ export class TurnEventsPanel extends BaseDialog
     `;
 
     // Assemble the panel
-    this.panel.appendChild(this.header);
-    this.panel.appendChild(this.content);
+    this.dialog.appendChild(this.header);
+    this.dialog.appendChild(this.content);
     this.content.appendChild(this.loadingDiv);
     this.content.appendChild(this.eventsContainer);
     this.content.appendChild(this.noEventsDiv);
 
     // Add to DOM
-    document.body.appendChild(this.panel);
+    document.body.appendChild(this.dialog);
 
     // Setup drag functionality
     this.setupDragHandlers(this.header);
@@ -208,16 +210,9 @@ export class TurnEventsPanel extends BaseDialog
       return;
     }
 
-    this.panel.style.display = 'flex';
+    super.show();
+    this.dialog.style.display = 'flex';
     this.loadEvents();
-  }
-
-  /**
-   * Hide the panel
-   */
-  hide()
-  {
-    this.panel.style.display = 'none';
   }
 
   /**
@@ -436,6 +431,7 @@ export class TurnEventsPanel extends BaseDialog
   {
     const typeNames = {
       'move': '🚀 Ship Movements',
+      'combat': '⚔️ Battles',
       'star_capture': '⭐ Star Captures',
       'build.ships': '🏗️ Ship Production',
       'build.industry': '🏭 Industry Expansion',
@@ -458,6 +454,10 @@ export class TurnEventsPanel extends BaseDialog
       border-left: 3px solid #00ff88;
       font-size: 14px;
       line-height: 1.4;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
     `;
 
     const details = event.details;
@@ -470,8 +470,13 @@ export class TurnEventsPanel extends BaseDialog
       case 'move':
         content = `Moved ${details.shipsMoved} ship${details.shipsMoved !== 1 ? 's' : ''} from ${window.globalMapModel.getStarById(details.sourceStarId).getName()} to ${window.globalMapModel.getStarById(details.destinationStarId).getName()}`;
         break;
+      case 'combat':
+        const winnerName = window.globalPlayers?.get(details.winner)?.name || details.winner || 'None';
+        content = `Battle at ${window.globalMapModel.getStarById(details.starId).getName()} won by ${winnerName}`;
+        break;
       case 'star_capture':
-        content = `Captured ${window.globalMapModel.getStarById(details.starId).getName()} from ${details.previousOwner}`;
+        const previousOwnerName = window.globalPlayers?.get(details.previousOwner)?.name || details.previousOwner || 'None';
+        content = `Captured ${window.globalMapModel.getStarById(details.starId).getName()} from ${previousOwnerName}`;
         break;
       case 'build.ships':
         content = `Built ${details.shipsBuilt} ship${details.shipsBuilt !== 1 ? 's' : ''} (cost: ${details.totalCost}) at ${window.globalMapModel.getStarById(details.starId).getName()}`;
@@ -489,8 +494,56 @@ export class TurnEventsPanel extends BaseDialog
         content = JSON.stringify(details);
     }
 
-    eventDiv.textContent = content;
+    const contentSpan = document.createElement('span');
+    contentSpan.textContent = content;
+    contentSpan.style.flex = '1';
+    eventDiv.appendChild(contentSpan);
+
+    // Add details link for combat events
+    if (event.kind === 'combat')
+    {
+      const detailsLink = document.createElement('a');
+      detailsLink.textContent = 'details';
+      detailsLink.href = '#';
+      detailsLink.style.cssText = `
+        color: #00ff88;
+        text-decoration: none;
+        font-size: 12px;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: background 0.2s;
+      `;
+      
+      detailsLink.addEventListener('mouseenter', () => {
+        detailsLink.style.background = 'rgba(0, 255, 136, 0.2)';
+      });
+      
+      detailsLink.addEventListener('mouseleave', () => {
+        detailsLink.style.background = 'none';
+      });
+      
+      detailsLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.showCombatDetails(event);
+      });
+      
+      eventDiv.appendChild(detailsLink);
+    }
 
     return eventDiv;
+  }
+
+  /**
+   * Show combat details panel
+   * @param {Object} event - The combat event object
+   */
+  showCombatDetails(event)
+  {
+    if (!this.combatDetailsPanel)
+    {
+      this.combatDetailsPanel = new SpaceCombatViewer();
+    }
+    this.combatDetailsPanel.show(event);
   }
 }

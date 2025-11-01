@@ -6,3 +6,5 @@ export * from "./MoveOrderStore.js";
 export * from "./Ship.js";
 export * from "./Star.js";
 export * from "./starNameGenerator.js";
+export * from "./EventEmitter.js";
+export * from "./SpaceCombat.js";

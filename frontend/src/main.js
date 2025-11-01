@@ -16,6 +16,9 @@ import { TurnEventsPanel } from './TurnEventsPanel.js';
 // Global MapModel instance
 window.globalMapModel = null;
 
+// Global player lookup Map (playerId -> player object)
+window.globalPlayers = null;
+
 // Global instances
 let turnEventsPanel = new TurnEventsPanel();
 

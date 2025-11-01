@@ -2,16 +2,15 @@
  * IndustryDialog - A draggable dialog for displaying and managing star industry
  */
 import { eventBus } from './eventBus.js';
+import { BaseDialog } from './BaseDialog.js';
 
-export class IndustryDialog
+export class IndustryDialog extends BaseDialog
 {
   constructor()
   {
-    this.isVisible = false;
+    super(); // Call BaseDialog constructor
+    
     this.currentStar = null;
-    this.dialog = null;
-    this.isDragging = false;
-    this.dragOffset = {x: 0, y: 0};
 
     // Spending orders tracking
     this.spendingOrders = {
@@ -70,11 +69,11 @@ export class IndustryDialog
 
     this.dialog.appendChild(content);
 
-    // Add drag functionality
-    this.setupDragHandlers(header);
-
     // Add to DOM
     document.body.appendChild(this.dialog);
+
+    // Setup drag functionality using BaseDialog's method
+    this.setupDragHandlers(header);
   }
 
   /**
@@ -572,45 +571,6 @@ export class IndustryDialog
     });
   }
 
-  /**
-   * Set up drag handlers for the dialog
-   */
-  setupDragHandlers(header)
-  {
-    header.addEventListener('mousedown', e =>
-    {
-      this.isDragging = true;
-      const rect = this.dialog.getBoundingClientRect();
-      this.dragOffset.x = e.clientX - rect.left;
-      this.dragOffset.y = e.clientY - rect.top;
-      e.preventDefault();
-    });
-
-    document.addEventListener('mousemove', e =>
-    {
-      if (this.isDragging)
-      {
-        const x = e.clientX - this.dragOffset.x;
-        const y = e.clientY - this.dragOffset.y;
-
-        // Keep dialog within viewport bounds
-        const maxX = window.innerWidth - this.dialog.offsetWidth;
-        const maxY = window.innerHeight - this.dialog.offsetHeight;
-
-        const clampedX = Math.max(0, Math.min(x, maxX));
-        const clampedY = Math.max(0, Math.min(y, maxY));
-
-        this.dialog.style.left = clampedX + 'px';
-        this.dialog.style.top = clampedY + 'px';
-        this.dialog.style.transform = 'none';
-      }
-    });
-
-    document.addEventListener('mouseup', () =>
-    {
-      this.isDragging = false;
-    });
-  }
 
   /**
    * Show the dialog for a specific star
@@ -624,7 +584,7 @@ export class IndustryDialog
     }
 
     this.currentStar = star;
-    this.isVisible = true;
+    super.show();
     this.dialog.style.display = 'block';
 
     // Update star name
@@ -732,22 +692,13 @@ export class IndustryDialog
    */
   hide()
   {
-    this.isVisible = false;
     this.currentStar = null;
 
     // Reset spending orders
     this.spendingOrders = {expand: 0, research: 0, build: 0};
 
-    this.dialog.style.display = 'none';
+    super.hide();
     console.log('🏭 IndustryDialog: Closed');
-  }
-
-  /**
-   * Check if the dialog is currently visible
-   */
-  isOpen()
-  {
-    return this.isVisible;
   }
 
   /**
