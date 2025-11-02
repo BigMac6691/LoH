@@ -484,13 +484,13 @@ export class GameEventHandler {
       eventBus.setGameId(gameId);
       
       // Set user ID to the first player in the list
-      if (gameData.players && gameData.players.length > 0) {
-        const firstPlayer = gameData.players[0];
-        eventBus.setUser(firstPlayer.id);
-        console.log('🎮 GameEventHandler: Set context - GameId:', gameId, 'UserId:', firstPlayer.id);
-      } else {
-        console.warn('🎮 GameEventHandler: No players found in game data');
-      }
+      // if (gameData.players && gameData.players.length > 0) {
+      //   const firstPlayer = gameData.players[0];
+      //   eventBus.setUser(firstPlayer.id);
+      //   console.log('🎮 GameEventHandler: Set context - GameId:', gameId, 'UserId:', firstPlayer.id);
+      // } else {
+      //   console.warn('🎮 GameEventHandler: No players found in game data');
+      // }
       
       // Get current turn for the game
       const currentTurn = await this.getCurrentTurn(gameId);

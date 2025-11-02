@@ -706,6 +706,7 @@ export class IndustryDialog extends BaseDialog
    */
   getSavedOrders(starId)
   {
+    if (!this.savedOrders) return null;
     return this.savedOrders.get(starId);
   }
 
@@ -714,6 +715,7 @@ export class IndustryDialog extends BaseDialog
    */
   getAllSavedOrders()
   {
+    if (!this.savedOrders) return {};
     return Object.fromEntries(this.savedOrders);
   }
 
@@ -722,8 +724,10 @@ export class IndustryDialog extends BaseDialog
    */
   clearSavedOrders(starId)
   {
-    this.savedOrders.delete(starId);
-    console.log('🏭 IndustryDialog: Cleared saved orders for star', starId);
+    if (this.savedOrders) {
+      this.savedOrders.delete(starId);
+      console.log('🏭 IndustryDialog: Cleared saved orders for star', starId);
+    }
   }
 
   /**
@@ -731,8 +735,10 @@ export class IndustryDialog extends BaseDialog
    */
   clearAllSavedOrders()
   {
-    this.savedOrders.clear();
-    console.log('🏭 IndustryDialog: Cleared all saved orders');
+    if (this.savedOrders) {
+      this.savedOrders.clear();
+      console.log('🏭 IndustryDialog: Cleared all saved orders');
+    }
   }
 
   /**

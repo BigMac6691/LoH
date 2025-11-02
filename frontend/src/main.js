@@ -245,13 +245,17 @@ function createRefreshButton()
   
   // Click handler
   refreshButton.addEventListener('click', () => {
-    console.log('🔄 Refresh button clicked - emitting game:startGame event');
+    const gameId = eventBus.getContext().gameId;
+    
+    if (!gameId) {
+      console.error('🔄 Refresh button clicked but no game ID found in context');
+      alert('Error: No game loaded. Please start a game first.');
+      return;
+    }
+    
+    console.log('🔄 Refresh button clicked - emitting game:startGame event for game', gameId);
     eventBus.emit('game:startGame', {
-      success: true,
-      details: {
-        eventType: 'game:startGame',
-        reason: 'manual_refresh'
-      }
+      gameId
     });
   });
   
@@ -268,7 +272,7 @@ function createEventsButton()
   eventsButton.style.cssText = `
     position: fixed;
     top: 20px;
-    right: 120px;
+    right: 136px;
     z-index: 1000;
     padding: 10px 15px;
     background: rgba(0, 150, 255, 0.2);

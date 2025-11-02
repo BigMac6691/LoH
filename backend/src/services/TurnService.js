@@ -135,6 +135,12 @@ export class TurnService
             const moveResults = await this.processMoveOrders(gameId, turnId);
             console.log(`🚀 TurnService: Move orders processed:`, moveResults);
 
+            // Check for victory/lose conditions
+            const victoryResult = await this.checkVictoryConditions(gameId, turnId, playerId);
+            if (victoryResult) {
+              console.log(`🎯 TurnService: Victory condition detected:`, victoryResult);
+            }
+
             // Then process all build orders (build, expand, research) per star
             const buildResults = await this.processAllBuildOrders(gameId, turnId);
             console.log(`🏗️ TurnService: Build orders processed:`, buildResults);
@@ -155,6 +161,92 @@ export class TurnService
     {
       console.error('🔄 TurnService: Error ending player turn:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Check for victory/lose conditions after move orders
+   * @param {string} gameId - Game ID
+   * @param {string} turnId - Turn ID
+   * @param {string} playerId - Current player ID (not needed but kept for compatibility)
+   * @returns {Promise<Object|null>} Result object with win/lose info or null
+   */
+  async checkVictoryConditions(gameId, turnId, playerId)
+  {
+    console.log(`🎯 TurnService: Checking victory conditions for game ${gameId}`);
+    
+    try
+    {
+      // Query to join game_player with star_state to count stars owned by each active player
+      const { rows: playerStarCounts } = await pool.query(
+        `SELECT 
+          gp.id as player_id,
+          gp.name as player_name,
+          gp.status,
+          COUNT(ss.owner_player)::INTEGER as star_count
+         FROM game_player gp
+         LEFT JOIN star_state ss ON ss.game_id = gp.game_id AND ss.owner_player = gp.id
+         WHERE gp.game_id = $1 AND gp.status IN ('active', 'waiting')
+         GROUP BY gp.id, gp.name, gp.status
+         ORDER BY star_count DESC`,
+        [gameId]
+      );
+
+      console.log(`🎯 TurnService: Player star counts:`, playerStarCounts);
+
+      // Check for losers (players with 0 stars who are still active/waiting)
+      const losers = playerStarCounts.filter(p => p.star_count === 0);
+
+      console.log(`🎯 TurnService: Losers:`, losers);
+      
+      if (losers.length > 0) {
+        console.log(`🎯 TurnService: Found ${losers.length} player(s) with no stars`);
+        
+        // Mark losers and record defeat events
+        for (const loser of losers) {
+          await pool.query(
+            `UPDATE game_player SET status = 'lost' WHERE id = $1`,
+            [loser.player_id]
+          );
+          
+          await this.recordTurnEvent(gameId, turnId, loser.player_id, 'defeat', {
+            reason: 'no_stars_controlled'
+          });
+          
+          console.log(`🎯 TurnService: Player ${loser.player_name} (${loser.player_id}) marked as lost`);
+        }
+      }
+
+      // Check for winner (only one player with stars > 0)
+      const playersWithStars = playerStarCounts.filter(p => p.star_count > 0);
+      
+      if (playersWithStars.length === 1) {
+        const winner = playersWithStars[0];
+        console.log(`🎯 TurnService: Player ${winner.player_name} (${winner.player_id}) has won!`);
+        
+        // Mark winner and record victory event
+        await pool.query(
+          `UPDATE game_player SET status = 'winner' WHERE id = $1`,
+          [winner.player_id]
+        );
+        
+        await this.recordTurnEvent(gameId, turnId, winner.player_id, 'victory', {
+          reason: 'all_opponents_defeated'
+        });
+        
+        return {
+          winner: winner.player_id,
+          loser: null,
+          isVictory: true
+        };
+      }
+
+      return null;
+    }
+    catch (error)
+    {
+      console.error('🎯 TurnService: Error checking victory conditions:', error);
+      return null;
     }
   }
 
@@ -209,12 +301,12 @@ export class TurnService
          } = await pool.query(
         `UPDATE game_player 
          SET status = 'active'
-         WHERE game_id = $1
+         WHERE game_id = $1 AND status NOT IN ('lost', 'winner')
          RETURNING id, name, status`,
         [gameId]
       );
 
-      console.log(`🔄 TurnService: Reset ${rows.length} players to active status`);
+      console.log(`🔄 TurnService: Reset ${rows.length} players to active status (excluding lost/winner players)`);
       
       return {
         success: true,
@@ -310,6 +402,9 @@ export class TurnService
                });
             }
          }
+
+         // Step 4: Resolve combat at contested stars
+         await this.resolveCombat(gameId, turnId);
 
          // Step 2: Determine star ownership based on ships at each star
          // After all moves, check which player has ships at each star
@@ -442,9 +537,6 @@ export class TurnService
                });
             }
          }
-
-         // Step 4: Resolve combat at contested stars
-         await this.resolveCombat(gameId, turnId);
 
          console.log(`🚀 TurnService: Move processing complete - ${results.shipsMoved} ships moved, ${results.starsCaptured} stars captured`);
 

@@ -250,7 +250,7 @@ export class TurnEventsPanel extends BaseDialog
       }
 
       const response = await fetch(
-        `/api/turn-events/${this.currentGame.id}/${previousTurnId}/player/${this.currentPlayer.id}`
+        `/api/turn-events/${this.currentGame.id}/${previousTurnId}/player/${eventBus.getContext().user}`
       );
 
       if (!response.ok)
@@ -436,7 +436,9 @@ export class TurnEventsPanel extends BaseDialog
       'build.ships': '🏗️ Ship Production',
       'build.industry': '🏭 Industry Expansion',
       'build.research': '🔬 Technology Research',
-      'turn_completion': '🔄 Turn Completion'
+      'turn_completion': '🔄 Turn Completion',
+      'victory': '🏆 Victory',
+      'defeat': '💀 Defeat'
     };
     return typeNames[eventType] || eventType;
   }
@@ -489,6 +491,16 @@ export class TurnEventsPanel extends BaseDialog
         break;
       case 'turn_completion':
         content = details.message || 'Turn completed';
+        break;
+      case 'victory':
+        content = '🏆 YOU WON! All opponents have been defeated!';
+        eventDiv.style.borderLeftColor = '#ffd700';
+        eventDiv.style.background = 'rgba(255, 215, 0, 0.2)';
+        break;
+      case 'defeat':
+        content = '💀 YOU LOST! You no longer control any stars.';
+        eventDiv.style.borderLeftColor = '#ff4444';
+        eventDiv.style.background = 'rgba(255, 68, 68, 0.2)';
         break;
       default:
         content = JSON.stringify(details);

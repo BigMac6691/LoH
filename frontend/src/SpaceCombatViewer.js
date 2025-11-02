@@ -211,13 +211,11 @@ export class SpaceCombatViewer extends BaseDialog
     `;
 
     // Playback control buttons
-    this.playButton = this.createControlButton('▶ Play (Space)', () => this.play());
-    this.pauseButton = this.createControlButton('⏸ Pause (Space)', () => this.pause());
+    this.playPauseButton = this.createControlButton('▶ Play/Pause (Space)', () => this.togglePlayPause());
     this.stepButton = this.createControlButton('⏭ Step (→)', () => this.step());
     this.replayButton = this.createControlButton('↻ Replay (R)', () => this.replay());
     
-    this.controlsSection.appendChild(this.playButton);
-    this.controlsSection.appendChild(this.pauseButton);
+    this.controlsSection.appendChild(this.playPauseButton);
     this.controlsSection.appendChild(this.stepButton);
     this.controlsSection.appendChild(this.replayButton);
 
@@ -364,11 +362,7 @@ export class SpaceCombatViewer extends BaseDialog
       switch (e.key) {
         case ' ': // Spacebar - Play/Pause toggle
           e.preventDefault();
-          if (this.isPlaying && !this.isPaused) {
-            this.pause();
-          } else {
-            this.play();
-          }
+          this.togglePlayPause();
           break;
         case 'ArrowRight': // Right arrow - Step forward
           e.preventDefault();
@@ -425,6 +419,15 @@ export class SpaceCombatViewer extends BaseDialog
     
     this.updateStatus('Initializing...');
     this.updateProgress();
+    this.updateButtonLabels();
+    
+    // Update title with star location
+    if (event.details && event.details.starId) {
+      const starName = window.globalMapModel?.getStarById(event.details.starId)?.getName() || event.details.starId;
+      this.title.textContent = `Space Combat at ${starName}`;
+    } else {
+      this.title.textContent = 'Space Combat';
+    }
     
     super.show();
     this.dialog.style.display = 'flex';
@@ -979,10 +982,31 @@ export class SpaceCombatViewer extends BaseDialog
     const total = this.eventHistory.length;
     this.progressIndicator.textContent = `${this.currentEventIndex} / ${total}`;
   }
+  
+  /**
+   * Update button labels based on playback state
+   */
+  updateButtonLabels()
+  {
+    if (this.isPlaying && !this.isPaused) {
+      this.playPauseButton.textContent = '⏸ Pause (Space)';
+    } else {
+      this.playPauseButton.textContent = '▶ Play (Space)';
+    }
+  }
 
   /**
    * Playback control methods
    */
+  togglePlayPause()
+  {
+    if (this.isPlaying && !this.isPaused) {
+      this.pause();
+    } else {
+      this.play();
+    }
+  }
+  
   play()
   {
     console.log('🎬 SpaceCombatViewer: Play');
@@ -996,6 +1020,7 @@ export class SpaceCombatViewer extends BaseDialog
     
     this.isPlaying = true;
     this.isPaused = false;
+    this.updateButtonLabels();
     this.updateStatus('Playing...');
     this.processNextEvent();
   }
@@ -1043,6 +1068,7 @@ export class SpaceCombatViewer extends BaseDialog
       clearTimeout(this.playbackTimer);
       this.playbackTimer = null;
     }
+    this.updateButtonLabels();
     this.updateStatus('Paused');
   }
 
@@ -1087,6 +1113,7 @@ export class SpaceCombatViewer extends BaseDialog
       this.replayCombat(this.currentCombatEvent.details);
       // After replay, set back to false and ready to play
       this.isPlaying = false;
+      this.updateButtonLabels();
       this.updateStatus('Ready to play');
     }
   }

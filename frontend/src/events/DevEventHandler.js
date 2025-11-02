@@ -750,6 +750,8 @@ export class DevEventHandler
          throw new Error(`🧪 DevEventHandler: No player data found for scenario: ${scenario}`);
       }
 
+      eventBus.setUser(currentPlayers[0].id);
+
       console.log(`🧪 DevEventHandler: Player check - Current: ${currentPlayers.length}, Required: ${requiredPlayers.length}`);
 
       return currentPlayers;
