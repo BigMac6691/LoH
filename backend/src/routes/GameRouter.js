@@ -281,11 +281,11 @@ export class GameRouter
    */
   async addPlayer(req, res) {
     try {
-      const { gameId, userId, name, colorHex, countryName } = req.body;
+      const { gameId, userId, name, colorHex, countryName, meta } = req.body;
       
       // Debug logging
       console.log('Received add player request body:', req.body);
-      console.log('Extracted values:', { gameId, userId, name, colorHex, countryName });
+      console.log('Extracted values:', { gameId, userId, name, colorHex, countryName, meta });
       
       // Validate required parameters
       if (!gameId || !name || !colorHex) {
@@ -302,7 +302,8 @@ export class GameRouter
         userId,
         name,
         colorHex,
-        countryName
+        countryName,
+        meta: meta || {}
       });
       
       res.json({

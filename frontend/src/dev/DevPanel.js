@@ -45,6 +45,7 @@ export class DevPanel
           <select id="scenario-select" class="form-input">
             <option value="simple-two-player">Simple Two Player</option>
             <option value="tiny-combat-tester">Tiny Combat Tester</option>
+            <option value="small-AI-tester">Small AI Tester</option>
           </select>
         </div>
         
@@ -168,12 +169,38 @@ export class DevPanel
     
     // Listen for dev:scenarioComplete events
     eventBus.on('dev:scenarioComplete', this.handleScenarioComplete.bind(this));
+
+    eventBus.on('game:startGame', this.handleGameStart.bind(this));
     
     // Current player dropdown change
     const currentPlayerSelect = this.panel.querySelector('#current-player-select');
     currentPlayerSelect.addEventListener('change', e => {
       this.handleCurrentPlayerChange(e.target.value);
     });
+  }
+
+  handleGameStart(context, eventData) {
+    console.log('🎯 DevPanel: Game started:', eventData);
+
+    // Reset all End Turn buttons back to "End Turn" state
+    for (const [playerId, turnStatus] of this.playerTurnStatus.entries()) {
+      if (turnStatus.hasEndedTurn) {
+        console.log(`🎯 DevPanel: Resetting turn button for player ${playerId}`);
+        
+        // Reset button appearance and state
+        turnStatus.buttonElement.textContent = 'End Turn';
+        turnStatus.buttonElement.style.backgroundColor = '#444';
+        turnStatus.buttonElement.style.cursor = 'pointer';
+        turnStatus.buttonElement.disabled = false;
+        
+        // Reset status element
+        turnStatus.statusElement.textContent = 'Turn: Active';
+        turnStatus.statusElement.style.color = '#888';
+        
+        // Update tracking
+        turnStatus.hasEndedTurn = false;
+      }
+    }
   }
 
   /**

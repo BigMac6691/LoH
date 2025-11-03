@@ -10,17 +10,21 @@ import { randomUUID } from 'crypto';
  * @param {string} params.name - Player name
  * @param {string} params.colorHex - Player color hex
  * @param {string} params.countryName - Country name (optional)
+ * @param {Object} params.meta - Meta data (optional, defaults to empty object)
  * @param {Object} [client] - Optional database client for transactions
  * @returns {Promise<Object>} The created player row
  */
-export async function addPlayer({ gameId, userId, name, colorHex, countryName = null }, client = null) {
+export async function addPlayer({ gameId, userId, name, colorHex, countryName = null, meta = {} }, client = null) {
   const id = randomUUID();
   const dbClient = client || pool;
   
+  // Ensure meta is an object
+  const metaData = typeof meta === 'string' ? JSON.parse(meta) : meta;
+  
   const { rows } = await dbClient.query(
-    `INSERT INTO game_player (id, game_id, user_id, name, color_hex, country_name)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [id, gameId, userId, name, colorHex, countryName]
+    `INSERT INTO game_player (id, game_id, user_id, name, color_hex, country_name, meta)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [id, gameId, userId, name, colorHex, countryName, JSON.stringify(metaData)]
   );
   
   return rows[0];

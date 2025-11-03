@@ -78,6 +78,30 @@ export class DevEventHandler
             }
          })
       });
+      this.gameData.set("small-AI-tester",
+         {
+            ownerId: "a109d369-0df3-4e73-b262-62c793ad743f",
+            title: "small-AI-tester",
+            description: "Small map with one AI and one human player",
+            seed: 19660626,
+            mapSize: 3,
+            densityMin: 2,
+            densityMax: 5,
+            status: 'lobby',
+            params: JSON.stringify(
+            {
+               type: 'devScenario',
+               scenario: 'small-AI-tester',
+               state:
+               {
+                  gameCreated: false,
+                  playersAdded: false,
+                  mapGenerated: false,
+                  playersPlaced: false,
+                  specialsApplied: false
+               }
+            })
+         });
 
       // Initial players map
       this.playerData.set("simple-two-player", [
@@ -106,7 +130,20 @@ export class DevEventHandler
            color_hex: "#0000ff",
            country_name: "Blue Kingdom"
         }]);
-
+        this.playerData.set("small-AI-tester", [
+         {
+            userId: "7a0fc466-218e-49cf-9235-7a3d0d197b96",
+            name: "Big Red",
+            color_hex: "#ff0000",
+            country_name: "Red Empire"
+         },
+         {
+            userId: "2a5fcc9c-bae7-4b90-aa51-815eeb0643cb",
+            name: "Randy",
+            color_hex: "#00ff00",
+            country_name: "Greenlandia",
+            meta: {main_ai: "Randy"}
+         }]);
    }
 
    /**

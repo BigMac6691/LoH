@@ -8,7 +8,19 @@ import
 }
 from '../db/pool.js';
 import crypto from 'crypto';
-import { SpaceCombat } from '@loh/shared';
+import
+{
+   SpaceCombat
+}
+from '@loh/shared';
+import
+{
+   AIService
+}
+from './AIService.js';
+
+// Create a singleton AIService instance
+const aiService = new AIService();
 
 export class TurnService
 {
@@ -55,90 +67,103 @@ export class TurnService
       return rows[0];
    }
 
-  /**
-   * End a player's turn by updating their status to "waiting"
-   * @param {string} gameId - Game ID
-   * @param {string} playerId - Player ID
-   * @returns {Promise<Object>} Result object with success status and updated player info
-   */
-  async endPlayerTurn(gameId, playerId)
-  {
-    console.log(`🔄 TurnService: Ending turn for player ${playerId} in game ${gameId}`);
-    
-    try
-    {
-      // Update the player's status to "waiting"
+   /**
+    * End a player's turn by updating their status to "waiting"
+    * @param {string} gameId - Game ID
+    * @param {string} playerId - Player ID
+    * @returns {Promise<Object>} Result object with success status and updated player info
+    */
+   async endPlayerTurn(gameId, playerId)
+   {
+      console.log(`🔄 TurnService: Ending turn for player ${playerId} in game ${gameId}`);
+
+      try
+      {
+         // Update the player's status to "waiting"
          const
          {
             rows
          } = await pool.query(
-        `UPDATE game_player 
+            `UPDATE game_player 
          SET status = 'waiting'
          WHERE game_id = $1 AND id = $2
          RETURNING *`,
-        [gameId, playerId]
-      );
+            [gameId, playerId]
+         );
 
-      if (rows.length === 0)
-      {
-        throw new Error(`Player ${playerId} not found in game ${gameId}`);
-      }
+         if (rows.length === 0)
+         {
+            throw new Error(`Player ${playerId} not found in game ${gameId}`);
+         }
 
-      const updatedPlayer = rows[0];
-      
-      console.log(`🔄 TurnService: Player ${playerId} status updated to waiting`);
-      
-      // Get the current turn ID
+         const updatedPlayer = rows[0];
+
+         console.log(`🔄 TurnService: Player ${playerId} status updated to waiting`);
+
+         // Get the current turn ID
          const
          {
             rows: currentTurn
          } = await pool.query(
-        `SELECT id FROM game_turn 
+            `SELECT id FROM game_turn 
          WHERE game_id = $1 AND status = 'open'
          ORDER BY number DESC LIMIT 1`,
-        [gameId]
-      );
+            [gameId]
+         );
 
-      if (currentTurn.length === 0)
-      {
-        console.warn(`🔄 TurnService: No open turn found for game ${gameId}`);
-        return {
-          success: true,
-          player: updatedPlayer,
-          message: `Player ${updatedPlayer.name} has ended their turn`,
-          allPlayersWaiting: false
-        };
-      }
+         if (currentTurn.length === 0)
+         {
+            console.warn(`🔄 TurnService: No open turn found for game ${gameId}`);
+            return {
+               success: true,
+               player: updatedPlayer,
+               message: `Player ${updatedPlayer.name} has ended their turn`,
+               allPlayersWaiting: false
+            };
+         }
 
-      const turnId = currentTurn[0].id;
-      
-         // With simplified orders schema, orders are already final when created
-         // No need to finalize orders anymore
-         console.log(`🔄 TurnService: Orders are already final in simplified schema`);
-      
-      // Check if all players are now waiting
+         const turnId = currentTurn[0].id;
+
+         // Check if all HUMAN players are now waiting (exclude AI players)
          const
          {
-            rows: allPlayers
+            rows: humanPlayers
          } = await pool.query(
-        `SELECT status FROM game_player WHERE game_id = $1`,
-        [gameId]
-      );
+            `SELECT status FROM game_player 
+         WHERE game_id = $1 
+         AND (meta->>'main_ai' IS NULL OR meta->>'main_ai' = '')`,
+            [gameId]
+         );
 
-      const allWaiting = allPlayers.every(player => player.status === 'waiting');
-      
-      if (allWaiting)
-      {
-        console.log(`🔄 TurnService: All players are waiting, processing orders for game ${gameId}`);
-        
+         const allHumanPlayersWaiting = humanPlayers.every(player => player.status === 'waiting');
+
+         if (allHumanPlayersWaiting)
+         {
+            console.log(`🔄 TurnService: All human players are waiting, executing AI players for game ${gameId}`);
+
+            // First: Execute all AI players
+            try
+            {
+               const aiResult = await aiService.executeAllAITurns(gameId);
+               console.log(`🤖 TurnService: AI execution completed: ${aiResult.successful || 0} successful, ${aiResult.failed || 0} failed`);
+            }
+            catch (aiError)
+            {
+               console.error('🤖 TurnService: Error executing AI turns:', aiError);
+               // Don't throw - AI errors shouldn't block order processing
+            }
+
+            console.log(`🔄 TurnService: All players (including AI) have submitted orders, processing for game ${gameId}`);
+
             // Process move orders first
             const moveResults = await this.processMoveOrders(gameId, turnId);
             console.log(`🚀 TurnService: Move orders processed:`, moveResults);
 
             // Check for victory/lose conditions
             const victoryResult = await this.checkVictoryConditions(gameId, turnId, playerId);
-            if (victoryResult) {
-              console.log(`🎯 TurnService: Victory condition detected:`, victoryResult);
+            if (victoryResult)
+            {
+               console.log(`🎯 TurnService: Victory condition detected:`, victoryResult);
             }
 
             // Then process all build orders (build, expand, research) per star
@@ -147,39 +172,42 @@ export class TurnService
 
             // Prepare for next turn
             await this.prepareNextTurn(gameId, turnId);
+         }
+
+         return {
+            success: true,
+            player: updatedPlayer,
+            message: `Player ${updatedPlayer.name} has ended their turn`,
+            allPlayersWaiting: allHumanPlayersWaiting
+         };
+
       }
-      
-      return {
-        success: true,
-        player: updatedPlayer,
-        message: `Player ${updatedPlayer.name} has ended their turn`,
-        allPlayersWaiting: allWaiting
-      };
+      catch (error)
+      {
+         console.error('🔄 TurnService: Error ending player turn:', error);
+         throw error;
+      }
+   }
 
-    }
-    catch (error)
-    {
-      console.error('🔄 TurnService: Error ending player turn:', error);
-      throw error;
-    }
-  }
+   /**
+    * Check for victory/lose conditions after move orders
+    * @param {string} gameId - Game ID
+    * @param {string} turnId - Turn ID
+    * @param {string} playerId - Current player ID (not needed but kept for compatibility)
+    * @returns {Promise<Object|null>} Result object with win/lose info or null
+    */
+   async checkVictoryConditions(gameId, turnId, playerId)
+   {
+      console.log(`🎯 TurnService: Checking victory conditions for game ${gameId}`);
 
-  /**
-   * Check for victory/lose conditions after move orders
-   * @param {string} gameId - Game ID
-   * @param {string} turnId - Turn ID
-   * @param {string} playerId - Current player ID (not needed but kept for compatibility)
-   * @returns {Promise<Object|null>} Result object with win/lose info or null
-   */
-  async checkVictoryConditions(gameId, turnId, playerId)
-  {
-    console.log(`🎯 TurnService: Checking victory conditions for game ${gameId}`);
-    
-    try
-    {
-      // Query to join game_player with star_state to count stars owned by each active player
-      const { rows: playerStarCounts } = await pool.query(
-        `SELECT 
+      try
+      {
+         // Query to join game_player with star_state to count stars owned by each active player
+         const
+         {
+            rows: playerStarCounts
+         } = await pool.query(
+            `SELECT 
           gp.id as player_id,
           gp.name as player_name,
           gp.status,
@@ -189,140 +217,145 @@ export class TurnService
          WHERE gp.game_id = $1 AND gp.status IN ('active', 'waiting')
          GROUP BY gp.id, gp.name, gp.status
          ORDER BY star_count DESC`,
-        [gameId]
-      );
+            [gameId]
+         );
 
-      console.log(`🎯 TurnService: Player star counts:`, playerStarCounts);
+         console.log(`🎯 TurnService: Player star counts:`, playerStarCounts);
 
-      // Check for losers (players with 0 stars who are still active/waiting)
-      const losers = playerStarCounts.filter(p => p.star_count === 0);
+         // Check for losers (players with 0 stars who are still active/waiting)
+         const losers = playerStarCounts.filter(p => p.star_count === 0);
 
-      console.log(`🎯 TurnService: Losers:`, losers);
-      
-      if (losers.length > 0) {
-        console.log(`🎯 TurnService: Found ${losers.length} player(s) with no stars`);
-        
-        // Mark losers and record defeat events
-        for (const loser of losers) {
-          await pool.query(
-            `UPDATE game_player SET status = 'lost' WHERE id = $1`,
-            [loser.player_id]
-          );
-          
-          await this.recordTurnEvent(gameId, turnId, loser.player_id, 'defeat', {
-            reason: 'no_stars_controlled'
-          });
-          
-          console.log(`🎯 TurnService: Player ${loser.player_name} (${loser.player_id}) marked as lost`);
-        }
+         console.log(`🎯 TurnService: Losers:`, losers);
+
+         if (losers.length > 0)
+         {
+            console.log(`🎯 TurnService: Found ${losers.length} player(s) with no stars`);
+
+            // Mark losers and record defeat events
+            for (const loser of losers)
+            {
+               await pool.query(
+                  `UPDATE game_player SET status = 'lost' WHERE id = $1`,
+                  [loser.player_id]
+               );
+
+               await this.recordTurnEvent(gameId, turnId, loser.player_id, 'defeat',
+               {
+                  reason: 'no_stars_controlled'
+               });
+
+               console.log(`🎯 TurnService: Player ${loser.player_name} (${loser.player_id}) marked as lost`);
+            }
+         }
+
+         // Check for winner (only one player with stars > 0)
+         const playersWithStars = playerStarCounts.filter(p => p.star_count > 0);
+
+         if (playersWithStars.length === 1)
+         {
+            const winner = playersWithStars[0];
+            console.log(`🎯 TurnService: Player ${winner.player_name} (${winner.player_id}) has won!`);
+
+            // Mark winner and record victory event
+            await pool.query(
+               `UPDATE game_player SET status = 'winner' WHERE id = $1`,
+               [winner.player_id]
+            );
+
+            await this.recordTurnEvent(gameId, turnId, winner.player_id, 'victory',
+            {
+               reason: 'all_opponents_defeated'
+            });
+
+            return {
+               winner: winner.player_id,
+               loser: null,
+               isVictory: true
+            };
+         }
+
+         return null;
       }
-
-      // Check for winner (only one player with stars > 0)
-      const playersWithStars = playerStarCounts.filter(p => p.star_count > 0);
-      
-      if (playersWithStars.length === 1) {
-        const winner = playersWithStars[0];
-        console.log(`🎯 TurnService: Player ${winner.player_name} (${winner.player_id}) has won!`);
-        
-        // Mark winner and record victory event
-        await pool.query(
-          `UPDATE game_player SET status = 'winner' WHERE id = $1`,
-          [winner.player_id]
-        );
-        
-        await this.recordTurnEvent(gameId, turnId, winner.player_id, 'victory', {
-          reason: 'all_opponents_defeated'
-        });
-        
-        return {
-          winner: winner.player_id,
-          loser: null,
-          isVictory: true
-        };
+      catch (error)
+      {
+         console.error('🎯 TurnService: Error checking victory conditions:', error);
+         return null;
       }
+   }
 
-      return null;
-    }
-    catch (error)
-    {
-      console.error('🎯 TurnService: Error checking victory conditions:', error);
-      return null;
-    }
-  }
+   /**
+    * Get all players and their current turn status for a game
+    * @param {string} gameId - Game ID
+    * @returns {Promise<Array>} Array of players with their status
+    */
+   async getPlayersTurnStatus(gameId)
+   {
+      console.log(`🔄 TurnService: Getting turn status for all players in game ${gameId}`);
 
-  /**
-   * Get all players and their current turn status for a game
-   * @param {string} gameId - Game ID
-   * @returns {Promise<Array>} Array of players with their status
-   */
-  async getPlayersTurnStatus(gameId)
-  {
-    console.log(`🔄 TurnService: Getting turn status for all players in game ${gameId}`);
-    
-    try
-    {
+      try
+      {
          const
          {
             rows
          } = await pool.query(
-        `SELECT id, name, color_hex, status
+            `SELECT id, name, color_hex, status
          FROM game_player 
          WHERE game_id = $1
          ORDER BY name`,
-        [gameId]
-      );
+            [gameId]
+         );
 
-      console.log(`🔄 TurnService: Found ${rows.length} players in game ${gameId}`);
-      
-      return rows;
+         console.log(`🔄 TurnService: Found ${rows.length} players in game ${gameId}`);
 
-    }
-    catch (error)
-    {
-      console.error('🔄 TurnService: Error getting players turn status:', error);
-      throw error;
-    }
-  }
+         return rows;
 
-  /**
-   * Reset all players to "active" status (for new turn)
-   * @param {string} gameId - Game ID
-   * @returns {Promise<Object>} Result object with success status
-   */
-  async resetPlayersForNewTurn(gameId)
-  {
-    console.log(`🔄 TurnService: Resetting all players to active status for game ${gameId}`);
-    
-    try
-    {
+      }
+      catch (error)
+      {
+         console.error('🔄 TurnService: Error getting players turn status:', error);
+         throw error;
+      }
+   }
+
+   /**
+    * Reset all players to "active" status (for new turn)
+    * @param {string} gameId - Game ID
+    * @returns {Promise<Object>} Result object with success status
+    */
+   async resetPlayersForNewTurn(gameId)
+   {
+      console.log(`🔄 TurnService: Resetting all players to active status for game ${gameId}`);
+
+      try
+      {
          const
          {
             rows
          } = await pool.query(
-        `UPDATE game_player 
+            `UPDATE game_player 
          SET status = 'active'
          WHERE game_id = $1 AND status NOT IN ('lost', 'winner')
          RETURNING id, name, status`,
-        [gameId]
-      );
+            [gameId]
+         );
 
-      console.log(`🔄 TurnService: Reset ${rows.length} players to active status (excluding lost/winner players)`);
-      
-      return {
-        success: true,
-        playersUpdated: rows.length,
-        players: rows
-      };
+         console.log(`🔄 TurnService: Reset ${rows.length} players to active status (excluding lost/winner players)`);
 
-    }
-    catch (error)
-    {
-      console.error('🔄 TurnService: Error resetting players for new turn:', error);
-      throw error;
-    }
-  }
+         return {
+            success: true,
+            playersUpdated: rows.length,
+            players: rows
+         };
 
-  /**
+      }
+      catch (error)
+      {
+         console.error('🔄 TurnService: Error resetting players for new turn:', error);
+         throw error;
+      }
+   }
+
+   /**
     * Process move orders for a turn
     * @param {string} gameId - Game ID
     * @param {string} turnId - Turn ID
@@ -593,38 +626,43 @@ export class TurnService
       console.log(`⚔️ TurnService: Setting up event listeners for combat at star ${starId}`);
 
       // Listen to combat events and track changes
-      combat.on('combat:damage', (event) => {
+      combat.on('combat:damage', (event) =>
+      {
          console.log(`⚔️ TurnService: Received combat:damage event - Ship ${event.shipId}, HP: ${event.hpBefore} → ${event.hpAfter}, destroyed: ${event.destroyed}`);
-         
+
          // Track HP changes - if destroyed flag is true, always mark as destroyed
          const existingUpdate = shipUpdates.get(event.shipId);
-         shipUpdates.set(event.shipId, {
+         shipUpdates.set(event.shipId,
+         {
             hp: event.hpAfter,
             destroyed: event.destroyed || (existingUpdate?.destroyed === true), // Preserve destroyed flag
             hpBefore: event.hpBefore
          });
-         
+
          console.log(`⚔️ TurnService: Updated ship ${event.shipId} tracking - HP: ${event.hpAfter}, destroyed: ${shipUpdates.get(event.shipId).destroyed}`);
       });
 
-      combat.on('combat:shipDestroyed', (event) => {
+      combat.on('combat:shipDestroyed', (event) =>
+      {
          console.log(`⚔️ TurnService: Received combat:shipDestroyed event - Ship ${event.shipId} (${event.ownerId}) destroyed in round ${event.round}`);
-         
+
          // Ensure ship is marked as destroyed (this should override any previous state)
-         const update = shipUpdates.get(event.shipId) || {};
+         const update = shipUpdates.get(event.shipId) ||
+         {};
          update.destroyed = true;
          update.hp = 0;
          shipUpdates.set(event.shipId, update);
-         
+
          console.log(`⚔️ TurnService: Marked ship ${event.shipId} as destroyed in tracking map`);
       });
 
-      combat.on('combat:start', (event) => {
+      combat.on('combat:start', (event) =>
+      {
          console.log(`⚔️ TurnService: Received combat:start event - ${event.playerIds.length} players, ${event.initialShipStates.length} ships`);
-         
+
          // Extract player IDs for turn event recording
          playerIds.push(...event.playerIds);
-         
+
          console.log(`⚔️ TurnService: Tracked player IDs:`, playerIds);
       });
 
@@ -645,7 +683,7 @@ export class TurnService
          if (update.destroyed)
          {
             console.log(`⚔️ TurnService: Updating database - Ship ${shipId} → status='destroyed', hp=0`);
-            
+
             // Mark ship as destroyed
             const updateResult = await pool.query(
                `UPDATE ship 
@@ -653,20 +691,20 @@ export class TurnService
                 WHERE id = $1 AND game_id = $2`,
                [shipId, gameId]
             );
-            
+
             console.log(`⚔️ TurnService: Database update result - Ship ${shipId}: ${updateResult.rowCount} row(s) updated`);
-            
+
             // Verify the update
             const verifyResult = await pool.query(
                `SELECT id, hp, status FROM ship WHERE id = $1 AND game_id = $2`,
                [shipId, gameId]
             );
-            
+
             if (verifyResult.rows.length > 0)
             {
                const ship = verifyResult.rows[0];
                console.log(`⚔️ TurnService: Verified ship ${shipId} - HP: ${ship.hp}, status: ${ship.status}`);
-               
+
                if (ship.status !== 'destroyed' || ship.hp !== 0)
                {
                   console.error(`⚔️ TurnService: ERROR - Ship ${shipId} was not properly updated! Expected: status='destroyed', hp=0. Got: status='${ship.status}', hp=${ship.hp}`);
@@ -685,7 +723,7 @@ export class TurnService
                console.error(`⚔️ TurnService: WARNING - Ship ${shipId} has non-positive HP (${update.hp}) but not marked as destroyed! Converting to destroyed status.`);
                update.destroyed = true;
                update.hp = 0;
-               
+
                // Mark ship as destroyed
                const updateResult = await pool.query(
                   `UPDATE ship 
@@ -693,15 +731,15 @@ export class TurnService
                    WHERE id = $1 AND game_id = $2`,
                   [shipId, gameId]
                );
-               
+
                console.log(`⚔️ TurnService: Database update result (destroyed) - Ship ${shipId}: ${updateResult.rowCount} row(s) updated`);
-               
+
                // Verify the update
                const verifyResult = await pool.query(
                   `SELECT id, hp, status FROM ship WHERE id = $1 AND game_id = $2`,
                   [shipId, gameId]
                );
-               
+
                if (verifyResult.rows.length > 0)
                {
                   const ship = verifyResult.rows[0];
@@ -711,7 +749,7 @@ export class TurnService
             else
             {
                console.log(`⚔️ TurnService: Updating database - Ship ${shipId} → hp=${update.hp}`);
-               
+
                // Update ship HP
                const updateResult = await pool.query(
                   `UPDATE ship 
@@ -719,12 +757,12 @@ export class TurnService
                    WHERE id = $2 AND game_id = $3`,
                   [update.hp, shipId, gameId]
                );
-               
+
                console.log(`⚔️ TurnService: Database update result - Ship ${shipId}: ${updateResult.rowCount} row(s) updated`);
             }
          }
       }
-      
+
       console.log(`⚔️ TurnService: Completed all database updates for combat at star ${starId}`);
 
       // Record combat event for all participants (each player gets their own event)
@@ -830,22 +868,22 @@ export class TurnService
 
    /**
     * Process all build orders for a turn (build, expand, research) - optimized per star
-   * @param {string} gameId - Game ID
-   * @param {string} turnId - Turn ID
+    * @param {string} gameId - Game ID
+    * @param {string} turnId - Turn ID
     * @returns {Promise<Object>} Result object with all processing results
-   */
+    */
    async processAllBuildOrders(gameId, turnId)
-  {
+   {
       console.log(`🏗️ TurnService: Processing all orders for game ${gameId}, turn ${turnId}`);
-    
-    try
-    {
-      // Get all build orders with star state information
+
+      try
+      {
+         // Get all build orders with star state information
          const
          {
             rows: orders
          } = await pool.query(
-        `SELECT 
+            `SELECT 
            o.payload,
            ss.id as star_state_id,
            ss.star_id,
@@ -857,31 +895,31 @@ export class TurnService
            AND o.turn_id = $2
            AND o.order_type = 'build'
            AND ss.game_id = $1`,
-        [gameId, turnId]
-      );
+            [gameId, turnId]
+         );
 
          console.log(`🏗️ TurnService: Found ${orders.length} orders to process`, orders);
 
-      const results = {
+         const results = {
             totalOrders: orders.length,
             starsProcessed: 0,
-        shipsBuilt: 0,
+            shipsBuilt: 0,
             starsExpanded: 0,
             starsResearched: 0,
             totalBuildSpent: 0,
             totalExpandSpent: 0,
             totalResearchSpent: 0,
-        errors: []
-      };
+            errors: []
+         };
 
          // Process each star's orders sequentially: build -> expand -> research
          for (const order of orders)
-      {
+         {
             console.log(`🏗️ TurnService: Processing order payload:`, order.payload);
 
-        try
-        {
-          const payload = order.payload;
+            try
+            {
+               const payload = order.payload;
                const economy = {
                   ...order.economy
                }; // Clone economy for this star
@@ -889,29 +927,29 @@ export class TurnService
                // Build ships first
                if (payload.build && payload.build > 0)
                {
-          const available = economy.available || 0;
-          const technology = economy.technology || 1;
-          const shipCost = technology;
+                  const available = economy.available || 0;
+                  const technology = economy.technology || 1;
+                  const shipCost = technology;
                   const requestedShips = Math.floor(payload.build / shipCost);
 
-          const maxShips = Math.floor(available / shipCost);
-          const shipsToBuild = Math.min(requestedShips, maxShips);
-          const totalCost = shipsToBuild * shipCost;
+                  const maxShips = Math.floor(available / shipCost);
+                  const shipsToBuild = Math.min(requestedShips, maxShips);
+                  const totalCost = shipsToBuild * shipCost;
 
                   console.log(`🏗️ TurnService: Ship build=${payload.build}, requested=${requestedShips}, built=${shipsToBuild}, cost=${shipCost}`);
 
-          if (shipsToBuild > 0)
-          {
-            // Create ships
-            for (let i = 0; i < shipsToBuild; i++)
-            {
-              const shipId = crypto.randomUUID();
-              await pool.query(
-                `INSERT INTO ship (id, game_id, owner_player, location_star_id, hp, power, status, details)
+                  if (shipsToBuild > 0)
+                  {
+                     // Create ships
+                     for (let i = 0; i < shipsToBuild; i++)
+                     {
+                        const shipId = crypto.randomUUID();
+                        await pool.query(
+                           `INSERT INTO ship (id, game_id, owner_player, location_star_id, hp, power, status, details)
                  VALUES ($1, $2, $3, $4, $5, $6, 'active', '{}')`,
-                [shipId, gameId, order.owner_player, order.star_id, technology, technology]
-              );
-            }
+                           [shipId, gameId, order.owner_player, order.star_id, technology, technology]
+                        );
+                     }
 
                      economy.available = available - totalCost;
                      results.shipsBuilt += shipsToBuild;
@@ -1000,8 +1038,8 @@ export class TurnService
                }
 
                // Update star state with final economy values (single update per star)
-            await pool.query(
-              `UPDATE star_state 
+               await pool.query(
+                  `UPDATE star_state 
                SET economy = $1, updated_at = now()
                WHERE id = $2`,
                   [JSON.stringify(economy), order.star_state_id]
@@ -1010,32 +1048,32 @@ export class TurnService
                results.starsProcessed += 1;
 
                console.log(`🏗️ TurnService: Completed processing for star ${order.star_id}, final available: ${economy.available}`);
-        }
-        catch (error)
-        {
+            }
+            catch (error)
+            {
                console.error(`🏗️ TurnService: Error processing orders for star ${order.star_id}:`, error);
                results.errors.push(
                {
-            starId: order.star_id,
-            error: error.message
-          });
-        }
-      }
+                  starId: order.star_id,
+                  error: error.message
+               });
+            }
+         }
 
          console.log(`🏗️ TurnService: Order processing complete - ${results.starsProcessed} stars processed, ${results.shipsBuilt} ships built, ${results.starsExpanded} expanded, ${results.starsResearched} researched`);
-      
-      return {
-        success: true,
-        results
-      };
 
-    }
-    catch (error)
-    {
+         return {
+            success: true,
+            results
+         };
+
+      }
+      catch (error)
+      {
          console.error('🏗️ TurnService: Error processing all orders:', error);
-      throw error;
-    }
-  }
+         throw error;
+      }
+   }
 
    /**
     * Prepare for the next turn by closing current turn, creating new turn, and updating economies
@@ -1155,6 +1193,6 @@ export class TurnService
       finally
       {
          client.release();
-    }
-  }
+      }
+   }
 }

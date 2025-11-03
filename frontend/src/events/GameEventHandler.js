@@ -153,7 +153,7 @@ export class GameEventHandler {
     
     try {
       // Validate required parameters
-      const { gameId, userId, name, color_hex, country_name } = playerData;
+      const { gameId, userId, name, color_hex, country_name, meta } = playerData;
       
       if (!gameId || !name || !color_hex) {
         const error = 'Missing required parameters: gameId, name, color_hex';
@@ -168,6 +168,17 @@ export class GameEventHandler {
         return;
       }
       
+      // Parse meta if it's a string (from DevEventHandler)
+      let metaData = meta || {};
+      if (typeof meta === 'string') {
+        try {
+          metaData = JSON.parse(meta);
+        } catch (e) {
+          console.warn('🎮 GameEventHandler: Failed to parse meta, using empty object:', e);
+          metaData = {};
+        }
+      }
+      
       // Call the backend API to add the player
       const response = await fetch('/api/games/players', {
         method: 'POST',
@@ -179,7 +190,8 @@ export class GameEventHandler {
           userId,
           name,
           colorHex: color_hex,
-          countryName: country_name
+          countryName: country_name,
+          meta: metaData
         })
       });
       

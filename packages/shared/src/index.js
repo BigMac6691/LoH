@@ -1,4 +1,4 @@
-export * from "./SeededRandom.js";
+export { default as SeededRandom } from "./SeededRandom.js";
 export * from "./Economy.js";
 export * from "./MapModel.js";
 export * from "./MoveOrder.js";
