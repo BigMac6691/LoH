@@ -697,6 +697,10 @@ export class DevEventHandler
 
          // Get players data and emit scenario complete event with player info
          const players = await this.checkPlayersAdded(gameState);
+
+         if(!players.some(p => p.id === eventBus.getContext().user))
+            eventBus.setUser(players[0].id);
+         
          eventBus.emit('dev:scenarioComplete',
          {
             scenario,
@@ -750,7 +754,7 @@ export class DevEventHandler
          throw new Error(`🧪 DevEventHandler: No player data found for scenario: ${scenario}`);
       }
 
-      eventBus.setUser(currentPlayers[0].id);
+      // eventBus.setUser(currentPlayers[0].id);
 
       console.log(`🧪 DevEventHandler: Player check - Current: ${currentPlayers.length}, Required: ${requiredPlayers.length}`);
 

@@ -268,21 +268,21 @@ export class IndustryDialog extends BaseDialog
   {
     if (!this.currentStar || !this.currentStar.economy) return;
 
-    const capacity = this.currentStar.economy.capacity || 0;
+    const available = this.currentStar.economy.available || 0;
     const currentTotal = Object.values(this.spendingOrders).reduce(
       (sum, val) => sum + val,
       0
     );
 
     console.log('🏭 IndustryDialog: updateSpendingConstraints:');
-    console.log('  - Capacity:', capacity);
+    console.log('  - Available:', available);
     console.log('  - Current total:', currentTotal);
     console.log('  - Spending orders:', this.spendingOrders);
 
-    // If total exceeds capacity, we need to constrain the inputs
-    if (currentTotal > capacity)
+    // If total exceeds available, we need to constrain the inputs
+    if (currentTotal > available)
     {
-      console.log('🏭 IndustryDialog: Total exceeds capacity, constraining inputs');
+      console.log('🏭 IndustryDialog: Total exceeds available, constraining inputs');
       
       // Find which input was just changed (the one with the highest value)
       let maxKey = null;
@@ -298,16 +298,16 @@ export class IndustryDialog extends BaseDialog
 
       if (maxKey)
       {
-        // Cap the changed input to capacity
-        this.spendingOrders[maxKey] = capacity;
-        this.spendingControls[maxKey].slider.value = capacity;
-        this.spendingControls[maxKey].numberInput.value = capacity;
-        console.log(`🏭 IndustryDialog: Capped ${maxKey} to capacity: ${capacity}`);
+        // Cap the changed input to available
+        this.spendingOrders[maxKey] = available;
+        this.spendingControls[maxKey].slider.value = available;
+        this.spendingControls[maxKey].numberInput.value = available;
+        console.log(`🏭 IndustryDialog: Capped ${maxKey} to available: ${available}`);
       }
     }
 
-    // Update max values for all inputs based on remaining capacity
-    const remaining = capacity - currentTotal;
+    // Update max values for all inputs based on remaining available
+    const remaining = available - currentTotal;
 
     for (const [key, controls] of Object.entries(this.spendingControls))
     {
@@ -326,22 +326,25 @@ export class IndustryDialog extends BaseDialog
    */
   getActualAvailable()
   {
-    if (!this.currentStar || !this.currentStar.economy) return 0;
+    if (!this.currentStar || !this.currentStar.economy) 
+      return 0;
 
-    const capacity = this.currentStar.economy.capacity || 0;
+    console.log('🏭 IndustryDialog: getActualAvailable calculation:', this.currentStar);
+
+    const available = this.currentStar.economy.available || 0;
     const totalSpendingOrders = Object.values(this.spendingOrders).reduce(
       (sum, val) => sum + val,
       0
     );
     
     console.log('🏭 IndustryDialog: getActualAvailable calculation:');
-    console.log('  - Capacity:', capacity);
+    console.log('  - Economy available:', available);
     console.log('  - Spending orders:', this.spendingOrders);
     console.log('  - Total spending:', totalSpendingOrders);
-    console.log('  - Available:', Math.max(0, capacity - totalSpendingOrders));
+    console.log('  - Remaining available:', Math.max(0, available - totalSpendingOrders));
     
-    // Calculate available as capacity minus all spending orders
-    return Math.max(0, capacity - totalSpendingOrders);
+    // Calculate remaining available as economy available minus current spending orders
+    return Math.max(0, available - totalSpendingOrders);
   }
 
   /**
@@ -361,6 +364,22 @@ export class IndustryDialog extends BaseDialog
     console.log('  - Total calculated:', total);
     
     this.totalSpendingElement.textContent = total;
+    
+    // Also update the available display
+    this.updateAvailableDisplay();
+  }
+  
+  /**
+   * Update just the available display (without updating all economy values)
+   */
+  updateAvailableDisplay()
+  {
+    const availableElement = this.dialog.querySelector('.value-available');
+    if (availableElement)
+    {
+      const actualAvailable = this.getActualAvailable();
+      availableElement.textContent = actualAvailable;
+    }
   }
 
   /**
