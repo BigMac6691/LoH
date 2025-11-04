@@ -51,9 +51,43 @@ export class MoveDialogView {
     header.appendChild(title);
     header.appendChild(closeBtn);
 
-    // Star name
-    this.starNameElement = document.createElement('div');
-    this.starNameElement.className = 'star-name-display';
+    // Star name container with navigation buttons
+    const starNameContainer = document.createElement('div');
+    starNameContainer.className = 'star-name-display';
+    
+    // Previous button
+    this.prevStarButton = document.createElement('button');
+    this.prevStarButton.textContent = '◀ Prev';
+    this.prevStarButton.className = 'star-nav-button star-nav-prev';
+    this.prevStarButton.title = 'Previous owned star';
+    
+    // Star name (centered, clickable)
+    this.starNameElement = document.createElement('span');
+    this.starNameElement.className = 'star-name-text clickable';
+    this.starNameElement.style.cursor = 'pointer';
+    this.starNameElement.title = 'Click to select a star';
+    
+    // Star selection dropdown
+    this.starSelectionDropdown = document.createElement('div');
+    this.starSelectionDropdown.className = 'star-selection-dropdown';
+    this.starSelectionDropdown.style.display = 'none';
+    
+    // Next button
+    this.nextStarButton = document.createElement('button');
+    this.nextStarButton.textContent = 'Next ▶';
+    this.nextStarButton.className = 'star-nav-button star-nav-next';
+    this.nextStarButton.title = 'Next owned star';
+    
+    starNameContainer.appendChild(this.prevStarButton);
+    starNameContainer.appendChild(this.starNameElement);
+    starNameContainer.appendChild(this.nextStarButton);
+    
+    // Store container reference
+    this.starNameContainer = starNameContainer;
+    
+    // Add dropdown to container (positioned relative)
+    starNameContainer.style.position = 'relative';
+    starNameContainer.appendChild(this.starSelectionDropdown);
 
     // Content container
     const content = document.createElement('div');
@@ -73,7 +107,7 @@ export class MoveDialogView {
     content.appendChild(rightPanel);
 
     this.dialog.appendChild(header);
-    this.dialog.appendChild(this.starNameElement);
+    this.dialog.appendChild(this.starNameContainer);
     this.dialog.appendChild(content);
 
     // Store drag handle reference
@@ -249,6 +283,32 @@ export class MoveDialogView {
     if (this.cancelButton) {
       this.cancelButton.addEventListener('click', callbacks.onCancelOrder);
     }
+
+    // Navigation buttons
+    if (this.prevStarButton && callbacks.onPrevStar) {
+      this.prevStarButton.addEventListener('click', callbacks.onPrevStar);
+    }
+    
+    if (this.nextStarButton && callbacks.onNextStar) {
+      this.nextStarButton.addEventListener('click', callbacks.onNextStar);
+    }
+
+    // Star name click to show dropdown
+    if (this.starNameElement && callbacks.onStarNameClick) {
+      this.starNameElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        callbacks.onStarNameClick();
+      });
+    }
+
+    // Click outside to close dropdown
+    document.addEventListener('click', (e) => {
+      if (this.starSelectionDropdown && 
+          this.starSelectionDropdown.style.display !== 'none' &&
+          !this.starNameContainer.contains(e.target)) {
+        this.hideStarSelectionDropdown();
+      }
+    });
   }
 
   /**
@@ -258,6 +318,132 @@ export class MoveDialogView {
   updateStarName(starName) {
     if (this.starNameElement) {
       this.starNameElement.textContent = starName;
+    }
+  }
+
+  /**
+   * Update navigation button states
+   * @param {boolean} hasPrev - Whether there is a previous star
+   * @param {boolean} hasNext - Whether there is a next star
+   */
+  updateNavigationButtons(hasPrev, hasNext) {
+    if (this.prevStarButton) {
+      this.prevStarButton.disabled = !hasPrev;
+      if (!hasPrev) {
+        this.prevStarButton.classList.add('disabled');
+      } else {
+        this.prevStarButton.classList.remove('disabled');
+      }
+    }
+    
+    if (this.nextStarButton) {
+      this.nextStarButton.disabled = !hasNext;
+      if (!hasNext) {
+        this.nextStarButton.classList.add('disabled');
+      } else {
+        this.nextStarButton.classList.remove('disabled');
+      }
+    }
+  }
+
+  /**
+   * Show star selection dropdown
+   * @param {Array} stars - Array of star objects to display
+   * @param {Function} onStarSelect - Callback when a star is selected
+   * @param {string} currentStarId - ID of the current star to highlight
+   */
+  showStarSelectionDropdown(stars, onStarSelect, currentStarId) {
+    if (!this.starSelectionDropdown) return;
+
+    // Clear existing content
+    this.starSelectionDropdown.innerHTML = '';
+
+    if (stars.length === 0) {
+      const noStarsMsg = document.createElement('div');
+      noStarsMsg.className = 'star-dropdown-item star-dropdown-empty';
+      noStarsMsg.textContent = 'No stars with ships available';
+      this.starSelectionDropdown.appendChild(noStarsMsg);
+    } else {
+      // Add each star to the dropdown
+      stars.forEach(star => {
+        const starItem = document.createElement('div');
+        starItem.className = 'star-dropdown-item';
+        
+        const starId = star.getId();
+        const starName = star.getName();
+        const isCurrent = starId === currentStarId;
+        
+        if (isCurrent) {
+          starItem.classList.add('current');
+        }
+        
+        starItem.textContent = starName;
+        starItem.style.cursor = 'pointer';
+        
+        // Set star color
+        const starColor = star.getColor();
+        if (starColor) {
+          starItem.style.borderLeft = `3px solid ${starColor}`;
+        }
+        
+        starItem.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onStarSelect(star);
+          this.hideStarSelectionDropdown();
+        });
+        
+        starItem.addEventListener('mouseenter', () => {
+          starItem.style.background = 'var(--bg-hover)';
+        });
+        
+        starItem.addEventListener('mouseleave', () => {
+          starItem.style.background = isCurrent ? 'var(--bg-light)' : 'var(--bg-dark)';
+        });
+        
+        this.starSelectionDropdown.appendChild(starItem);
+      });
+    }
+
+    // Calculate width based on longest star name
+    let maxWidth = 0;
+    stars.forEach(star => {
+      const tempElement = document.createElement('span');
+      tempElement.textContent = star.getName();
+      tempElement.style.position = 'absolute';
+      tempElement.style.visibility = 'hidden';
+      tempElement.style.fontSize = getComputedStyle(this.starSelectionDropdown).fontSize;
+      document.body.appendChild(tempElement);
+      const textWidth = tempElement.offsetWidth;
+      document.body.removeChild(tempElement);
+      maxWidth = Math.max(maxWidth, textWidth);
+    });
+    
+    // Add padding (2em = approximately 32px for default font size)
+    const padding = 64; // 2em equivalent in pixels
+    const calculatedWidth = maxWidth + padding;
+    
+    // Use calculated width or minimum 200px, maximum 400px
+    const dropdownWidth = Math.max(200, Math.min(calculatedWidth, 400));
+    
+    // Position dropdown below star name, centered on star name
+    const starNameRect = this.starNameElement.getBoundingClientRect();
+    const containerRect = this.starNameContainer.getBoundingClientRect();
+    const centerOffset = (starNameRect.width - dropdownWidth) / 2;
+    
+    this.starSelectionDropdown.style.position = 'absolute';
+    this.starSelectionDropdown.style.top = `${starNameRect.bottom - containerRect.top + 5}px`;
+    this.starSelectionDropdown.style.left = `${starNameRect.left - containerRect.left + centerOffset}px`;
+    this.starSelectionDropdown.style.width = `${dropdownWidth}px`;
+    this.starSelectionDropdown.style.display = 'block';
+    this.starSelectionDropdown.style.zIndex = '10000';
+  }
+
+  /**
+   * Hide star selection dropdown
+   */
+  hideStarSelectionDropdown() {
+    if (this.starSelectionDropdown) {
+      this.starSelectionDropdown.style.display = 'none';
     }
   }
 
@@ -368,6 +554,8 @@ export class MoveDialogView {
     if (this.dialog) {
       this.dialog.style.display = 'none';
     }
+    // Close dropdown if open
+    this.hideStarSelectionDropdown();
   }
 
   /**

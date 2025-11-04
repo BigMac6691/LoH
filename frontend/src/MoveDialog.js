@@ -64,7 +64,10 @@ export class MoveDialog extends BaseDialog
       onSelectAllMobile: () => this.selectAllMobileShips(),
       onClearSelection: () => this.clearShipSelection(),
       onSubmitOrder: () => this.moveFleet(),
-      onCancelOrder: () => this.cancelOrder()
+      onCancelOrder: () => this.cancelOrder(),
+      onPrevStar: () => this.navigateToPreviousStar(),
+      onNextStar: () => this.navigateToNextStar(),
+      onStarNameClick: () => this.handleStarNameClick()
     });
   }
 
@@ -300,6 +303,145 @@ export class MoveDialog extends BaseDialog
     this.updateMoveButton();
 
     console.log('🚀 MoveDialog: Opened for star:', starName, 'player:', this.currentPlayer.id);
+    
+    // Update navigation buttons based on available owned stars
+    this.updateNavigationButtons();
+  }
+
+  /**
+   * Get all stars owned by the current player that have ships, sorted alphabetically
+   * @returns {Array} Array of owned star objects that have ships
+   */
+  getOwnedStarsSorted() {
+    if (!window.globalMapModel || !this.currentPlayer) {
+      return [];
+    }
+
+    const allStars = window.globalMapModel.getStars();
+    const ownedStars = allStars.filter(star => {
+      const owner = star.getOwner();
+      if (!owner || owner.id !== this.currentPlayer.id) {
+        return false;
+      }
+      
+      // Only include stars that have ships
+      const ships = star.getShips();
+      if (!ships || ships.length === 0) {
+        return false;
+      }
+      
+      // Filter out destroyed ships and check if any active ships remain
+      const activeShips = ships.filter(ship => {
+        if (ship.status !== undefined) {
+          return ship.status !== 'destroyed';
+        }
+        return true; // Include ships without status property for backwards compatibility
+      });
+      
+      return activeShips.length > 0;
+    });
+
+    // Sort alphabetically by star name
+    return ownedStars.sort((a, b) => {
+      const nameA = a.getName().toLowerCase();
+      const nameB = b.getName().toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }
+
+  /**
+   * Get the index of the current star in the sorted owned stars list
+   * @returns {number} Index of current star, or -1 if not found
+   */
+  getCurrentStarIndex() {
+    if (!this.currentStar) return -1;
+    
+    const ownedStars = this.getOwnedStarsSorted();
+    const currentStarId = this.currentStar.getId();
+    
+    return ownedStars.findIndex(star => star.getId() === currentStarId);
+  }
+
+  /**
+   * Update navigation button states based on current position
+   */
+  updateNavigationButtons() {
+    const ownedStars = this.getOwnedStarsSorted();
+    const currentIndex = this.getCurrentStarIndex();
+    
+    const hasPrev = currentIndex > 0;
+    const hasNext = currentIndex >= 0 && currentIndex < ownedStars.length - 1;
+    
+    this.view.updateNavigationButtons(hasPrev, hasNext);
+  }
+
+  /**
+   * Navigate to the previous owned star (alphabetically)
+   */
+  navigateToPreviousStar() {
+    const ownedStars = this.getOwnedStarsSorted();
+    const currentIndex = this.getCurrentStarIndex();
+    
+    if (currentIndex <= 0) {
+      console.warn('🚀 MoveDialog: No previous star available');
+      return;
+    }
+    
+    const prevStar = ownedStars[currentIndex - 1];
+    console.log(`🚀 MoveDialog: Navigating to previous star: ${prevStar.getName()}`);
+    
+    // Show the previous star (this will reload its state and orders)
+    this.show(prevStar, this.currentPlayer);
+  }
+
+  /**
+   * Navigate to the next owned star (alphabetically)
+   */
+  navigateToNextStar() {
+    const ownedStars = this.getOwnedStarsSorted();
+    const currentIndex = this.getCurrentStarIndex();
+    
+    if (currentIndex < 0 || currentIndex >= ownedStars.length - 1) {
+      console.warn('🚀 MoveDialog: No next star available');
+      return;
+    }
+    
+    const nextStar = ownedStars[currentIndex + 1];
+    console.log(`🚀 MoveDialog: Navigating to next star: ${nextStar.getName()}`);
+    
+    // Show the next star (this will reload its state and orders)
+    this.show(nextStar, this.currentPlayer);
+  }
+
+  /**
+   * Handle star name click to show selection dropdown
+   */
+  handleStarNameClick() {
+    const ownedStars = this.getOwnedStarsSorted();
+    const currentStarId = this.currentStar ? this.currentStar.getId() : null;
+    
+    // Show dropdown with stars
+    this.view.showStarSelectionDropdown(
+      ownedStars,
+      (star) => this.handleStarSelection(star),
+      currentStarId
+    );
+  }
+
+  /**
+   * Handle star selection from dropdown
+   * @param {Object} star - Selected star object
+   */
+  handleStarSelection(star) {
+    if (!star) {
+      console.warn('🚀 MoveDialog: No star provided for selection');
+      return;
+    }
+    
+    console.log(`🚀 MoveDialog: Star selected from dropdown: ${star.getName()}`);
+    
+    // Show the selected star (this will reload its state and orders)
+    this.show(star, this.currentPlayer);
   }
 
   /**

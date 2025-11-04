@@ -50,12 +50,41 @@ export class IndustryDialog extends BaseDialog
     header.appendChild(title);
     header.appendChild(closeBtn);
 
-    // Star name
-    this.starNameElement = document.createElement('div');
-    this.starNameElement.className = 'star-name-display';
-
+    // Star name container with navigation buttons
+    const starNameContainer = document.createElement('div');
+    starNameContainer.className = 'star-name-display';
+    starNameContainer.style.position = 'relative';
+    
+    // Previous button
+    this.prevStarButton = document.createElement('button');
+    this.prevStarButton.textContent = '◀ Prev';
+    this.prevStarButton.className = 'star-nav-button star-nav-prev';
+    this.prevStarButton.title = 'Previous owned star';
+    
+    // Star name (centered, clickable)
+    this.starNameElement = document.createElement('span');
+    this.starNameElement.className = 'star-name-text clickable';
+    this.starNameElement.style.cursor = 'pointer';
+    this.starNameElement.title = 'Click to select a star';
+    
+    // Star selection dropdown
+    this.starSelectionDropdown = document.createElement('div');
+    this.starSelectionDropdown.className = 'star-selection-dropdown';
+    this.starSelectionDropdown.style.display = 'none';
+    
+    // Next button
+    this.nextStarButton = document.createElement('button');
+    this.nextStarButton.textContent = 'Next ▶';
+    this.nextStarButton.className = 'star-nav-button star-nav-next';
+    this.nextStarButton.title = 'Next owned star';
+    
+    starNameContainer.appendChild(this.prevStarButton);
+    starNameContainer.appendChild(this.starNameElement);
+    starNameContainer.appendChild(this.nextStarButton);
+    starNameContainer.appendChild(this.starSelectionDropdown);
+    
     this.dialog.appendChild(header);
-    this.dialog.appendChild(this.starNameElement);
+    this.dialog.appendChild(starNameContainer);
 
     // Content area
     const content = document.createElement('div');
@@ -92,6 +121,32 @@ export class IndustryDialog extends BaseDialog
     
     // Listen for order loading error
     eventBus.on('order:build.loadError', this.handleOrderLoadError.bind(this));
+    
+    // Navigation button event listeners
+    if (this.prevStarButton) {
+      this.prevStarButton.addEventListener('click', () => this.navigateToPreviousStar());
+    }
+    
+    if (this.nextStarButton) {
+      this.nextStarButton.addEventListener('click', () => this.navigateToNextStar());
+    }
+
+    // Star name click to show dropdown
+    if (this.starNameElement) {
+      this.starNameElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.handleStarNameClick();
+      });
+    }
+
+    // Click outside to close dropdown
+    document.addEventListener('click', (e) => {
+      if (this.starSelectionDropdown && 
+          this.starSelectionDropdown.style.display !== 'none' &&
+          !this.dialog.contains(e.target)) {
+        this.hideStarSelectionDropdown();
+      }
+    });
     
     console.log('🏭 IndustryDialog: Event listeners set up');
   }
@@ -631,12 +686,286 @@ export class IndustryDialog extends BaseDialog
     this.updateSpendingConstraints();
     this.updateTotalSpending();
 
+    // Update navigation buttons based on available owned stars
+    this.updateNavigationButtons();
+
     console.log(
       '🏭 IndustryDialog: Opened for star:',
       star.getName(),
       hasSavedOrders ? '(with saved orders)' : '(new orders)',
       star
     );
+  }
+
+  /**
+   * Get all stars owned by the current player that have economy, sorted alphabetically
+   * @returns {Array} Array of owned star objects that have economy
+   */
+  getOwnedStarsSorted()
+  {
+    if (!window.globalMapModel || !this.currentStar || !this.currentStar.getOwner())
+    {
+      return [];
+    }
+
+    const currentPlayer = this.currentStar.getOwner();
+    const allStars = window.globalMapModel.getStars();
+    const ownedStars = allStars.filter(star => {
+      const owner = star.getOwner();
+      if (!owner || owner.id !== currentPlayer.id)
+      {
+        return false;
+      }
+      
+      // Only include stars that have an economy
+      const economy = star.economy;
+      return economy !== null && economy !== undefined;
+    });
+
+    // Sort alphabetically by star name
+    return ownedStars.sort((a, b) => {
+      const nameA = a.getName().toLowerCase();
+      const nameB = b.getName().toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }
+
+  /**
+   * Get the index of the current star in the sorted owned stars list
+   * @returns {number} Index of current star, or -1 if not found
+   */
+  getCurrentStarIndex()
+  {
+    if (!this.currentStar) return -1;
+    
+    const ownedStars = this.getOwnedStarsSorted();
+    const currentStarId = this.currentStar.getId();
+    
+    return ownedStars.findIndex(star => star.getId() === currentStarId);
+  }
+
+  /**
+   * Update navigation button states based on current position
+   */
+  updateNavigationButtons()
+  {
+    const ownedStars = this.getOwnedStarsSorted();
+    const currentIndex = this.getCurrentStarIndex();
+    
+    const hasPrev = currentIndex > 0;
+    const hasNext = currentIndex >= 0 && currentIndex < ownedStars.length - 1;
+    
+    if (this.prevStarButton)
+    {
+      this.prevStarButton.disabled = !hasPrev;
+      if (!hasPrev)
+      {
+        this.prevStarButton.classList.add('disabled');
+      }
+      else
+      {
+        this.prevStarButton.classList.remove('disabled');
+      }
+    }
+    
+    if (this.nextStarButton)
+    {
+      this.nextStarButton.disabled = !hasNext;
+      if (!hasNext)
+      {
+        this.nextStarButton.classList.add('disabled');
+      }
+      else
+      {
+        this.nextStarButton.classList.remove('disabled');
+      }
+    }
+  }
+
+  /**
+   * Navigate to the previous owned star (alphabetically)
+   */
+  navigateToPreviousStar()
+  {
+    const ownedStars = this.getOwnedStarsSorted();
+    const currentIndex = this.getCurrentStarIndex();
+    
+    if (currentIndex <= 0)
+    {
+      console.warn('🏭 IndustryDialog: No previous star available');
+      return;
+    }
+    
+    const prevStar = ownedStars[currentIndex - 1];
+    console.log(`🏭 IndustryDialog: Navigating to previous star: ${prevStar.getName()}`);
+    
+    // Show the previous star (this will reload its state and orders)
+    this.show(prevStar);
+  }
+
+  /**
+   * Navigate to the next owned star (alphabetically)
+   */
+  navigateToNextStar()
+  {
+    const ownedStars = this.getOwnedStarsSorted();
+    const currentIndex = this.getCurrentStarIndex();
+    
+    if (currentIndex < 0 || currentIndex >= ownedStars.length - 1)
+    {
+      console.warn('🏭 IndustryDialog: No next star available');
+      return;
+    }
+    
+    const nextStar = ownedStars[currentIndex + 1];
+    console.log(`🏭 IndustryDialog: Navigating to next star: ${nextStar.getName()}`);
+    
+    // Show the next star (this will reload its state and orders)
+    this.show(nextStar);
+  }
+
+  /**
+   * Handle star name click to show selection dropdown
+   */
+  handleStarNameClick()
+  {
+    const ownedStars = this.getOwnedStarsSorted();
+    const currentStarId = this.currentStar ? this.currentStar.getId() : null;
+    
+    // Show dropdown with stars
+    this.showStarSelectionDropdown(
+      ownedStars,
+      (star) => this.handleStarSelection(star),
+      currentStarId
+    );
+  }
+
+  /**
+   * Handle star selection from dropdown
+   * @param {Object} star - Selected star object
+   */
+  handleStarSelection(star)
+  {
+    if (!star)
+    {
+      console.warn('🏭 IndustryDialog: No star provided for selection');
+      return;
+    }
+    
+    console.log(`🏭 IndustryDialog: Star selected from dropdown: ${star.getName()}`);
+    
+    // Show the selected star (this will reload its state and orders)
+    this.show(star);
+  }
+
+  /**
+   * Show star selection dropdown
+   * @param {Array} stars - Array of star objects to display
+   * @param {Function} onStarSelect - Callback when a star is selected
+   * @param {string} currentStarId - ID of the current star to highlight
+   */
+  showStarSelectionDropdown(stars, onStarSelect, currentStarId)
+  {
+    if (!this.starSelectionDropdown) return;
+
+    // Clear existing content
+    this.starSelectionDropdown.innerHTML = '';
+
+    if (stars.length === 0)
+    {
+      const noStarsMsg = document.createElement('div');
+      noStarsMsg.className = 'star-dropdown-item star-dropdown-empty';
+      noStarsMsg.textContent = 'No stars with economy available';
+      this.starSelectionDropdown.appendChild(noStarsMsg);
+    }
+    else
+    {
+      // Add each star to the dropdown
+      stars.forEach(star => {
+        const starItem = document.createElement('div');
+        starItem.className = 'star-dropdown-item';
+        
+        const starId = star.getId();
+        const starName = star.getName();
+        const isCurrent = starId === currentStarId;
+        
+        if (isCurrent)
+        {
+          starItem.classList.add('current');
+        }
+        
+        starItem.textContent = starName;
+        starItem.style.cursor = 'pointer';
+        
+        // Set star color
+        const starColor = star.getColor();
+        if (starColor)
+        {
+          starItem.style.borderLeft = `3px solid ${starColor}`;
+        }
+        
+        starItem.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onStarSelect(star);
+          this.hideStarSelectionDropdown();
+        });
+        
+        starItem.addEventListener('mouseenter', () => {
+          starItem.style.background = 'var(--bg-hover)';
+        });
+        
+        starItem.addEventListener('mouseleave', () => {
+          starItem.style.background = isCurrent ? 'var(--bg-light)' : 'var(--bg-dark)';
+        });
+        
+        this.starSelectionDropdown.appendChild(starItem);
+      });
+
+      // Calculate width based on longest star name
+      let maxWidth = 0;
+      stars.forEach(star => {
+        const tempElement = document.createElement('span');
+        tempElement.textContent = star.getName();
+        tempElement.style.position = 'absolute';
+        tempElement.style.visibility = 'hidden';
+        tempElement.style.fontSize = getComputedStyle(this.starSelectionDropdown).fontSize;
+        document.body.appendChild(tempElement);
+        const textWidth = tempElement.offsetWidth;
+        document.body.removeChild(tempElement);
+        maxWidth = Math.max(maxWidth, textWidth);
+      });
+      
+      // Add padding (2em = approximately 32px for default font size)
+      const padding = 64; // 2em equivalent in pixels
+      const calculatedWidth = maxWidth + padding;
+      
+      // Use calculated width or minimum 200px, maximum 400px
+      const dropdownWidth = Math.max(200, Math.min(calculatedWidth, 400));
+      
+      // Position dropdown below star name, centered on star name
+      const starNameRect = this.starNameElement.getBoundingClientRect();
+      const starNameContainer = this.starNameElement.parentElement;
+      const containerRect = starNameContainer.getBoundingClientRect();
+      const centerOffset = (starNameRect.width - dropdownWidth) / 2;
+      
+      this.starSelectionDropdown.style.position = 'absolute';
+      this.starSelectionDropdown.style.top = `${starNameRect.bottom - containerRect.top + 5}px`;
+      this.starSelectionDropdown.style.left = `${starNameRect.left - containerRect.left + centerOffset}px`;
+      this.starSelectionDropdown.style.width = `${dropdownWidth}px`;
+      this.starSelectionDropdown.style.display = 'block';
+      this.starSelectionDropdown.style.zIndex = '10000';
+    }
+  }
+
+  /**
+   * Hide star selection dropdown
+   */
+  hideStarSelectionDropdown()
+  {
+    if (this.starSelectionDropdown)
+    {
+      this.starSelectionDropdown.style.display = 'none';
+    }
   }
 
   /**
@@ -715,6 +1044,9 @@ export class IndustryDialog extends BaseDialog
 
     // Reset spending orders
     this.spendingOrders = {expand: 0, research: 0, build: 0};
+
+    // Close dropdown if open
+    this.hideStarSelectionDropdown();
 
     super.hide();
     console.log('🏭 IndustryDialog: Closed');
