@@ -210,7 +210,7 @@ export class RandyAI extends BaseAI
       const shipsAtStar = getShipsAtStar(starState.star_id, gameState.ships)
          .filter(ship => ship.owner_player === this.playerId && ship.status === 'active');
 
-      this.log('Ships at star', shipsAtStar);
+      this.log('Ships at star', shipsAtStar.length);
       if (shipsAtStar.length === 0)
       {
          this.log('No ships at this star, skipping');
@@ -228,46 +228,50 @@ export class RandyAI extends BaseAI
          return; // No adjacent stars
       }
 
-      // Find best target based on aggression threshold
-      let bestTarget = null;
-      let bestRatio = 0;
+      // Track which ships have been used for movement orders
+      const usedShipIds = new Set();
+      const unmovedShips = () => shipsAtStar.filter(ship => !usedShipIds.has(ship.id));
+
+      // Categorize adjacent stars into unowned and enemy-owned
+      const unownedStars = [];
+      const enemyStars = [];
 
       for (const adjacentStarId of adjacentStars)
       {
-         const ratio = calculateShipRatio(adjacentStarId, this.playerId, gameState.ships);
-
-         // If ratio is 0, it means no enemy ships (safe target)
-         if (ratio === 0)
+         const adjStarState = getStarState(adjacentStarId, gameState.starStates);
+         if (!adjStarState || !adjStarState.owner_player)
          {
-            bestTarget = adjacentStarId;
-            bestRatio = 0;
-            break;
+            // Unowned star
+            unownedStars.push(adjacentStarId);
          }
-
-         // If ratio exceeds aggression threshold, consider it
-         if (ratio >= this.aggression)
+         else if (adjStarState.owner_player !== this.playerId)
          {
-            if (ratio > bestRatio)
-            {
-               bestTarget = adjacentStarId;
-               bestRatio = ratio;
-            }
+            // Enemy-owned star
+            enemyStars.push(adjacentStarId);
          }
       }
 
-      this.log('Best target', bestTarget, bestRatio);
-      // If we found a good target, issue move order
-      if (bestTarget)
+      this.log(`Found ${unownedStars.length} unowned stars and ${enemyStars.length} enemy stars`);
+
+      // Step 1: Send one ship to each unowned adjacent star (if there are unmoved ships)
+      for (const unownedStarId of unownedStars)
       {
-         // Select all ships at this star
-         const shipIds = shipsAtStar.map(ship => ship.id);
+         const availableShips = unmovedShips();
+         if (availableShips.length === 0)
+         {
+            break; // No more unmoved ships
+         }
+
+         // Send one ship to this unowned star
+         const shipToMove = availableShips[0];
+         usedShipIds.add(shipToMove.id);
 
          try
          {
             const payload = {
                sourceStarId: starState.star_id,
-               destinationStarId: bestTarget,
-               selectedShipIds: shipIds
+               destinationStarId: unownedStarId,
+               selectedShipIds: [shipToMove.id]
             };
 
             await ordersService.createOrder(
@@ -279,11 +283,133 @@ export class RandyAI extends BaseAI
                payload
             });
 
-            this.log(`Issued move order: ${shipsAtStar.length} ships from ${starState.star_id} to ${bestTarget} (ratio: ${bestRatio.toFixed(2)})`);
+            this.log(`Issued move order: 1 ship from ${starState.star_id} to unowned star ${unownedStarId}`);
          }
          catch (error)
          {
-            this.log(`Error issuing move order: ${error.message}`);
+            this.log(`Error issuing move order to unowned star: ${error.message}`);
+            usedShipIds.delete(shipToMove.id); // Release the ship if order failed
+         }
+      }
+
+      // Step 2: Check enemy-owned stars and attack if ratio > aggression
+      for (const enemyStarId of enemyStars)
+      {
+         const availableShips = unmovedShips();
+         if (availableShips.length === 0)
+         {
+            break; // No more unmoved ships
+         }
+
+         // Get enemy ships at this star
+         const allShipsAtEnemyStar = getShipsAtStar(enemyStarId, gameState.ships);
+         const enemyShips = allShipsAtEnemyStar.filter(
+            ship => ship.owner_player !== this.playerId && ship.status === 'active'
+         );
+
+         if (enemyShips.length === 0)
+         {
+            // No enemy ships, treat as unowned (shouldn't happen but handle gracefully)
+            continue;
+         }
+
+         // Calculate ratio: unmoved ships / enemy ships
+         const ratio = availableShips.length / enemyShips.length;
+
+         this.log(`Enemy star ${enemyStarId}: ${availableShips.length} unmoved ships vs ${enemyShips.length} enemy ships (ratio: ${ratio.toFixed(2)})`);
+
+         // Only attack if ratio > aggression
+         if (ratio > this.aggression)
+         {
+            // Attack with ALL unmoved ships
+            const shipIdsToMove = availableShips.map(ship => ship.id);
+            for (const shipId of shipIdsToMove)
+            {
+               usedShipIds.add(shipId);
+            }
+
+            try
+            {
+               const payload = {
+                  sourceStarId: starState.star_id,
+                  destinationStarId: enemyStarId,
+                  selectedShipIds: shipIdsToMove
+               };
+
+               await ordersService.createOrder(
+               {
+                  gameId: this.gameId,
+                  turnId,
+                  playerId: this.playerId,
+                  orderType: 'move',
+                  payload
+               });
+
+               this.log(`Issued attack order: ${shipIdsToMove.length} ships from ${starState.star_id} to enemy star ${enemyStarId} (ratio: ${ratio.toFixed(2)})`);
+               break; // Only attack one enemy star per turn
+            }
+            catch (error)
+            {
+               this.log(`Error issuing attack order: ${error.message}`);
+               // Release ships if order failed
+               for (const shipId of shipIdsToMove)
+               {
+                  usedShipIds.delete(shipId);
+               }
+            }
+         }
+         else
+         {
+            this.log(`Skipping enemy star ${enemyStarId}: ratio ${ratio.toFixed(2)} <= aggression ${this.aggression}`);
+         }
+      }
+
+      // Step 3: If there are no adjacent enemy stars, move remaining ships randomly
+      if (enemyStars.length === 0)
+      {
+         const availableShips = unmovedShips();
+         if (availableShips.length > 0)
+         {
+            // Move remaining ships one by one to random adjacent stars
+            const allAdjacentStars = [...unownedStars, ...enemyStars];
+            if (allAdjacentStars.length === 0)
+            {
+               // No adjacent stars to move to (shouldn't happen, but handle gracefully)
+               return;
+            }
+
+            for (const ship of availableShips)
+            {
+               // Select a random adjacent star
+               const randomIndex = Math.floor(this.random.nextFloat(0, 1) * allAdjacentStars.length);
+               const targetStarId = allAdjacentStars[randomIndex];
+               usedShipIds.add(ship.id);
+
+               try
+               {
+                  const payload = {
+                     sourceStarId: starState.star_id,
+                     destinationStarId: targetStarId,
+                     selectedShipIds: [ship.id]
+                  };
+
+                  await ordersService.createOrder(
+                  {
+                     gameId: this.gameId,
+                     turnId,
+                     playerId: this.playerId,
+                     orderType: 'move',
+                     payload
+                  });
+
+                  this.log(`Issued random move order: 1 ship from ${starState.star_id} to ${targetStarId}`);
+               }
+               catch (error)
+               {
+                  this.log(`Error issuing random move order: ${error.message}`);
+                  usedShipIds.delete(ship.id); // Release the ship if order failed
+               }
+            }
          }
       }
    }

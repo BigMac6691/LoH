@@ -18,6 +18,11 @@ import
    AIService
 }
 from './AIService.js';
+import
+{
+   getOpenTurn
+}
+from '../repos/turnsRepo.js';
 
 // Create a singleton AIService instance
 const aiService = new AIService();
@@ -100,18 +105,10 @@ export class TurnService
 
          console.log(`🔄 TurnService: Player ${playerId} status updated to waiting`);
 
-         // Get the current turn ID
-         const
-         {
-            rows: currentTurn
-         } = await pool.query(
-            `SELECT id FROM game_turn 
-         WHERE game_id = $1 AND status = 'open'
-         ORDER BY number DESC LIMIT 1`,
-            [gameId]
-         );
+         // Get the current turn (full object with id and number)
+         const currentTurn = await getOpenTurn(gameId);
 
-         if (currentTurn.length === 0)
+         if (!currentTurn)
          {
             console.warn(`🔄 TurnService: No open turn found for game ${gameId}`);
             return {
@@ -122,7 +119,7 @@ export class TurnService
             };
          }
 
-         const turnId = currentTurn[0].id;
+         const turnId = currentTurn.id;
 
          // Check if all HUMAN players are now waiting (exclude AI players)
          const
@@ -139,7 +136,9 @@ export class TurnService
 
          if (allHumanPlayersWaiting)
          {
-            console.log(`🔄 TurnService: All human players are waiting, executing AI players for game ${gameId}`);
+            console.log("================================================");
+            console.log(`🔄 TurnService(${currentTurn.number}): All human players are waiting, executing AI players for game ${gameId}`);
+            console.log("================================================");
 
             // First: Execute all AI players
             try
@@ -153,6 +152,7 @@ export class TurnService
                // Don't throw - AI errors shouldn't block order processing
             }
 
+            console.log(`🔄 TurnService: Processing turn ${currentTurn.number} for game ${gameId}`);
             console.log(`🔄 TurnService: All players (including AI) have submitted orders, processing for game ${gameId}`);
 
             // Process move orders first

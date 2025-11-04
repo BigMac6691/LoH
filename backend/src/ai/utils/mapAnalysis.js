@@ -13,7 +13,6 @@ export function getAdjacentStars(starId, wormholes) {
   console.log('Adjacent stars for star', starId);
   
   for (const wormhole of wormholes) {
-    console.log('Wormhole', wormhole);
     if (wormhole.star_a_id === starId) {
       adjacent.push(wormhole.star_b_id);
     } else if (wormhole.star_b_id === starId) {

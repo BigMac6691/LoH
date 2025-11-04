@@ -125,9 +125,10 @@ document.addEventListener('DOMContentLoaded', () =>
     loadingElement.style.display = 'none';
   }
   
-  // Create refresh button and events button
+  // Create refresh button, events button, and end turn button
   createRefreshButton();
   createEventsButton();
+  createEndTurnButton();
   
   // Log development mode status
   logDevModeStatus();
@@ -316,6 +317,126 @@ function createEventsButton()
   
   // Add to DOM
   document.body.appendChild(eventsButton);
+}
+
+// Create end turn button
+function createEndTurnButton()
+{
+  const endTurnButton = document.createElement('button');
+  endTurnButton.id = 'end-turn-button';
+  endTurnButton.innerHTML = '✅ End Turn';
+  endTurnButton.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 252px;
+    z-index: 1000;
+    padding: 10px 15px;
+    background: rgba(255, 165, 0, 0.2);
+    border: 2px solid #ffa500;
+    border-radius: 8px;
+    color: #ffa500;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+  `;
+  
+  // Hover effects
+  endTurnButton.addEventListener('mouseenter', () => {
+    endTurnButton.style.background = 'rgba(255, 165, 0, 0.3)';
+    endTurnButton.style.transform = 'scale(1.05)';
+    endTurnButton.style.boxShadow = '0 0 15px rgba(255, 165, 0, 0.5)';
+  });
+  
+  endTurnButton.addEventListener('mouseleave', () => {
+    endTurnButton.style.background = 'rgba(255, 165, 0, 0.2)';
+    endTurnButton.style.transform = 'scale(1)';
+    endTurnButton.style.boxShadow = 'none';
+  });
+  
+  // Click handler
+  endTurnButton.addEventListener('click', () => {
+    const context = eventBus.getContext();
+    const gameId = context?.gameId;
+    const playerId = context?.user;
+    
+    if (!gameId || !playerId) {
+      console.error('✅ End Turn button clicked but missing gameId or playerId in context');
+      alert('Error: No game loaded or player not set. Please start a game first.');
+      return;
+    }
+    
+    console.log(`✅ End Turn button clicked - ending turn for player ${playerId} in game ${gameId}`);
+    
+    // Emit end turn event (same format as DevPanel)
+    eventBus.emit('turn:endTurn', {
+      success: true,
+      details: {
+        eventType: 'turn:endTurn',
+        playerId: playerId
+      }
+    });
+    
+    // Disable button to prevent multiple clicks
+    endTurnButton.disabled = true;
+    endTurnButton.textContent = '✅ Turn Ended';
+    endTurnButton.style.opacity = '0.6';
+    endTurnButton.style.cursor = 'not-allowed';
+    
+    // Re-enable button after a short delay (in case of errors)
+    setTimeout(() => {
+      // Only re-enable if still disabled (if turn ended successfully, leave it disabled)
+      if (endTurnButton.disabled) {
+        // The TurnEventHandler will emit 'turn:endTurnSuccess' if successful
+        // Listen for that event to keep button disabled on success
+      }
+    }, 1000);
+  });
+  
+  // Listen for turn end success to keep button disabled
+  eventBus.on('turn:endTurnSuccess', () => {
+    const button = document.getElementById('end-turn-button');
+    if (button) {
+      button.disabled = true;
+      button.textContent = '✅ Turn Ended';
+      button.style.opacity = '0.6';
+      button.style.cursor = 'not-allowed';
+    }
+  });
+  
+  // Listen for turn end error to re-enable button
+  eventBus.on('turn:endTurnError', (context, eventData) => {
+    const button = document.getElementById('end-turn-button');
+    if (button) {
+      button.disabled = false;
+      button.textContent = '✅ End Turn';
+      button.style.opacity = '1';
+      button.style.cursor = 'pointer';
+      const errorMessage = eventData?.details?.error || 'Failed to end turn';
+      console.error('✅ End Turn button: Error ending turn:', errorMessage);
+      alert(`Error ending turn: ${errorMessage}`);
+    }
+  });
+  
+  // Listen for game loaded event to reset button when map is refreshed
+  eventBus.on('game:gameLoaded', (context, eventData) => {
+    // Only reset if the game was successfully loaded
+    if (eventData?.success !== false) {
+      const button = document.getElementById('end-turn-button');
+      if (button) {
+        button.disabled = false;
+        button.textContent = '✅ End Turn';
+        button.style.opacity = '1';
+        button.style.cursor = 'pointer';
+        console.log('✅ End Turn button: Reset after game refresh');
+      }
+    }
+  });
+  
+  // Add to DOM
+  document.body.appendChild(endTurnButton);
 }
 
 // Make mapGenerator available globally for development scenarios

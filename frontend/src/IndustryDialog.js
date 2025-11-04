@@ -378,7 +378,7 @@ export class IndustryDialog extends BaseDialog
     if (availableElement)
     {
       const actualAvailable = this.getActualAvailable();
-      availableElement.textContent = actualAvailable;
+      availableElement.textContent = parseFloat(actualAvailable).toFixed(2);
     }
   }
 
@@ -679,7 +679,7 @@ export class IndustryDialog extends BaseDialog
       if (availableElement)
       {
         const actualAvailable = this.getActualAvailable();
-        availableElement.textContent = actualAvailable;
+        availableElement.textContent = parseFloat(actualAvailable).toFixed(2);
       }
 
       // Update tech level
