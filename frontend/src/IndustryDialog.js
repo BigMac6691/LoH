@@ -19,6 +19,10 @@ export class IndustryDialog extends BaseDialog
       build: 0,
     };
 
+    // Standing orders state
+    this.standingOrdersMode = false;
+    this.standingOrdersCheckbox = null;
+
     this.createDialog();
     this.setupEventListeners();
   }
@@ -233,6 +237,32 @@ export class IndustryDialog extends BaseDialog
     totalRow.appendChild(this.totalSpendingElement);
     section.appendChild(totalRow);
 
+    // Standing orders checkbox (placed just above submit button)
+    const standingOrdersContainer = document.createElement('div');
+    standingOrdersContainer.className = 'standing-orders-container';
+    standingOrdersContainer.style.marginBottom = '10px';
+    
+    this.standingOrdersCheckbox = document.createElement('input');
+    this.standingOrdersCheckbox.type = 'checkbox';
+    this.standingOrdersCheckbox.id = 'standing-orders-checkbox';
+    this.standingOrdersCheckbox.className = 'standing-orders-checkbox';
+    
+    const standingOrdersLabel = document.createElement('label');
+    standingOrdersLabel.htmlFor = 'standing-orders-checkbox';
+    standingOrdersLabel.textContent = 'Standing Orders';
+    standingOrdersLabel.style.marginLeft = '5px';
+    standingOrdersLabel.style.cursor = 'pointer';
+    
+    standingOrdersContainer.appendChild(this.standingOrdersCheckbox);
+    standingOrdersContainer.appendChild(standingOrdersLabel);
+    
+    // Add change handler for checkbox
+    this.standingOrdersCheckbox.addEventListener('change', () => {
+      this.handleStandingOrdersToggle();
+    });
+    
+    section.appendChild(standingOrdersContainer);
+
     // Submit Order button
     const submitButton = document.createElement('button');
     submitButton.textContent = 'Submit Order';
@@ -330,49 +360,99 @@ export class IndustryDialog extends BaseDialog
     );
 
     console.log('🏭 IndustryDialog: updateSpendingConstraints:');
+    console.log('  - Standing orders mode:', this.standingOrdersMode);
     console.log('  - Available:', available);
     console.log('  - Current total:', currentTotal);
     console.log('  - Spending orders:', this.spendingOrders);
 
-    // If total exceeds available, we need to constrain the inputs
-    if (currentTotal > available)
+    if (this.standingOrdersMode)
     {
-      console.log('🏭 IndustryDialog: Total exceeds available, constraining inputs');
-      
-      // Find which input was just changed (the one with the highest value)
-      let maxKey = null;
-      let maxValue = -1;
-      for (const [key, value] of Object.entries(this.spendingOrders))
+      // Percentage mode: max is 100, sum must be ≤ 100
+      if (currentTotal > 100)
       {
-        if (value > maxValue)
+        console.log('🏭 IndustryDialog: Total exceeds 100%, constraining inputs');
+        
+        // Find which input was just changed (the one with the highest value)
+        let maxKey = null;
+        let maxValue = -1;
+        for (const [key, value] of Object.entries(this.spendingOrders))
         {
-          maxValue = value;
-          maxKey = key;
+          if (value > maxValue)
+          {
+            maxValue = value;
+            maxKey = key;
+          }
+        }
+
+        if (maxKey)
+        {
+          // Cap the changed input to ensure total doesn't exceed 100
+          const otherTotal = currentTotal - maxValue;
+          const maxForThisInput = Math.max(0, 100 - otherTotal);
+          this.spendingOrders[maxKey] = maxForThisInput;
+          this.spendingControls[maxKey].slider.value = maxForThisInput;
+          this.spendingControls[maxKey].numberInput.value = maxForThisInput;
+          console.log(`🏭 IndustryDialog: Capped ${maxKey} to ${maxForThisInput}%`);
         }
       }
 
-      if (maxKey)
+      // Update max values for all inputs based on remaining percentage
+      const remaining = 100 - currentTotal;
+
+      for (const [key, controls] of Object.entries(this.spendingControls))
       {
-        // Cap the changed input to available
-        this.spendingOrders[maxKey] = available;
-        this.spendingControls[maxKey].slider.value = available;
-        this.spendingControls[maxKey].numberInput.value = available;
-        console.log(`🏭 IndustryDialog: Capped ${maxKey} to available: ${available}`);
+        const currentValue = this.spendingOrders[key];
+        const maxForThisInput = currentValue + remaining;
+
+        controls.slider.max = 100;
+        controls.numberInput.max = 100;
+        
+        console.log(`🏭 IndustryDialog: ${key} - current: ${currentValue}%, max: 100%`);
       }
     }
-
-    // Update max values for all inputs based on remaining available
-    const remaining = available - currentTotal;
-
-    for (const [key, controls] of Object.entries(this.spendingControls))
+    else
     {
-      const currentValue = this.spendingOrders[key];
-      const maxForThisInput = currentValue + remaining;
+      // Normal mode: max is based on available amount
+      // If total exceeds available, we need to constrain the inputs
+      if (currentTotal > available)
+      {
+        console.log('🏭 IndustryDialog: Total exceeds available, constraining inputs');
+        
+        // Find which input was just changed (the one with the highest value)
+        let maxKey = null;
+        let maxValue = -1;
+        for (const [key, value] of Object.entries(this.spendingOrders))
+        {
+          if (value > maxValue)
+          {
+            maxValue = value;
+            maxKey = key;
+          }
+        }
 
-      controls.slider.max = Math.max(maxForThisInput, currentValue);
-      controls.numberInput.max = Math.max(maxForThisInput, currentValue);
-      
-      console.log(`🏭 IndustryDialog: ${key} - current: ${currentValue}, max: ${Math.max(maxForThisInput, currentValue)}`);
+        if (maxKey)
+        {
+          // Cap the changed input to available
+          this.spendingOrders[maxKey] = available;
+          this.spendingControls[maxKey].slider.value = available;
+          this.spendingControls[maxKey].numberInput.value = available;
+          console.log(`🏭 IndustryDialog: Capped ${maxKey} to available: ${available}`);
+        }
+      }
+
+      // Update max values for all inputs based on remaining available
+      const remaining = available - currentTotal;
+
+      for (const [key, controls] of Object.entries(this.spendingControls))
+      {
+        const currentValue = this.spendingOrders[key];
+        const maxForThisInput = currentValue + remaining;
+
+        controls.slider.max = Math.max(maxForThisInput, currentValue);
+        controls.numberInput.max = Math.max(maxForThisInput, currentValue);
+        
+        console.log(`🏭 IndustryDialog: ${key} - current: ${currentValue}, max: ${Math.max(maxForThisInput, currentValue)}`);
+      }
     }
   }
 
@@ -430,10 +510,235 @@ export class IndustryDialog extends BaseDialog
   updateAvailableDisplay()
   {
     const availableElement = this.dialog.querySelector('.value-available');
-    if (availableElement)
+    if (!availableElement) return;
+    
+    if (this.standingOrdersMode)
+    {
+      // In standing orders mode, show "100" as total percentage
+      availableElement.textContent = '100';
+    }
+    else
     {
       const actualAvailable = this.getActualAvailable();
       availableElement.textContent = parseFloat(actualAvailable).toFixed(2);
+    }
+  }
+
+  /**
+   * Handle standing orders toggle
+   */
+  handleStandingOrdersToggle()
+  {
+    this.standingOrdersMode = this.standingOrdersCheckbox.checked;
+    
+    if (this.standingOrdersMode)
+    {
+      // Switch to percentage mode
+      // Convert current values to percentages if we have available amount
+      if (this.currentStar && this.currentStar.economy)
+      {
+        const available = this.currentStar.economy.available || 0;
+        if (available > 0)
+        {
+          // Convert current spending orders to percentages
+          this.spendingOrders.expand = Math.round((this.spendingOrders.expand / available) * 100);
+          this.spendingOrders.research = Math.round((this.spendingOrders.research / available) * 100);
+          this.spendingOrders.build = Math.round((this.spendingOrders.build / available) * 100);
+        }
+        else
+        {
+          // Reset to 0 if no available
+          this.spendingOrders = {expand: 0, research: 0, build: 0};
+        }
+      }
+      else
+      {
+        this.spendingOrders = {expand: 0, research: 0, build: 0};
+      }
+      
+      // Update UI controls
+      if (this.spendingControls)
+      {
+        for (const [key, controls] of Object.entries(this.spendingControls))
+        {
+          controls.slider.value = this.spendingOrders[key];
+          controls.numberInput.value = this.spendingOrders[key];
+          controls.slider.max = 100;
+          controls.numberInput.max = 100;
+        }
+      }
+      
+      // Update available label to show "Total Percentage:"
+      const rows = this.dialog.querySelectorAll('.value-row');
+      for (const row of rows)
+      {
+        const label = row.querySelector('.value-label');
+        if (label && label.textContent === 'Available')
+        {
+          label.textContent = 'Total Percentage:';
+          break;
+        }
+      }
+    }
+    else
+    {
+      // Switch back to normal mode
+      // Convert percentages back to actual values
+      if (this.currentStar && this.currentStar.economy)
+      {
+        const available = this.currentStar.economy.available || 0;
+        this.spendingOrders.expand = Math.floor((available * this.spendingOrders.expand) / 100);
+        this.spendingOrders.research = Math.floor((available * this.spendingOrders.research) / 100);
+        this.spendingOrders.build = Math.floor((available * this.spendingOrders.build) / 100);
+      }
+      
+      // Update UI controls
+      if (this.spendingControls)
+      {
+        for (const [key, controls] of Object.entries(this.spendingControls))
+        {
+          controls.slider.value = this.spendingOrders[key];
+          controls.numberInput.value = this.spendingOrders[key];
+          // Max will be updated by updateSpendingConstraints
+        }
+      }
+      
+      // Restore available label
+      const rows = this.dialog.querySelectorAll('.value-row');
+      for (const row of rows)
+      {
+        const label = row.querySelector('.value-label');
+        if (label && label.textContent === 'Total Percentage:')
+        {
+          label.textContent = 'Available';
+          break;
+        }
+      }
+    }
+    
+    this.updateSpendingConstraints();
+    this.updateTotalSpending();
+    this.updateAvailableDisplay();
+    
+    console.log('🏭 IndustryDialog: Standing orders mode:', this.standingOrdersMode);
+  }
+
+  /**
+   * Load standing orders for the current star
+   */
+  async loadStandingOrders(starId)
+  {
+    const context = eventBus.getContext();
+    const gameId = context.gameId;
+    const playerId = context.user;
+
+    if (!gameId || !playerId)
+    {
+      console.warn('🏭 IndustryDialog: Cannot load standing orders - missing gameId or playerId');
+      return null;
+    }
+
+    try
+    {
+      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}`);
+      if (!response.ok)
+      {
+        console.warn('🏭 IndustryDialog: Failed to load standing orders:', response.statusText);
+        return null;
+      }
+
+      const result = await response.json();
+      return result.standingOrders;
+    }
+    catch (error)
+    {
+      console.error('🏭 IndustryDialog: Error loading standing orders:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Save standing orders for the current star
+   */
+  async saveStandingOrders(starId, standingOrders)
+  {
+    const context = eventBus.getContext();
+    const gameId = context.gameId;
+    const playerId = context.user;
+
+    if (!gameId || !playerId)
+    {
+      console.error('🏭 IndustryDialog: Cannot save standing orders - missing gameId or playerId');
+      throw new Error('Missing gameId or playerId');
+    }
+
+    try
+    {
+      const response = await fetch('/api/orders/standing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          gameId,
+          starId,
+          playerId,
+          standingOrders
+        })
+      });
+
+      if (!response.ok)
+      {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save standing orders');
+      }
+
+      const result = await response.json();
+      console.log('🏭 IndustryDialog: Standing orders saved:', result);
+      return result;
+    }
+    catch (error)
+    {
+      console.error('🏭 IndustryDialog: Error saving standing orders:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete standing orders for the current star
+   */
+  async deleteStandingOrders(starId)
+  {
+    const context = eventBus.getContext();
+    const gameId = context.gameId;
+    const playerId = context.user;
+
+    if (!gameId || !playerId)
+    {
+      console.error('🏭 IndustryDialog: Cannot delete standing orders - missing gameId or playerId');
+      throw new Error('Missing gameId or playerId');
+    }
+
+    try
+    {
+      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok)
+      {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete standing orders');
+      }
+
+      const result = await response.json();
+      console.log('🏭 IndustryDialog: Standing orders deleted:', result);
+      return result;
+    }
+    catch (error)
+    {
+      console.error('🏭 IndustryDialog: Error deleting standing orders:', error);
+      throw error;
     }
   }
 
@@ -448,25 +753,62 @@ export class IndustryDialog extends BaseDialog
       return;
     }
 
-    const orderData = {
-      sourceStarId: this.currentStar.getId(),
-      expand: this.spendingOrders.expand,
-      research: this.spendingOrders.research,
-      build: this.spendingOrders.build,
-      timestamp: Date.now()
-    };
+    const starId = this.currentStar.getId();
 
-    console.log('🏭 IndustryDialog: Submitting order via event system:', this.currentStar.getId(), orderData);
+    try
+    {
+      if (this.standingOrdersMode)
+      {
+        // Save standing orders
+        const standingOrders = {
+          industry: {
+            expand: this.spendingOrders.expand,
+            research: this.spendingOrders.research,
+            build: this.spendingOrders.build
+          }
+        };
 
-    // Emit order submission event
-    eventBus.emit('order:build.submit', {
-      success: true,
-      details: {
-        eventType: 'order:build.submit',
-        orderType: 'build',
-        payload: orderData
+        await this.saveStandingOrders(starId, standingOrders);
+        this.showOrderConfirmation();
+        console.log('🏭 IndustryDialog: Standing orders saved:', standingOrders);
       }
-    });
+      else
+      {
+        // Check if standing orders exist - if so, delete them first
+        const existingStandingOrders = await this.loadStandingOrders(starId);
+        if (existingStandingOrders && existingStandingOrders.industry)
+        {
+          await this.deleteStandingOrders(starId);
+          console.log('🏭 IndustryDialog: Deleted existing standing orders');
+        }
+
+        // Submit regular order
+        const orderData = {
+          sourceStarId: starId,
+          expand: this.spendingOrders.expand,
+          research: this.spendingOrders.research,
+          build: this.spendingOrders.build,
+          timestamp: Date.now()
+        };
+
+        console.log('🏭 IndustryDialog: Submitting order via event system:', starId, orderData);
+
+        // Emit order submission event
+        eventBus.emit('order:build.submit', {
+          success: true,
+          details: {
+            eventType: 'order:build.submit',
+            orderType: 'build',
+            payload: orderData
+          }
+        });
+      }
+    }
+    catch (error)
+    {
+      console.error('🏭 IndustryDialog: Error submitting order:', error);
+      this.showOrderError(error.message || 'Failed to submit order');
+    }
   }
 
   /**
@@ -664,26 +1006,88 @@ export class IndustryDialog extends BaseDialog
     // Update star name
     this.starNameElement.textContent = star.getName();
 
-    // Try to load saved orders for this star
-    const hasSavedOrders = await this.loadSavedOrders(star.getId());
-
-    // If no saved orders, reset to defaults
-    if (!hasSavedOrders)
+    // Reset standing orders mode
+    this.standingOrdersMode = false;
+    if (this.standingOrdersCheckbox)
     {
-      this.spendingOrders = {expand: 0, research: 0, build: 0};
+      this.standingOrdersCheckbox.checked = false;
+    }
+
+    // Try to load standing orders first
+    const standingOrders = await this.loadStandingOrders(star.getId());
+    
+    if (standingOrders && standingOrders.industry)
+    {
+      // Standing orders exist - enable standing orders mode
+      this.standingOrdersMode = true;
+      if (this.standingOrdersCheckbox)
+      {
+        this.standingOrdersCheckbox.checked = true;
+      }
+
+      // Load percentages into spending orders
+      this.spendingOrders = {
+        expand: standingOrders.industry.expand || 0,
+        research: standingOrders.industry.research || 0,
+        build: standingOrders.industry.build || 0
+      };
+
+      // Update UI controls - set max FIRST, then values
       if (this.spendingControls)
       {
         for (const [key, controls] of Object.entries(this.spendingControls))
         {
-          controls.slider.value = 0;
-          controls.numberInput.value = 0;
+          // Set max first to ensure slider range is correct
+          controls.slider.max = 100;
+          controls.numberInput.max = 100;
+          // Set the values - use setAttribute to ensure DOM updates
+          const value = this.spendingOrders[key] || 0;
+          controls.slider.setAttribute('value', value);
+          controls.slider.value = value;
+          controls.numberInput.value = value;
+        }
+      }
+
+      // Update available label to show "Total Percentage:"
+      const rows = this.dialog.querySelectorAll('.value-row');
+      for (const row of rows)
+      {
+        const label = row.querySelector('.value-label');
+        if (label && label.textContent === 'Available')
+        {
+          label.textContent = 'Total Percentage:';
+          break;
+        }
+      }
+
+      console.log('🏭 IndustryDialog: Loaded standing orders:', standingOrders.industry);
+    }
+    else
+    {
+      // No standing orders - try to load regular saved orders
+      const hasSavedOrders = await this.loadSavedOrders(star.getId());
+
+      // If no saved orders, reset to defaults
+      if (!hasSavedOrders)
+      {
+        this.spendingOrders = {expand: 0, research: 0, build: 0};
+        if (this.spendingControls)
+        {
+          // Reset max values will be set by updateSpendingConstraints
+          for (const [key, controls] of Object.entries(this.spendingControls))
+          {
+            controls.slider.value = 0;
+            controls.numberInput.value = 0;
+          }
         }
       }
     }
 
-    // Update economy values and spending constraints
+    // Update economy values first to ensure available amount is correct
     this.updateEconomyValues();
+    // Then update spending constraints (this will set correct max values)
     this.updateSpendingConstraints();
+    // Finally update total spending display
     this.updateTotalSpending();
 
     // Update navigation buttons based on available owned stars
@@ -692,7 +1096,7 @@ export class IndustryDialog extends BaseDialog
     console.log(
       '🏭 IndustryDialog: Opened for star:',
       star.getName(),
-      hasSavedOrders ? '(with saved orders)' : '(new orders)',
+      standingOrders ? '(with standing orders)' : '(regular orders)',
       star
     );
   }
@@ -1003,13 +1407,8 @@ export class IndustryDialog extends BaseDialog
         capacityElement.textContent = economy.capacity || 0;
       }
 
-      // Update available (calculated as capacity minus existing build orders)
-      const availableElement = this.dialog.querySelector('.value-available');
-      if (availableElement)
-      {
-        const actualAvailable = this.getActualAvailable();
-        availableElement.textContent = parseFloat(actualAvailable).toFixed(2);
-      }
+      // Update available (use updateAvailableDisplay to handle standing orders mode)
+      this.updateAvailableDisplay();
 
       // Update tech level
       const techLevelElement = this.dialog.querySelector('.value-techLevel');

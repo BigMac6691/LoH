@@ -23,6 +23,9 @@ export class MoveDialog extends BaseDialog
     this.currentOrders = []; // Current move orders for the current star
     this.isSubmitting = false; // Track if currently submitting an order
     
+    // Standing orders state
+    this.standingOrdersMode = false;
+    
     // Create view instance
     this.view = new MoveDialogView();
     this.view.createDialog(
@@ -67,8 +70,16 @@ export class MoveDialog extends BaseDialog
       onCancelOrder: () => this.cancelOrder(),
       onPrevStar: () => this.navigateToPreviousStar(),
       onNextStar: () => this.navigateToNextStar(),
-      onStarNameClick: () => this.handleStarNameClick()
+      onStarNameClick: () => this.handleStarNameClick(),
+      onStandingOrdersToggle: () => this.handleStandingOrdersToggle()
     });
+    
+    // Add checkbox change handler
+    if (this.view.standingOrdersCheckbox) {
+      this.view.standingOrdersCheckbox.addEventListener('change', () => {
+        this.handleStandingOrdersToggle();
+      });
+    }
   }
 
   /**
@@ -238,7 +249,7 @@ export class MoveDialog extends BaseDialog
   /**
    * Show the dialog for a specific star
    */
-  show(star, player = null) {
+  async show(star, player = null) {
     if (!star) {
       console.error('MoveDialog: No star provided');
       return;
@@ -266,6 +277,12 @@ export class MoveDialog extends BaseDialog
     this.currentMoveOrder = null;
     this.loadedOrders = []; // Clear loaded orders
     
+    // Reset standing orders mode
+    this.standingOrdersMode = false;
+    if (this.view.standingOrdersCheckbox) {
+      this.view.standingOrdersCheckbox.checked = false;
+    }
+    
     // Call parent show method
     super.show();
     
@@ -280,29 +297,68 @@ export class MoveDialog extends BaseDialog
     const starName = star.getName();
     this.view.updateStarName(starName);
 
-    // Update connected stars list (initially without rocket icons)
+    // Update connected stars list (needed for both modes)
     this.updateConnectedStarsList();
 
-    // Load orders from database for this star
-    eventBus.emit('order:move.loadForStar', {
-      success: true,
-      details: {
-        eventType: 'order:move.loadForStar',
-        sourceStarId: this.currentStar.getId(),
-        orderType: 'move'
+    // Try to load standing orders first
+    const standingOrders = await this.loadStandingOrders(star.getId());
+    
+    if (standingOrders && standingOrders.move && standingOrders.move.destinationStarId) {
+      // Standing orders exist - enable standing orders mode
+      this.standingOrdersMode = true;
+      if (this.view.standingOrdersCheckbox) {
+        this.view.standingOrdersCheckbox.checked = true;
       }
-    });
+      
+      // Select the destination star
+      const lookupFunction = this.getStarLookupFunction();
+      if (lookupFunction) {
+        const destinationStar = lookupFunction(standingOrders.move.destinationStarId);
+        if (destinationStar) {
+          this.selectedDestination = destinationStar;
+          // Find and select the destination star element
+          const starItems = this.view.starsListContainer?.querySelectorAll('.star-item');
+          if (starItems) {
+            starItems.forEach(item => {
+              const starNameElement = item.querySelector('.star-name');
+              if (starNameElement && starNameElement.textContent === destinationStar.getName()) {
+                this.view.applySelectionStyling(item);
+              }
+            });
+          }
+        }
+      }
+      
+      // Disable ship selection UI
+      this.view.disableShipTree();
+      
+      console.log('🚀 MoveDialog: Loaded standing orders:', standingOrders.move);
+    } else {
+      // No standing orders - enable ship selection UI
+      this.view.enableShipTree();
+      this.view.resetSelectionSummary();
 
-    // Initialize power range slider
-    this.initializePowerRangeSlider();
+      // Load orders from database for this star
+      eventBus.emit('order:move.loadForStar', {
+        success: true,
+        details: {
+          eventType: 'order:move.loadForStar',
+          sourceStarId: this.currentStar.getId(),
+          orderType: 'move'
+        }
+      });
 
-    // Update ship list
-    this.updateShipList();
+      // Initialize power range slider
+      this.initializePowerRangeSlider();
+
+      // Update ship list
+      this.updateShipList();
+    }
 
     // Reset move button
     this.updateMoveButton();
 
-    console.log('🚀 MoveDialog: Opened for star:', starName, 'player:', this.currentPlayer.id);
+    console.log('🚀 MoveDialog: Opened for star:', starName, 'player:', this.currentPlayer.id, standingOrders ? '(with standing orders)' : '(regular orders)');
     
     // Update navigation buttons based on available owned stars
     this.updateNavigationButtons();
@@ -442,6 +498,130 @@ export class MoveDialog extends BaseDialog
     
     // Show the selected star (this will reload its state and orders)
     this.show(star, this.currentPlayer);
+  }
+
+  /**
+   * Load standing orders for the current star
+   */
+  async loadStandingOrders(starId) {
+    const context = eventBus.getContext();
+    const gameId = context.gameId;
+    const playerId = context.user;
+
+    if (!gameId || !playerId) {
+      console.warn('🚀 MoveDialog: Cannot load standing orders - missing gameId or playerId');
+      return null;
+    }
+
+    try {
+      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}`);
+      if (!response.ok) {
+        console.warn('🚀 MoveDialog: Failed to load standing orders:', response.statusText);
+        return null;
+      }
+
+      const result = await response.json();
+      return result.standingOrders;
+    } catch (error) {
+      console.error('🚀 MoveDialog: Error loading standing orders:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Save standing orders for the current star
+   */
+  async saveStandingOrders(starId, standingOrders) {
+    const context = eventBus.getContext();
+    const gameId = context.gameId;
+    const playerId = context.user;
+
+    if (!gameId || !playerId) {
+      console.error('🚀 MoveDialog: Cannot save standing orders - missing gameId or playerId');
+      throw new Error('Missing gameId or playerId');
+    }
+
+    try {
+      const response = await fetch('/api/orders/standing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          gameId,
+          starId,
+          playerId,
+          standingOrders
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save standing orders');
+      }
+
+      const result = await response.json();
+      console.log('🚀 MoveDialog: Standing orders saved:', result);
+      return result;
+    } catch (error) {
+      console.error('🚀 MoveDialog: Error saving standing orders:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete standing orders for the current star
+   */
+  async deleteStandingOrders(starId) {
+    const context = eventBus.getContext();
+    const gameId = context.gameId;
+    const playerId = context.user;
+
+    if (!gameId || !playerId) {
+      console.error('🚀 MoveDialog: Cannot delete standing orders - missing gameId or playerId');
+      throw new Error('Missing gameId or playerId');
+    }
+
+    try {
+      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete standing orders');
+      }
+
+      const result = await response.json();
+      console.log('🚀 MoveDialog: Standing orders deleted:', result);
+      return result;
+    } catch (error) {
+      console.error('🚀 MoveDialog: Error deleting standing orders:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle standing orders toggle
+   */
+  handleStandingOrdersToggle() {
+    this.standingOrdersMode = this.view.standingOrdersCheckbox?.checked || false;
+    
+    if (this.standingOrdersMode) {
+      // Disable ship selection UI
+      this.view.disableShipTree();
+      // Clear ship selection since all ships will move
+      this.selectedShipIds.clear();
+      this.updateSelectionSummary();
+    } else {
+      // Enable ship selection UI
+      this.view.enableShipTree();
+      this.view.resetSelectionSummary();
+      this.updateSelectionSummary();
+    }
+    
+    this.updateMoveButton();
+    console.log('🚀 MoveDialog: Standing orders mode:', this.standingOrdersMode);
   }
 
   /**
@@ -999,6 +1179,11 @@ export class MoveDialog extends BaseDialog
    * Check if dialog can be submitted
    */
   canSubmit() {
+    if (this.standingOrdersMode) {
+      // In standing orders mode, only need destination selected
+      return this.selectedDestination !== null;
+    }
+    // Normal mode: need both destination and ships selected
     return this.selectedDestination && this.selectedShipIds.size > 0;
   }
 
@@ -1067,7 +1252,7 @@ export class MoveDialog extends BaseDialog
   /**
    * Submit the move order for the selected destination
    */
-  moveFleet() {
+  async moveFleet() {
     if (!this.canSubmit()) {
       console.warn('MoveDialog: Cannot submit - missing destination or ship selection');
       return;
@@ -1078,35 +1263,65 @@ export class MoveDialog extends BaseDialog
       return;
     }
 
+    const starId = this.currentStar.getId();
     const fromStar = this.currentStar.getName();
     const toStar = this.selectedDestination.getName();
     
-    console.log(`🚀 MoveDialog: Submitting move order from ${fromStar} to ${toStar}`);
-    
     // Lock UI before submission
     this.enableSubmissionUI();
-    
-    // Prepare order data for database submission
-    const orderData = {
-      action: 'move',
-      sourceStarId: this.currentStar.getId(),
-      destinationStarId: this.selectedDestination.getId(),
-      selectedShipIds: Array.from(this.selectedShipIds)
-    };
 
-    console.log('🚀 MoveDialog: Submitting move order via event system', orderData);
+    try {
+      if (this.standingOrdersMode) {
+        // Save standing orders
+        const standingOrders = {
+          move: {
+            destinationStarId: this.selectedDestination.getId()
+          }
+        };
 
-    // Emit order submission event
-    eventBus.emit('order:move.submit', {
-      success: true,
-      details: {
-        eventType: 'order:move.submit',
-        orderType: 'move',
-        payload: orderData
+        await this.saveStandingOrders(starId, standingOrders);
+        this.view.showMoveConfirmation(fromStar, toStar);
+        console.log('🚀 MoveDialog: Standing orders saved:', standingOrders);
+      } else {
+        // Check if standing orders exist - if so, delete them first
+        const existingStandingOrders = await this.loadStandingOrders(starId);
+        if (existingStandingOrders && existingStandingOrders.move) {
+          await this.deleteStandingOrders(starId);
+          console.log('🚀 MoveDialog: Deleted existing standing orders');
+        }
+
+        // Submit regular order
+        console.log(`🚀 MoveDialog: Submitting move order from ${fromStar} to ${toStar}`);
+        
+        // Prepare order data for database submission
+        const orderData = {
+          action: 'move',
+          sourceStarId: starId,
+          destinationStarId: this.selectedDestination.getId(),
+          selectedShipIds: Array.from(this.selectedShipIds)
+        };
+
+        console.log('🚀 MoveDialog: Submitting move order via event system', orderData);
+
+        // Emit order submission event
+        eventBus.emit('order:move.submit', {
+          success: true,
+          details: {
+            eventType: 'order:move.submit',
+            orderType: 'move',
+            payload: orderData
+          }
+        });
       }
-    });
+    } catch (error) {
+      console.error('🚀 MoveDialog: Error submitting order:', error);
+      alert(`Failed to submit order: ${error.message || 'Unknown error'}`);
+    } finally {
+      // Unlock UI after submission completes
+      this.disableSubmissionUI();
+    }
     
-    // Note: UI updates and confirmations are handled in the response handlers
+    // Note: UI updates and confirmations are handled in the response handlers or above
     // Selections are preserved for user to retry if needed
   }
 

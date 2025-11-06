@@ -467,10 +467,15 @@ export class TurnEventsPanel extends BaseDialog
 
     console.log(details);
 
+    // Helper function to prepend "Auto " if from standing order
+    const getAutoPrefix = (details) => {
+      return details.fromStandingOrder ? 'Auto ' : '';
+    };
+
     switch (event.kind)
     {
       case 'move':
-        content = `Moved ${details.shipsMoved} ship${details.shipsMoved !== 1 ? 's' : ''} from ${window.globalMapModel.getStarById(details.sourceStarId).getName()} to ${window.globalMapModel.getStarById(details.destinationStarId).getName()}`;
+        content = `${getAutoPrefix(details)}Moved ${details.shipsMoved} ship${details.shipsMoved !== 1 ? 's' : ''} from ${window.globalMapModel.getStarById(details.sourceStarId).getName()} to ${window.globalMapModel.getStarById(details.destinationStarId).getName()}`;
         break;
       case 'combat':
         const winnerName = window.globalPlayers?.get(details.winner)?.name || details.winner || 'None';
@@ -481,13 +486,13 @@ export class TurnEventsPanel extends BaseDialog
         content = `Captured ${window.globalMapModel.getStarById(details.starId).getName()} from ${previousOwnerName}`;
         break;
       case 'build.ships':
-        content = `Built ${details.shipsBuilt} ship${details.shipsBuilt !== 1 ? 's' : ''} (cost: ${details.totalCost}) at ${window.globalMapModel.getStarById(details.starId).getName()}`;
+        content = `${getAutoPrefix(details)}Built ${details.shipsBuilt} ship${details.shipsBuilt !== 1 ? 's' : ''} (cost: ${details.totalCost}) at ${window.globalMapModel.getStarById(details.starId).getName()}`;
         break;
       case 'build.industry':
-        content = `Expanded industry: ${details.previousIndustry} → ${details.newIndustry} (spent: ${details.expansionSpent}) at ${window.globalMapModel.getStarById(details.starId).getName()}`;
+        content = `${getAutoPrefix(details)}Expanded industry: ${details.previousIndustry} → ${details.newIndustry} (spent: ${details.expansionSpent}) at ${window.globalMapModel.getStarById(details.starId).getName()}`;
         break;
       case 'build.research':
-        content = `Researched technology: ${details.previousTechnology} → ${details.newTechnology} (spent: ${details.researchSpent}) at ${window.globalMapModel.getStarById(details.starId).getName()}`;
+        content = `${getAutoPrefix(details)}Researched technology: ${details.previousTechnology} → ${details.newTechnology} (spent: ${details.researchSpent}) at ${window.globalMapModel.getStarById(details.starId).getName()}`;
         break;
       case 'turn_completion':
         content = details.message || 'Turn completed';

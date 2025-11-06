@@ -175,7 +175,7 @@ export async function placePlayersForGame({ gameId }) {
             starId: randomStar.star_id,
             ownerPlayer: player.id,
             economy: { industry: 10, available: 10, technology: 3 },
-            damage: {}
+            details: {}
           }, client);
           
           // Create three ships for the player at their home star

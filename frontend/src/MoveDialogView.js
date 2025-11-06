@@ -126,11 +126,34 @@ export class MoveDialogView {
     const section = document.createElement('div');
     section.className = 'dialog-section';
 
+    // Standing orders checkbox
+    const standingOrdersContainer = document.createElement('div');
+    standingOrdersContainer.className = 'standing-orders-container';
+    standingOrdersContainer.style.marginBottom = '10px';
+    
+    this.standingOrdersCheckbox = document.createElement('input');
+    this.standingOrdersCheckbox.type = 'checkbox';
+    this.standingOrdersCheckbox.id = 'standing-orders-checkbox-move';
+    this.standingOrdersCheckbox.className = 'standing-orders-checkbox';
+    
+    const standingOrdersLabel = document.createElement('label');
+    standingOrdersLabel.htmlFor = 'standing-orders-checkbox-move';
+    standingOrdersLabel.textContent = 'Standing Orders';
+    standingOrdersLabel.style.marginLeft = '5px';
+    standingOrdersLabel.style.cursor = 'pointer';
+    
+    standingOrdersContainer.appendChild(this.standingOrdersCheckbox);
+    standingOrdersContainer.appendChild(standingOrdersLabel);
+    section.appendChild(standingOrdersContainer);
+
     // Section title
     const title = document.createElement('h3');
     title.textContent = 'Fleet Selection';
     title.className = 'dialog-section-title';
     section.appendChild(title);
+    
+    // Store reference to ship tree section for enabling/disabling
+    this.shipTreeSection = section;
 
     // Damage threshold slider
     const damageThresholdContainer = document.createElement('div');
@@ -631,6 +654,19 @@ export class MoveDialogView {
     if (this.shipTreeContainer) {
       this.shipTreeContainer.classList.remove('disabled');
     }
+    // Enable all ship selection controls
+    if (this.damageThresholdSlider) {
+      this.damageThresholdSlider.disabled = false;
+    }
+    if (this.powerRangeSlider) {
+      // Power range slider doesn't have a disabled property, so we'll handle it via CSS
+      this.powerRangeContainer?.classList.remove('disabled');
+    }
+    // Enable quick select buttons
+    const quickSelectBtns = this.dialog?.querySelectorAll('.quick-select-btn');
+    if (quickSelectBtns) {
+      quickSelectBtns.forEach(btn => btn.disabled = false);
+    }
   }
 
   /**
@@ -639,6 +675,25 @@ export class MoveDialogView {
   disableShipTree() {
     if (this.shipTreeContainer) {
       this.shipTreeContainer.classList.add('disabled');
+    }
+    // Disable all ship selection controls
+    if (this.damageThresholdSlider) {
+      this.damageThresholdSlider.disabled = true;
+    }
+    if (this.powerRangeContainer) {
+      this.powerRangeContainer.classList.add('disabled');
+    }
+    // Disable quick select buttons
+    const quickSelectBtns = this.dialog?.querySelectorAll('.quick-select-btn');
+    if (quickSelectBtns) {
+      quickSelectBtns.forEach(btn => btn.disabled = true);
+    }
+    
+    // Show indicator that all ships will move
+    if (this.selectionSummary) {
+      this.selectionSummary.textContent = 'All ships will move (standing order)';
+      this.selectionSummary.style.fontStyle = 'italic';
+      this.selectionSummary.style.color = 'var(--text-secondary)';
     }
   }
 
@@ -863,18 +918,32 @@ export class MoveDialogView {
     if (canSubmit) {
       this.moveButton.classList.remove('btn-disabled');
       this.moveButton.classList.add('btn-enabled');
+      this.moveButton.disabled = false;
     } else {
       this.moveButton.classList.remove('btn-enabled');
       this.moveButton.classList.add('btn-disabled');
+      this.moveButton.disabled = true;
     }
 
     // Update cancel button
     if (canCancel) {
       this.cancelButton.classList.remove('btn-disabled');
       this.cancelButton.classList.add('btn-enabled');
+      this.cancelButton.disabled = false;
     } else {
       this.cancelButton.classList.remove('btn-enabled');
       this.cancelButton.classList.add('btn-disabled');
+      this.cancelButton.disabled = true;
+    }
+  }
+  
+  /**
+   * Reset selection summary to normal state
+   */
+  resetSelectionSummary() {
+    if (this.selectionSummary) {
+      this.selectionSummary.style.fontStyle = '';
+      this.selectionSummary.style.color = '';
     }
   }
 

@@ -263,13 +263,13 @@ This document provides a comprehensive data dictionary for the Lords of Hyperion
 | `star_id` | TEXT | NOT NULL | Associated star identifier |
 | `owner_player` | UUID | REFERENCES game_player(id) | Current owner of the star |
 | `economy` | JSONB | NOT NULL, DEFAULT '{}' | Economic state (industry, tech level, etc.) |
-| `damage` | JSONB | NOT NULL, DEFAULT '{}' | Damage and destruction state |
+| `details` | JSONB | NOT NULL, DEFAULT '{}' | Additional state information (damage, destruction, etc.) |
 | `updated_at` | TIMESTAMPTZ | NOT NULL, DEFAULT now() | Last state update timestamp |
 
 **Business Rules**:
 - Only one state record per star per game
 - Owner_player can be null (unclaimed star)
-- Economy and damage are JSON objects with flexible structure
+- Economy and details are JSON objects with flexible structure
 
 **Unique Constraints**:
 - (game_id, star_id) - One state per star per game
@@ -290,7 +290,7 @@ This document provides a comprehensive data dictionary for the Lords of Hyperion
     "technology": 15,
     "available": 10
   },
-  "damage": {
+  "details": {
     "infrastructure": 0,
     "population": 0
   }

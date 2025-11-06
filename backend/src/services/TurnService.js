@@ -23,6 +23,11 @@ import
    getOpenTurn
 }
 from '../repos/turnsRepo.js';
+import
+{
+   StandingOrdersService
+}
+from './StandingOrdersService.js';
 
 // Create a singleton AIService instance
 const aiService = new AIService();
@@ -373,7 +378,7 @@ export class TurnService
             rows: moveOrders
          } = await pool.query(
             `SELECT * FROM orders 
-         WHERE game_id = $1 AND turn_id = $2 AND order_type = 'move'`,
+         WHERE game_id = $1 AND turn_id = $2 AND order_type IN ('auto_move', 'move')`,
             [gameId, turnId]
          );
 
@@ -395,35 +400,85 @@ export class TurnService
                const sourceStarId = payload.sourceStarId;
                const destinationStarId = payload.destinationStarId;
                const shipIds = payload.selectedShipIds || [];
+               const fromStandingOrder = payload.fromStandingOrder === true;
 
-               if (!sourceStarId || !destinationStarId || shipIds.length === 0)
+               if (!sourceStarId || !destinationStarId)
                {
-                  console.warn(`🚀 TurnService: Invalid move order, skipping:`, payload);
+                  console.warn(`🚀 TurnService: Invalid move order (missing source or destination), skipping:`, payload);
                   continue;
                }
 
-               // Update ship locations
-               const
+               // Handle standing orders: if fromStandingOrder and shipIds is empty, move all ships
+               if (fromStandingOrder && shipIds.length === 0)
                {
-                  rowCount
-               } = await pool.query(
-                  `UPDATE ship 
-             SET location_star_id = $1
-             WHERE game_id = $2 AND id = ANY($3::uuid[])`,
-                  [destinationStarId, gameId, shipIds]
-               );
+                  // First, find all ships at the source star that will be moved
+                  const
+                  {
+                     rows: shipsToMove
+                  } = await pool.query(
+                     `SELECT id FROM ship 
+                  WHERE game_id = $1 AND location_star_id = $2 AND status = 'active'`,
+                     [gameId, sourceStarId]
+                  );
 
-               results.shipsMoved += rowCount;
-               console.log(`🚀 TurnService: Moved ${rowCount} ships from ${sourceStarId} to ${destinationStarId}`);
+                  const actualShipIds = shipsToMove.map(row => row.id);
 
-               // Record move event for the player
-               await this.recordTurnEvent(gameId, turnId, order.player_id, 'move',
+                  // Move all ships at the source star
+                  const
+                  {
+                     rowCount
+                  } = await pool.query(
+                     `UPDATE ship 
+                  SET location_star_id = $1
+                  WHERE game_id = $2 AND location_star_id = $3 AND status = 'active'`,
+                     [destinationStarId, gameId, sourceStarId]
+                  );
+
+                  results.shipsMoved += rowCount;
+                  console.log(`🚀 TurnService: Moved ${rowCount} ships from ${sourceStarId} to ${destinationStarId} (standing order - all ships)`);
+                  console.log(`🚀 TurnService: Ship IDs moved:`, actualShipIds);
+
+                  // Record move event for the player with actual ship IDs
+                  await this.recordTurnEvent(gameId, turnId, order.player_id, 'move',
+                  {
+                     sourceStarId,
+                     destinationStarId,
+                     shipIds: actualShipIds, // Include actual ship IDs that were moved
+                     shipsMoved: rowCount,
+                     fromStandingOrder: true
+                  });
+               }
+               else if (shipIds.length > 0)
                {
-                  sourceStarId,
-                  destinationStarId,
-                  shipIds,
-                  shipsMoved: rowCount
-               });
+                  // Normal order: move specific ships
+                  // Update ship locations
+                  const
+                  {
+                     rowCount
+                  } = await pool.query(
+                     `UPDATE ship 
+                  SET location_star_id = $1
+                  WHERE game_id = $2 AND id = ANY($3::uuid[])`,
+                     [destinationStarId, gameId, shipIds]
+                  );
+
+                  results.shipsMoved += rowCount;
+                  console.log(`🚀 TurnService: Moved ${rowCount} ships from ${sourceStarId} to ${destinationStarId}`);
+
+                  // Record move event for the player
+                  await this.recordTurnEvent(gameId, turnId, order.player_id, 'move',
+                  {
+                     sourceStarId,
+                     destinationStarId,
+                     shipIds,
+                     shipsMoved: rowCount
+                  });
+               }
+               else
+               {
+                  console.warn(`🚀 TurnService: Invalid move order (no ships specified), skipping:`, payload);
+                  continue;
+               }
             }
             catch (error)
             {
@@ -893,7 +948,7 @@ export class TurnService
          JOIN star_state ss ON o.payload->>'sourceStarId' = ss.star_id
          WHERE o.game_id = $1 
            AND o.turn_id = $2
-           AND o.order_type = 'build'
+           AND o.order_type IN ('auto_build', 'build')
            AND ss.game_id = $1`,
             [gameId, turnId]
          );
@@ -964,7 +1019,8 @@ export class TurnService
                         shipsBuilt: shipsToBuild,
                         totalCost,
                         shipCost: technology,
-                        remainingAvailable: economy.available
+                        remainingAvailable: economy.available,
+                        fromStandingOrder: payload.fromStandingOrder === true
                      });
                   }
                }
@@ -998,7 +1054,8 @@ export class TurnService
                         previousIndustry: currentIndustry,
                         newIndustry: economy.industry,
                         expansionSpent,
-                        remainingAvailable: economy.available
+                        remainingAvailable: economy.available,
+                        fromStandingOrder: payload.fromStandingOrder === true
                      });
                   }
                }
@@ -1032,7 +1089,8 @@ export class TurnService
                         previousTechnology: currentTechnology,
                         newTechnology: economy.technology,
                         researchSpent,
-                        remainingAvailable: economy.available
+                        remainingAvailable: economy.available,
+                        fromStandingOrder: payload.fromStandingOrder === true
                      });
                   }
                }
@@ -1173,7 +1231,20 @@ export class TurnService
 
          await client.query('COMMIT');
 
-         // Step 4: Reset players for new turn (outside transaction for safety)
+         // Step 4: Create standing orders for the new turn (outside transaction for safety)
+         try
+         {
+            const standingOrdersService = new StandingOrdersService();
+            const standingOrdersResult = await standingOrdersService.createStandingOrdersForNewTurn(gameId, newTurnId);
+            console.log(`📋 TurnService: Standing orders created:`, standingOrdersResult);
+         }
+         catch (error)
+         {
+            console.error('📋 TurnService: Error creating standing orders:', error);
+            // Don't throw - standing orders errors shouldn't block turn progression
+         }
+
+         // Step 5: Reset players for new turn (outside transaction for safety)
          await this.resetPlayersForNewTurn(gameId);
 
          return {
