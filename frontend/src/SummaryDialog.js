@@ -19,16 +19,18 @@ export class SummaryDialog extends BaseDialog
       this.rowLookup = new Map();
       this.industryDialogInstance = null;
       this.moveDialogInstance = null;
+      this.draggedColumnKey = null;
 
-      this.columns = [
-         {key: 'name', label: 'Star Name', type: 'text', headerClass: 'summary-header-center'},
-         {key: 'ownerName', label: 'Owner', type: 'text', headerClass: 'summary-header-center'},
-         {key: 'resource', label: '⚒', type: 'number'},
-         {key: 'industryCapacity', label: '🏭', type: 'number'},
-         {key: 'researchLevel', label: '🧪', type: 'number'},
-         {key: 'availablePoints', label: '💰', type: 'number'},
-         {key: 'shipCount', label: '🚀', type: 'number'},
+      this.allColumns = [
+         {key: 'name', label: 'Star Name', type: 'text', headerClass: 'summary-header-center', visible: true},
+         {key: 'ownerName', label: 'Owner', type: 'text', headerClass: 'summary-header-center', visible: true},
+         {key: 'resource', label: '⚒', type: 'number', visible: true},
+         {key: 'industryCapacity', label: '🏭', type: 'number', visible: true},
+         {key: 'researchLevel', label: '🧪', type: 'number', visible: true},
+         {key: 'availablePoints', label: '💰', type: 'number', visible: true},
+         {key: 'shipCount', label: '🚀', type: 'number', visible: true},
       ];
+      this.columns = this.allColumns.filter(column => column.visible);
 
       this.createDialog();
       this.setupKeyboardHandlers();
@@ -60,12 +62,33 @@ export class SummaryDialog extends BaseDialog
       refreshButton.textContent = 'Refresh';
       refreshButton.addEventListener('click', () => this.refreshData());
 
+      this.columnToggleWrapper = document.createElement('div');
+      this.columnToggleWrapper.className = 'summary-column-toggle-wrapper';
+
+      this.columnToggleButton = document.createElement('button');
+      this.columnToggleButton.type = 'button';
+      this.columnToggleButton.className = 'summary-column-toggle-btn';
+      this.columnToggleButton.textContent = 'Columns ▾';
+      this.columnToggleButton.addEventListener('click', (event) =>
+      {
+         event.stopPropagation();
+         this.toggleColumnMenu();
+      });
+
+      this.columnMenu = document.createElement('div');
+      this.columnMenu.className = 'summary-column-menu';
+      this.renderColumnMenu();
+
+      this.columnToggleWrapper.appendChild(this.columnToggleButton);
+      this.columnToggleWrapper.appendChild(this.columnMenu);
+
       const closeBtn = document.createElement('button');
       closeBtn.className = 'dialog-close-btn';
       closeBtn.textContent = '×';
       closeBtn.addEventListener('click', () => this.hide());
 
       controls.appendChild(refreshButton);
+      controls.appendChild(this.columnToggleWrapper);
       controls.appendChild(closeBtn);
 
       header.appendChild(title);
@@ -80,50 +103,9 @@ export class SummaryDialog extends BaseDialog
       this.table = document.createElement('table');
       this.table.className = 'summary-table';
 
-      const thead = document.createElement('thead');
-      const headerRow = document.createElement('tr');
-
-      this.columns.forEach((column) =>
-      {
-         const th = document.createElement('th');
-         th.scope = 'col';
-         th.textContent = column.label;
-         th.dataset.key = column.key;
-         th.className = 'summary-table-header';
-         if (column.headerClass)
-         {
-            th.classList.add(column.headerClass);
-         }
-         th.tabIndex = 0;
-         th.setAttribute('role', 'button');
-         th.setAttribute('aria-label', `Sort by ${column.label}`);
-
-         const indicator = document.createElement('span');
-         indicator.className = 'summary-sort-indicator';
-         th.appendChild(indicator);
-
-         th.addEventListener('click', () => this.handleSort(column.key));
-         th.addEventListener('keydown', (event) =>
-         {
-            if (event.key === 'Enter' || event.key === ' ')
-            {
-               event.preventDefault();
-               this.handleSort(column.key);
-            }
-         });
-
-         this.headerCells.set(column.key, {element: th, indicator});
-         headerRow.appendChild(th);
-      });
-
-      // Actions column (not sortable)
-      const actionsHeader = document.createElement('th');
-      actionsHeader.className = 'summary-table-header summary-actions-header';
-      actionsHeader.textContent = 'Actions';
-      headerRow.appendChild(actionsHeader);
-
-      thead.appendChild(headerRow);
-      this.table.appendChild(thead);
+      this.thead = document.createElement('thead');
+      this.table.appendChild(this.thead);
+      this.buildTableHeader();
 
       this.tableBody = document.createElement('tbody');
       this.table.appendChild(this.tableBody);
@@ -348,6 +330,255 @@ export class SummaryDialog extends BaseDialog
    {
       this.refreshData();
       super.show();
+   }
+
+   hide()
+   {
+      if (this.columnMenu && this.columnMenu.classList.contains('open'))
+      {
+         this.columnMenu.classList.remove('open');
+         document.removeEventListener('click', this.handleDocumentClick);
+      }
+
+      super.hide();
+   }
+
+   /**
+    * Build or rebuild the table header.
+    */
+   buildTableHeader()
+   {
+      if (!this.thead)
+      {
+         return;
+      }
+
+      this.thead.innerHTML = '';
+      this.headerCells.clear();
+
+      const headerRow = document.createElement('tr');
+
+      this.columns.forEach((column, index) =>
+      {
+         const th = document.createElement('th');
+         th.scope = 'col';
+         th.textContent = column.label;
+         th.dataset.key = column.key;
+         th.className = 'summary-table-header';
+         if (column.headerClass)
+         {
+            th.classList.add(column.headerClass);
+         }
+         th.tabIndex = 0;
+         th.setAttribute('role', 'button');
+         th.setAttribute('aria-label', `Sort by ${column.label}`);
+         th.draggable = true;
+
+         const indicator = document.createElement('span');
+         indicator.className = 'summary-sort-indicator';
+         th.appendChild(indicator);
+
+         th.addEventListener('click', () => this.handleSort(column.key));
+         th.addEventListener('keydown', (event) =>
+         {
+            if (event.key === 'Enter' || event.key === ' ')
+            {
+               event.preventDefault();
+               this.handleSort(column.key);
+            }
+         });
+
+         th.addEventListener('dragstart', (event) => this.handleHeaderDragStart(event, column.key));
+         th.addEventListener('dragover', (event) => this.handleHeaderDragOver(event));
+         th.addEventListener('dragleave', (event) => this.handleHeaderDragLeave(event));
+         th.addEventListener('drop', (event) => this.handleHeaderDrop(event, column.key, index));
+         th.addEventListener('dragend', () => this.handleHeaderDragEnd());
+
+         this.headerCells.set(column.key, {element: th, indicator});
+         headerRow.appendChild(th);
+      });
+
+      const actionsHeader = document.createElement('th');
+      actionsHeader.className = 'summary-table-header summary-actions-header';
+      actionsHeader.textContent = 'Actions';
+      headerRow.appendChild(actionsHeader);
+
+      this.thead.appendChild(headerRow);
+      this.updateHeaderSortIndicators();
+   }
+
+   handleHeaderDragStart(event, columnKey)
+   {
+      this.draggedColumnKey = columnKey;
+      if (event.dataTransfer)
+      {
+         event.dataTransfer.effectAllowed = 'move';
+         event.dataTransfer.setData('text/plain', columnKey);
+      }
+   }
+
+   handleHeaderDragOver(event)
+   {
+      event.preventDefault();
+      if (event.currentTarget instanceof HTMLElement)
+      {
+         event.currentTarget.classList.add('summary-header-drag-over');
+      }
+      if (event.dataTransfer)
+      {
+         event.dataTransfer.dropEffect = 'move';
+      }
+   }
+
+   handleHeaderDragLeave(event)
+   {
+      if (event.currentTarget instanceof HTMLElement)
+      {
+         event.currentTarget.classList.remove('summary-header-drag-over');
+      }
+   }
+
+   handleHeaderDrop(event, targetColumnKey, targetVisibleIndex)
+   {
+      event.preventDefault();
+      if (event.currentTarget instanceof HTMLElement)
+      {
+         event.currentTarget.classList.remove('summary-header-drag-over');
+      }
+
+      const sourceKey = this.draggedColumnKey || (event.dataTransfer ? event.dataTransfer.getData('text/plain') : null);
+      if (!sourceKey || sourceKey === targetColumnKey)
+      {
+         return;
+      }
+
+      const sourceVisibleIndex = this.columns.findIndex(column => column.key === sourceKey);
+      if (sourceVisibleIndex === -1 || targetVisibleIndex === -1 || sourceVisibleIndex === targetVisibleIndex)
+      {
+         return;
+      }
+
+      const sourceAllIndex = this.allColumns.findIndex(column => column.key === sourceKey);
+      const targetAllIndex = this.allColumns.findIndex(column => column.key === targetColumnKey);
+
+      if (sourceAllIndex === -1 || targetAllIndex === -1)
+      {
+         return;
+      }
+
+      const [movedColumn] = this.allColumns.splice(sourceAllIndex, 1);
+      this.allColumns.splice(targetAllIndex, 0, movedColumn);
+
+      this.columns = this.allColumns.filter(column => column.visible);
+
+      this.buildTableHeader();
+      this.renderRows();
+   }
+
+   handleHeaderDragEnd()
+   {
+      this.draggedColumnKey = null;
+      this.headerCells.forEach(({element}) =>
+      {
+         element.classList.remove('summary-header-drag-over');
+      });
+   }
+
+   toggleColumnMenu()
+   {
+      if (!this.columnMenu)
+      {
+         return;
+      }
+
+      const willOpen = !this.columnMenu.classList.contains('open');
+      if (willOpen)
+      {
+         this.columnMenu.classList.add('open');
+         document.addEventListener('click', this.handleDocumentClick);
+      }
+      else
+      {
+         this.columnMenu.classList.remove('open');
+         document.removeEventListener('click', this.handleDocumentClick);
+      }
+   }
+
+   handleDocumentClick = (event) =>
+   {
+      if (!this.columnMenu || !this.columnToggleWrapper)
+      {
+         return;
+      }
+
+      if (!this.columnToggleWrapper.contains(event.target))
+      {
+         this.columnMenu.classList.remove('open');
+         document.removeEventListener('click', this.handleDocumentClick);
+      }
+   };
+
+   renderColumnMenu()
+   {
+      if (!this.columnMenu)
+      {
+         return;
+      }
+
+      this.columnMenu.innerHTML = '';
+      this.allColumns.forEach((column) =>
+      {
+         const item = document.createElement('label');
+         item.className = 'summary-column-menu-item';
+
+         const checkbox = document.createElement('input');
+         checkbox.type = 'checkbox';
+         checkbox.checked = column.visible;
+         checkbox.dataset.key = column.key;
+
+         checkbox.addEventListener('click', (event) =>
+         {
+            event.stopPropagation();
+         });
+
+         checkbox.addEventListener('change', () =>
+         {
+            const currentlyVisible = this.allColumns.filter(col => col.visible).length;
+            if (!checkbox.checked && currentlyVisible <= 1)
+            {
+               checkbox.checked = true;
+               return;
+            }
+
+            column.visible = checkbox.checked;
+            this.columns = this.allColumns.filter(col => col.visible);
+
+            if (!this.columns.find(col => col.key === this.sortColumn))
+            {
+               const fallbackColumn = this.columns[0];
+               if (fallbackColumn)
+               {
+                  this.sortColumn = fallbackColumn.key;
+                  this.sortDirection = 'asc';
+               }
+               else
+               {
+                  this.sortColumn = null;
+               }
+            }
+
+            this.buildTableHeader();
+            this.renderRows();
+            this.renderColumnMenu();
+         });
+
+         const label = document.createElement('span');
+         label.textContent = column.label;
+
+         item.appendChild(checkbox);
+         item.appendChild(label);
+         this.columnMenu.appendChild(item);
+      });
    }
 
    /**
