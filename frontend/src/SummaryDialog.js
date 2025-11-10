@@ -20,15 +20,20 @@ export class SummaryDialog extends BaseDialog
       this.industryDialogInstance = null;
       this.moveDialogInstance = null;
       this.draggedColumnKey = null;
+      this.activeFilters = {};
+      this.activeFilterColumnKey = null;
+      this.filterMenu = null;
+      this.filterMenuAnchor = null;
+      this.ownerOptions = [];
 
       this.allColumns = [
-         {key: 'name', label: 'Star Name', type: 'text', headerClass: 'summary-header-center', visible: true},
-         {key: 'ownerName', label: 'Owner', type: 'text', headerClass: 'summary-header-center', visible: true},
-         {key: 'resource', label: '⚒', type: 'number', visible: true},
-         {key: 'industryCapacity', label: '🏭', type: 'number', visible: true},
-         {key: 'researchLevel', label: '🧪', type: 'number', visible: true},
-         {key: 'availablePoints', label: '💰', type: 'number', visible: true},
-         {key: 'shipCount', label: '🚀', type: 'number', visible: true},
+         {key: 'name', label: 'Star Name', type: 'text', headerClass: 'summary-header-center', visible: true, filterType: 'text'},
+         {key: 'ownerName', label: 'Owner', type: 'text', headerClass: 'summary-header-center', visible: true, filterType: 'owners'},
+         {key: 'resource', label: '⚒', type: 'number', visible: true, filterType: 'range'},
+         {key: 'industryCapacity', label: '🏭', type: 'number', visible: true, filterType: 'range'},
+         {key: 'researchLevel', label: '🧪', type: 'number', visible: true, filterType: 'range'},
+         {key: 'availablePoints', label: '💰', type: 'number', visible: true, filterType: 'range'},
+         {key: 'shipCount', label: '🚀', type: 'number', visible: true, filterType: 'range'},
       ];
       this.columns = this.allColumns.filter(column => column.visible);
 
@@ -128,6 +133,11 @@ export class SummaryDialog extends BaseDialog
 
       document.body.appendChild(this.dialog);
 
+      this.filterMenu = document.createElement('div');
+      this.filterMenu.className = 'summary-filter-menu';
+      this.filterMenu.addEventListener('click', (event) => event.stopPropagation());
+      this.dialog.appendChild(this.filterMenu);
+
       this.setupDragHandlers(header);
       this.setupActionHandlers();
    }
@@ -161,13 +171,52 @@ export class SummaryDialog extends BaseDialog
       {
          this.rows = getStarSummaryRows();
          this.rowLookup.clear();
+         const ownerMap = new Map();
          this.rows.forEach((row) =>
          {
             if (row && row.starId !== undefined)
             {
                this.rowLookup.set(String(row.starId), row);
             }
+            const optionKey = row.ownerId ?? 'neutral';
+            if (!ownerMap.has(optionKey))
+            {
+               ownerMap.set(optionKey,
+               {
+                  id: row.ownerId,
+                  key: optionKey,
+                  label: row.ownerName || 'Neutral'
+               });
+            }
          });
+         if (!ownerMap.has('neutral'))
+         {
+            ownerMap.set('neutral',
+            {
+               id: null,
+               key: 'neutral',
+               label: 'Neutral'
+            });
+         }
+         this.ownerOptions = Array.from(ownerMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+
+         const ownerFilter = this.activeFilters.ownerName;
+         if (ownerFilter && ownerFilter.type === 'owners')
+         {
+            const validKeys = new Set(this.ownerOptions.map(option => option.key));
+            const nextValues = new Set(
+               Array.from(ownerFilter.values || []).filter(value => validKeys.has(value))
+            );
+
+            if (nextValues.size === 0 || nextValues.size === validKeys.size)
+            {
+               delete this.activeFilters.ownerName;
+            }
+            else
+            {
+               ownerFilter.values = nextValues;
+            }
+         }
       }
       catch (error)
       {
@@ -191,7 +240,7 @@ export class SummaryDialog extends BaseDialog
 
       this.tableBody.innerHTML = '';
 
-      const rows = this.getSortedRows();
+      const rows = this.getFilteredAndSortedRows();
       if (!rows.length)
       {
          this.table.setAttribute('aria-hidden', 'true');
@@ -283,15 +332,23 @@ export class SummaryDialog extends BaseDialog
     * Return rows sorted per current state.
     * @returns {Array<Object>}
     */
-   getSortedRows()
+   getFilteredAndSortedRows()
    {
+      const filtered = this.rows.filter(row => this.shouldIncludeRow(row));
+
       const sortableColumn = this.columns.find((column) => column.key === this.sortColumn);
       if (!sortableColumn)
       {
-         return [...this.rows];
+         if (this.columns.length > 0)
+         {
+            this.sortColumn = this.columns[0].key;
+            this.sortDirection = 'asc';
+            return this.getFilteredAndSortedRows();
+         }
+         return filtered;
       }
 
-      const sorted = [...this.rows];
+      const sorted = [...filtered];
       sorted.sort((a, b) =>
       {
          const valueA = a[this.sortColumn];
@@ -321,6 +378,61 @@ export class SummaryDialog extends BaseDialog
       });
 
       return sorted;
+   }
+
+   shouldIncludeRow(row)
+   {
+      for (const [columnKey, filter] of Object.entries(this.activeFilters))
+      {
+         if (!filter)
+         {
+            continue;
+         }
+
+         switch (filter.type)
+         {
+            case 'text':
+            {
+               const value = (row[columnKey] ?? '').toString().toLowerCase();
+               if (!value.includes(filter.value))
+               {
+                  return false;
+               }
+               break;
+            }
+            case 'owners':
+            {
+               const ownerKey = row.ownerId ?? 'neutral';
+               if (!filter.values || !filter.values.has(ownerKey))
+               {
+                  return false;
+               }
+               break;
+            }
+            case 'range':
+            {
+               const numericValue = Number(row[columnKey]);
+               if (Number.isNaN(numericValue))
+               {
+                  return false;
+               }
+
+               if (filter.min !== null && filter.min !== undefined && numericValue < filter.min)
+               {
+                  return false;
+               }
+               if (filter.max !== null && filter.max !== undefined && numericValue > filter.max)
+               {
+                  return false;
+               }
+               break;
+            }
+            default:
+               break;
+         }
+      }
+
+      return true;
    }
 
    /**
@@ -374,11 +486,47 @@ export class SummaryDialog extends BaseDialog
          th.setAttribute('aria-label', `Sort by ${column.label}`);
          th.draggable = true;
 
+         const labelSpan = document.createElement('span');
+         labelSpan.className = 'summary-header-label';
+         labelSpan.textContent = column.label;
+         th.appendChild(labelSpan);
+
          const indicator = document.createElement('span');
          indicator.className = 'summary-sort-indicator';
          th.appendChild(indicator);
 
-         th.addEventListener('click', () => this.handleSort(column.key));
+         const filterButton = document.createElement('button');
+         filterButton.type = 'button';
+         filterButton.className = 'summary-filter-btn';
+         filterButton.innerHTML = '⚙︎';
+         filterButton.setAttribute('aria-label', `Filter ${column.label}`);
+         filterButton.addEventListener('click', (event) =>
+         {
+            event.stopPropagation();
+            this.toggleFilterMenu(column.key, filterButton);
+         });
+         th.appendChild(filterButton);
+
+         if (this.activeFilters[column.key])
+         {
+            th.classList.add('summary-header-filtered');
+            filterButton.classList.add('active');
+         }
+
+         if (this.activeFilterColumnKey === column.key && this.filterMenu?.classList.contains('open'))
+         {
+            this.filterMenuAnchor = filterButton;
+            this.positionFilterMenu(filterButton);
+         }
+
+         th.addEventListener('click', (event) =>
+         {
+            if (event.target === filterButton)
+            {
+               return;
+            }
+            this.handleSort(column.key);
+         });
          th.addEventListener('keydown', (event) =>
          {
             if (event.key === 'Enter' || event.key === ' ')
@@ -484,6 +632,305 @@ export class SummaryDialog extends BaseDialog
       });
    }
 
+   toggleFilterMenu(columnKey, anchorElement)
+   {
+      if (!this.filterMenu || !anchorElement)
+      {
+         return;
+      }
+
+      if (this.columnMenu && this.columnMenu.classList?.contains('open'))
+      {
+         this.columnMenu.classList.remove('open');
+         document.removeEventListener('click', this.handleColumnMenuDocumentClick);
+      }
+
+      if (this.activeFilterColumnKey === columnKey && this.filterMenu.classList.contains('open'))
+      {
+         this.closeFilterMenu();
+         return;
+      }
+
+      this.activeFilterColumnKey = columnKey;
+      this.filterMenuAnchor = anchorElement;
+      this.renderFilterMenu();
+
+      this.filterMenu.style.visibility = 'hidden';
+      this.filterMenu.classList.add('open');
+      this.positionFilterMenu(anchorElement);
+      this.filterMenu.style.visibility = '';
+
+      document.addEventListener('click', this.handleFilterMenuDocumentClick);
+   }
+
+   positionFilterMenu(anchorElement)
+   {
+      if (!this.filterMenu || !anchorElement || !this.dialog)
+      {
+         return;
+      }
+
+      const anchorRect = anchorElement.getBoundingClientRect();
+      const dialogRect = this.dialog.getBoundingClientRect();
+
+      const menuWidth = this.filterMenu.offsetWidth || this.filterMenu.getBoundingClientRect().width || 0;
+      const menuHeight = this.filterMenu.offsetHeight || this.filterMenu.getBoundingClientRect().height || 0;
+
+      let top = anchorRect.bottom - dialogRect.top + 6;
+      const maxTop = dialogRect.height - menuHeight - 8;
+      top = Math.min(Math.max(top, 0), Math.max(maxTop, 0));
+
+      let left = anchorRect.right - dialogRect.left - menuWidth;
+      left = Math.max(0, left);
+      const maxLeft = dialogRect.width - menuWidth - 8;
+      left = Math.min(left, Math.max(maxLeft, 0));
+
+      this.filterMenu.style.top = `${top}px`;
+      this.filterMenu.style.left = `${left}px`;
+   }
+
+   closeFilterMenu()
+   {
+      if (!this.filterMenu)
+      {
+         return;
+      }
+
+      this.filterMenu.classList.remove('open');
+      document.removeEventListener('click', this.handleFilterMenuDocumentClick);
+      this.activeFilterColumnKey = null;
+      this.filterMenuAnchor = null;
+   }
+
+   handleFilterMenuDocumentClick = (event) =>
+   {
+      if (!this.filterMenu || !this.filterMenuAnchor)
+      {
+         return;
+      }
+
+      if (!this.filterMenu.contains(event.target) && event.target !== this.filterMenuAnchor)
+      {
+         this.closeFilterMenu();
+      }
+   };
+
+   renderFilterMenu()
+   {
+      if (!this.filterMenu || !this.activeFilterColumnKey)
+      {
+         return;
+      }
+
+      const column = this.allColumns.find(col => col.key === this.activeFilterColumnKey);
+      if (!column)
+      {
+         this.filterMenu.innerHTML = '';
+         return;
+      }
+
+      this.filterMenu.innerHTML = '';
+
+      const title = document.createElement('div');
+      title.className = 'summary-filter-title';
+      title.textContent = `Filter: ${column.label}`;
+      this.filterMenu.appendChild(title);
+
+      const content = document.createElement('div');
+      content.className = 'summary-filter-content';
+      this.filterMenu.appendChild(content);
+
+      const controls = document.createElement('div');
+      controls.className = 'summary-filter-actions';
+      this.filterMenu.appendChild(controls);
+
+      const clearButton = document.createElement('button');
+      clearButton.type = 'button';
+      clearButton.className = 'summary-filter-clear-btn';
+      clearButton.textContent = 'Clear';
+      clearButton.addEventListener('click', () =>
+      {
+         delete this.activeFilters[column.key];
+         this.closeFilterMenu();
+         this.buildTableHeader();
+         this.renderRows();
+      });
+      controls.appendChild(clearButton);
+
+      switch (column.filterType)
+      {
+         case 'text':
+            this.renderTextFilter(content, column);
+            break;
+         case 'owners':
+            this.renderOwnerFilter(content, column);
+            break;
+         case 'range':
+            this.renderRangeFilter(content, column);
+            break;
+         default:
+            content.textContent = 'No filters available for this column.';
+            break;
+      }
+   }
+
+   renderTextFilter(container, column)
+   {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'summary-filter-text';
+
+      const input = document.createElement('input');
+      input.type = 'search';
+      input.placeholder = 'Search star names';
+      input.value = this.activeFilters[column.key]?.value || '';
+      input.addEventListener('input', () =>
+      {
+         const value = input.value.trim().toLowerCase();
+         if (value.length === 0)
+         {
+            delete this.activeFilters[column.key];
+         }
+         else
+         {
+            this.activeFilters[column.key] = {
+               type: 'text',
+               value
+            };
+         }
+         this.positionFilterMenu(this.filterMenuAnchor);
+         this.buildTableHeader();
+         this.renderRows();
+      });
+
+      wrapper.appendChild(input);
+      container.appendChild(wrapper);
+   }
+
+   renderOwnerFilter(container, column)
+   {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'summary-filter-owners';
+
+      if (!this.ownerOptions.length)
+      {
+         const empty = document.createElement('div');
+         empty.className = 'summary-filter-empty';
+         empty.textContent = 'No owners available.';
+         wrapper.appendChild(empty);
+         container.appendChild(wrapper);
+         return;
+      }
+
+      const currentFilter = this.activeFilters[column.key];
+      const selectedKeys = currentFilter?.values
+         ? new Set(currentFilter.values)
+         : new Set(this.ownerOptions.map(option => option.key));
+
+      this.ownerOptions.forEach((option) =>
+      {
+         const item = document.createElement('label');
+         item.className = 'summary-filter-owner-item';
+
+         const checkbox = document.createElement('input');
+         checkbox.type = 'checkbox';
+         checkbox.checked = selectedKeys.has(option.key);
+
+         checkbox.addEventListener('change', () =>
+         {
+            const nextValues = new Set(selectedKeys);
+            if (checkbox.checked)
+            {
+               nextValues.add(option.key);
+            }
+            else
+            {
+               nextValues.delete(option.key);
+            }
+
+            if (nextValues.size === this.ownerOptions.length)
+            {
+               delete this.activeFilters[column.key];
+            }
+            else
+            {
+               this.activeFilters[column.key] = {
+                  type: 'owners',
+                  values: nextValues
+               };
+            }
+            this.renderFilterMenu();
+            this.positionFilterMenu(this.filterMenuAnchor);
+            this.buildTableHeader();
+            this.renderRows();
+         });
+
+         const label = document.createElement('span');
+         label.textContent = option.label;
+
+         item.appendChild(checkbox);
+         item.appendChild(label);
+         wrapper.appendChild(item);
+      });
+
+      container.appendChild(wrapper);
+   }
+
+   renderRangeFilter(container, column)
+   {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'summary-filter-range';
+
+      const currentFilter = this.activeFilters[column.key] || {};
+
+      const minInput = document.createElement('input');
+      minInput.type = 'number';
+      minInput.placeholder = 'Min';
+      minInput.step = '1';
+      minInput.value = currentFilter.min ?? '';
+
+      const maxInput = document.createElement('input');
+      maxInput.type = 'number';
+      maxInput.placeholder = 'Max';
+      maxInput.step = '1';
+      maxInput.value = currentFilter.max ?? '';
+
+      const applyFilter = () =>
+      {
+         const rawMin = minInput.value;
+         const rawMax = maxInput.value;
+
+         const minValue = rawMin !== '' ? Number(rawMin) : null;
+         const maxValue = rawMax !== '' ? Number(rawMax) : null;
+
+         const normalizedMin = Number.isFinite(minValue) ? minValue : null;
+         const normalizedMax = Number.isFinite(maxValue) ? maxValue : null;
+
+         if (normalizedMin === null && normalizedMax === null)
+         {
+            delete this.activeFilters[column.key];
+         }
+         else
+         {
+            this.activeFilters[column.key] = {
+               type: 'range',
+               min: normalizedMin,
+               max: normalizedMax
+            };
+         }
+
+         this.positionFilterMenu(this.filterMenuAnchor);
+         this.buildTableHeader();
+         this.renderRows();
+      };
+
+      minInput.addEventListener('input', applyFilter);
+      maxInput.addEventListener('input', applyFilter);
+
+      wrapper.appendChild(minInput);
+      wrapper.appendChild(maxInput);
+      container.appendChild(wrapper);
+   }
+
    toggleColumnMenu()
    {
       if (!this.columnMenu)
@@ -495,16 +942,16 @@ export class SummaryDialog extends BaseDialog
       if (willOpen)
       {
          this.columnMenu.classList.add('open');
-         document.addEventListener('click', this.handleDocumentClick);
+         document.addEventListener('click', this.handleColumnMenuDocumentClick);
       }
       else
       {
          this.columnMenu.classList.remove('open');
-         document.removeEventListener('click', this.handleDocumentClick);
+         document.removeEventListener('click', this.handleColumnMenuDocumentClick);
       }
    }
 
-   handleDocumentClick = (event) =>
+   handleColumnMenuDocumentClick = (event) =>
    {
       if (!this.columnMenu || !this.columnToggleWrapper)
       {
@@ -514,7 +961,7 @@ export class SummaryDialog extends BaseDialog
       if (!this.columnToggleWrapper.contains(event.target))
       {
          this.columnMenu.classList.remove('open');
-         document.removeEventListener('click', this.handleDocumentClick);
+         document.removeEventListener('click', this.handleColumnMenuDocumentClick);
       }
    };
 
@@ -565,6 +1012,12 @@ export class SummaryDialog extends BaseDialog
                {
                   this.sortColumn = null;
                }
+            }
+
+            if (!column.visible && this.activeFilterColumnKey === column.key)
+            {
+               this.closeFilterMenu();
+               delete this.activeFilters[column.key];
             }
 
             this.buildTableHeader();
