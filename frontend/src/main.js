@@ -12,6 +12,7 @@ import { MapModel } from '@loh/shared';
 
 import { DevPanel } from './dev/DevPanel.js';
 import { TurnEventsPanel } from './TurnEventsPanel.js';
+import { SummaryDialog } from './SummaryDialog.js';
 
 // Global MapModel instance
 window.globalMapModel = null;
@@ -21,6 +22,7 @@ window.globalPlayers = null;
 
 // Global instances
 let turnEventsPanel = new TurnEventsPanel();
+let summaryDialog = null;
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -128,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () =>
   // Create refresh button, events button, and end turn button
   createRefreshButton();
   createEventsButton();
+  createSummaryButton();
   createEndTurnButton();
   
   // Log development mode status
@@ -319,6 +322,58 @@ function createEventsButton()
   document.body.appendChild(eventsButton);
 }
 
+// Create summary button
+function createSummaryButton()
+{
+  const summaryButton = document.createElement('button');
+  summaryButton.id = 'summary-button';
+  summaryButton.innerHTML = '📊 Summary';
+  summaryButton.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 252px;
+    z-index: 1000;
+    padding: 10px 15px;
+    background: rgba(255, 215, 0, 0.18);
+    border: 2px solid #ffd700;
+    border-radius: 8px;
+    color: #ffd700;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+  `;
+
+  summaryButton.addEventListener('mouseenter', () => {
+    summaryButton.style.background = 'rgba(255, 215, 0, 0.28)';
+    summaryButton.style.transform = 'scale(1.05)';
+    summaryButton.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.5)';
+  });
+
+  summaryButton.addEventListener('mouseleave', () => {
+    summaryButton.style.background = 'rgba(255, 215, 0, 0.18)';
+    summaryButton.style.transform = 'scale(1)';
+    summaryButton.style.boxShadow = 'none';
+  });
+
+  summaryButton.addEventListener('click', () => {
+    if (!summaryDialog) {
+      summaryDialog = new SummaryDialog();
+      window.summaryDialog = summaryDialog;
+    }
+
+    if (summaryDialog.isOpen()) {
+      summaryDialog.hide();
+    } else {
+      summaryDialog.show();
+    }
+  });
+
+  document.body.appendChild(summaryButton);
+}
+
 // Create end turn button
 function createEndTurnButton()
 {
@@ -328,7 +383,7 @@ function createEndTurnButton()
   endTurnButton.style.cssText = `
     position: fixed;
     top: 20px;
-    right: 252px;
+    right: 368px;
     z-index: 1000;
     padding: 10px 15px;
     background: rgba(255, 165, 0, 0.2);

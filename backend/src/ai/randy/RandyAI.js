@@ -235,6 +235,7 @@ export class RandyAI extends BaseAI
       // Categorize adjacent stars into unowned and enemy-owned
       const unownedStars = [];
       const enemyStars = [];
+      const ownedAdjacentStars = [];
 
       for (const adjacentStarId of adjacentStars)
       {
@@ -248,6 +249,11 @@ export class RandyAI extends BaseAI
          {
             // Enemy-owned star
             enemyStars.push(adjacentStarId);
+         }
+         else
+         {
+            // Owned star
+            ownedAdjacentStars.push(adjacentStarId);
          }
       }
 
@@ -370,27 +376,50 @@ export class RandyAI extends BaseAI
          const availableShips = unmovedShips();
          if (availableShips.length > 0)
          {
-            // Move remaining ships one by one to random adjacent stars
-            const allAdjacentStars = [...unownedStars, ...enemyStars];
-            if (allAdjacentStars.length === 0)
+            const candidateStars = [...unownedStars, ...ownedAdjacentStars];
+            
+            if (candidateStars.length === 0)
             {
                // No adjacent stars to move to (shouldn't happen, but handle gracefully)
                return;
             }
 
+            if (!candidateStars.includes(starState.star_id))
+            {
+               candidateStars.push(starState.star_id);
+            }
+   
+
+            const destinationShipMap = new Map();
+
             for (const ship of availableShips)
             {
-               // Select a random adjacent star
-               const randomIndex = Math.floor(this.random.nextFloat(0, 1) * allAdjacentStars.length);
-               const targetStarId = allAdjacentStars[randomIndex];
+               const randomIndex = Math.floor(this.random.nextFloat(0, 1) * candidateStars.length);
+               const targetStarId = candidateStars[randomIndex];
+
+               if (targetStarId === starState.star_id)
+               {
+                  this.log(`Keeping ship ${ship.id} at star ${starState.star_id}`);
+                  continue;
+               }
+
                usedShipIds.add(ship.id);
 
+               if (!destinationShipMap.has(targetStarId))
+               {
+                  destinationShipMap.set(targetStarId, []);
+               }
+               destinationShipMap.get(targetStarId).push(ship.id);
+            }
+
+            for (const [destinationStarId, shipIds] of destinationShipMap.entries())
+            {
                try
                {
                   const payload = {
                      sourceStarId: starState.star_id,
-                     destinationStarId: targetStarId,
-                     selectedShipIds: [ship.id]
+                     destinationStarId,
+                     selectedShipIds: shipIds
                   };
 
                   await ordersService.createOrder(
@@ -402,12 +431,15 @@ export class RandyAI extends BaseAI
                      payload
                   });
 
-                  this.log(`Issued random move order: 1 ship from ${starState.star_id} to ${targetStarId}`);
+                  this.log(`Issued random move order: ${shipIds.length} ship(s) from ${starState.star_id} to ${destinationStarId}`);
                }
                catch (error)
                {
                   this.log(`Error issuing random move order: ${error.message}`);
-                  usedShipIds.delete(ship.id); // Release the ship if order failed
+                  for (const shipId of shipIds)
+                  {
+                     usedShipIds.delete(shipId);
+                  }
                }
             }
          }
