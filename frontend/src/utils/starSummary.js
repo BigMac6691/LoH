@@ -90,6 +90,19 @@ export function getStarSummaryRows()
       const owner = typeof star.getOwner === 'function' ? star.getOwner() : star.owner;
       const ships = typeof star.getShips === 'function' ? star.getShips() : star.ships || [];
       const starId = typeof star.getId === 'function' ? star.getId() : star.data?.star_id;
+      
+      // Get standing orders from global star states lookup
+      const starState = window.globalStarStates?.get(String(starId));
+      const details = starState?.details || star.data?.details || {};
+      const standingOrders = details.standingOrders || {};
+      const industryStanding = standingOrders.industry || null;
+      const moveStanding = standingOrders.move || null;
+      
+      // Debug logging (remove after verification)
+      if (starState && starState.details && starState.details.standingOrders)
+      {
+         console.log(`📊 Star ${starId} has standing orders:`, starState.details.standingOrders);
+      }
 
       let ownerColor = '#FFFFFF';
       if (owner)
@@ -121,6 +134,20 @@ export function getStarSummaryRows()
          researchLevel: economy?.techLevel ?? 0,
          availablePoints: economy?.available ?? 0,
          shipCount: Array.isArray(ships) ? ships.length : (typeof star.getShipCount === 'function' ? star.getShipCount() : 0),
+         adjacentStars: typeof star.getConnectedStarIds === 'function' ? star.getConnectedStarIds() : (star.data?.connectedStarIds || []),
+         hasStandingBuildOrders: Boolean(
+            industryStanding
+            && Object.values(industryStanding).some(value =>
+            {
+               const numeric = Number(value);
+               return Number.isFinite(numeric) ? numeric > 0 : Boolean(value);
+            })
+         ),
+         hasStandingMoveOrders: Boolean(
+            moveStanding
+            && moveStanding.destinationStarId !== undefined
+            && moveStanding.destinationStarId !== null
+         ),
       });
    });
 

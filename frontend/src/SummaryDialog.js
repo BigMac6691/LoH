@@ -29,11 +29,12 @@ export class SummaryDialog extends BaseDialog
       this.allColumns = [
          {key: 'name', label: 'Star Name', type: 'text', headerClass: 'summary-header-center', visible: true, filterType: 'text'},
          {key: 'ownerName', label: 'Owner', type: 'text', headerClass: 'summary-header-center', visible: true, filterType: 'owners'},
-         {key: 'resource', label: '⚒', type: 'number', visible: true, filterType: 'range'},
-         {key: 'industryCapacity', label: '🏭', type: 'number', visible: true, filterType: 'range'},
-         {key: 'researchLevel', label: '🧪', type: 'number', visible: true, filterType: 'range'},
-         {key: 'availablePoints', label: '💰', type: 'number', visible: true, filterType: 'range'},
-         {key: 'shipCount', label: '🚀', type: 'number', visible: true, filterType: 'range'},
+         {key: 'resource', label: '⚒', type: 'number', visible: true, filterType: 'range', maskForNonOwner: true},
+         {key: 'industryCapacity', label: '🏭', type: 'number', visible: true, filterType: 'range', maskForNonOwner: true},
+         {key: 'researchLevel', label: '🧪', type: 'number', visible: true, filterType: 'range', maskForNonOwner: true},
+         {key: 'availablePoints', label: '💰', type: 'number', visible: true, filterType: 'range', maskForNonOwner: true},
+         {key: 'shipCount', label: '🚀', type: 'number', visible: true, filterType: 'range', maskForNonOwner: true},
+         {key: 'adjacentStars', label: '⭐', type: 'text', visible: true, filterType: null, maskForNonOwner: false, sortable: false, filterable: false},
       ];
       this.columns = this.allColumns.filter(column => column.visible);
 
@@ -148,6 +149,12 @@ export class SummaryDialog extends BaseDialog
     */
    handleSort(columnKey)
    {
+      const columnConfig = this.columns.find(column => column.key === columnKey);
+      if (!columnConfig || columnConfig.sortable === false)
+      {
+         return;
+      }
+
       if (this.sortColumn === columnKey)
       {
          this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -262,17 +269,63 @@ export class SummaryDialog extends BaseDialog
             td.className = column.type === 'number' ? 'summary-cell summary-cell-number' : 'summary-cell';
 
             const value = row[column.key];
-            if (column.type === 'number' && typeof value === 'number')
+         if (column.key === 'adjacentStars')
+         {
+            this.renderAdjacentStarsCell(td, value);
+            }
+            else if (column.type === 'number' && typeof value === 'number')
             {
-               td.textContent = value.toLocaleString();
+               if (column.maskForNonOwner && !row.isOwnedByCurrentPlayer)
+               {
+                  td.textContent = '?';
+               }
+               else
+               {
+                  td.textContent = value.toLocaleString();
+               }
+            }
+            else if (column.type === 'number')
+            {
+               td.textContent = column.maskForNonOwner && !row.isOwnedByCurrentPlayer ? '?' : '';
             }
             else if (column.key === 'name')
             {
+               const nameContainer = document.createElement('span');
+               nameContainer.className = 'summary-name-container';
+
                const nameSpan = document.createElement('span');
+               nameSpan.className = 'summary-name-text';
                nameSpan.textContent = value ?? '';
                nameSpan.style.color = row.ownerColor || '#FFFFFF';
                nameSpan.style.fontWeight = '600';
-               td.appendChild(nameSpan);
+               nameContainer.appendChild(nameSpan);
+
+               // Debug logging (remove after verification)
+               if (row.hasStandingBuildOrders || row.hasStandingMoveOrders)
+               {
+                  console.log(`📊 Rendering star ${row.starId} (${value}):`, {
+                     hasStandingBuildOrders: row.hasStandingBuildOrders,
+                     hasStandingMoveOrders: row.hasStandingMoveOrders
+                  });
+               }
+
+               if (row.hasStandingBuildOrders)
+               {
+                  const buildIcon = document.createElement('span');
+                  buildIcon.className = 'summary-standing-icon summary-standing-build';
+                  buildIcon.textContent = '🔧';
+                  nameContainer.appendChild(buildIcon);
+               }
+
+               if (row.hasStandingMoveOrders)
+               {
+                  const moveIcon = document.createElement('span');
+                  moveIcon.className = 'summary-standing-icon summary-standing-move';
+                  moveIcon.textContent = '➡️';
+                  nameContainer.appendChild(moveIcon);
+               }
+
+               td.appendChild(nameContainer);
             }
             else
             {
@@ -318,12 +371,18 @@ export class SummaryDialog extends BaseDialog
          if (key === this.sortColumn)
          {
             element.classList.add('summary-header-sorted');
-            indicator.textContent = this.sortDirection === 'asc' ? '▲' : '▼';
+            if (indicator)
+            {
+               indicator.textContent = this.sortDirection === 'asc' ? '▲' : '▼';
+            }
          }
          else
          {
             element.classList.remove('summary-header-sorted');
-            indicator.textContent = '';
+            if (indicator)
+            {
+               indicator.textContent = '';
+            }
          }
       });
    }
@@ -336,12 +395,13 @@ export class SummaryDialog extends BaseDialog
    {
       const filtered = this.rows.filter(row => this.shouldIncludeRow(row));
 
-      const sortableColumn = this.columns.find((column) => column.key === this.sortColumn);
+      const sortableColumn = this.columns.find((column) => column.key === this.sortColumn && column.sortable !== false);
       if (!sortableColumn)
       {
-         if (this.columns.length > 0)
+         const fallbackColumn = this.columns.find(column => column.sortable !== false);
+         if (fallbackColumn)
          {
-            this.sortColumn = this.columns[0].key;
+            this.sortColumn = fallbackColumn.key;
             this.sortDirection = 'asc';
             return this.getFilteredAndSortedRows();
          }
@@ -351,13 +411,41 @@ export class SummaryDialog extends BaseDialog
       const sorted = [...filtered];
       sorted.sort((a, b) =>
       {
-         const valueA = a[this.sortColumn];
-         const valueB = b[this.sortColumn];
+         let valueA = a[this.sortColumn];
+         let valueB = b[this.sortColumn];
 
          if (sortableColumn.type === 'number')
          {
-            const numberA = typeof valueA === 'number' ? valueA : Number(valueA) || 0;
-            const numberB = typeof valueB === 'number' ? valueB : Number(valueB) || 0;
+            if (sortableColumn.maskForNonOwner)
+            {
+               if (!a.isOwnedByCurrentPlayer)
+               {
+                  valueA = Number.NaN;
+               }
+               if (!b.isOwnedByCurrentPlayer)
+               {
+                  valueB = Number.NaN;
+               }
+            }
+
+            const numberA = typeof valueA === 'number' ? valueA : Number(valueA);
+            const numberB = typeof valueB === 'number' ? valueB : Number(valueB);
+            const validA = Number.isFinite(numberA);
+            const validB = Number.isFinite(numberB);
+
+            if (!validA && !validB)
+            {
+               return 0;
+            }
+            if (!validA)
+            {
+               return 1;
+            }
+            if (!validB)
+            {
+               return -1;
+            }
+
             return this.sortDirection === 'asc' ? numberA - numberB : numberB - numberA;
          }
 
@@ -411,8 +499,22 @@ export class SummaryDialog extends BaseDialog
             }
             case 'range':
             {
-               const numericValue = Number(row[columnKey]);
-               if (Number.isNaN(numericValue))
+               const columnConfig = this.allColumns.find(col => col.key === columnKey);
+               const requiresOwnership = columnConfig?.maskForNonOwner;
+
+               if (requiresOwnership && !row.isOwnedByCurrentPlayer)
+               {
+                  return false;
+               }
+
+               const rawValue = row[columnKey];
+               if (rawValue === null || rawValue === undefined)
+               {
+                  return false;
+               }
+
+               const numericValue = Number(rawValue);
+               if (!Number.isFinite(numericValue))
                {
                   return false;
                }
@@ -474,67 +576,110 @@ export class SummaryDialog extends BaseDialog
       {
          const th = document.createElement('th');
          th.scope = 'col';
-         th.textContent = column.label;
          th.dataset.key = column.key;
          th.className = 'summary-table-header';
          if (column.headerClass)
          {
             th.classList.add(column.headerClass);
          }
-         th.tabIndex = 0;
-         th.setAttribute('role', 'button');
-         th.setAttribute('aria-label', `Sort by ${column.label}`);
          th.draggable = true;
+
+         const isSortable = column.sortable !== false;
+         const isFilterable = column.filterType && column.filterable !== false;
+
+         if (isSortable)
+         {
+            th.tabIndex = 0;
+            th.setAttribute('role', 'button');
+            th.setAttribute('aria-label', `Sort by ${column.label}`);
+         }
+         else
+         {
+            th.tabIndex = -1;
+         }
+
+         const headerContent = document.createElement('span');
+         headerContent.className = 'summary-header-content';
+
+         let indicator = null;
+         let filterButton = null;
+         let hasIcons = false;
+
+         if (isSortable)
+         {
+            indicator = document.createElement('span');
+            indicator.className = 'summary-sort-indicator';
+            hasIcons = true;
+         }
+
+         if (isFilterable)
+         {
+            filterButton = document.createElement('button');
+            filterButton.type = 'button';
+            filterButton.className = 'summary-filter-btn';
+            filterButton.innerHTML = '⚙︎';
+            filterButton.setAttribute('aria-label', `Filter ${column.label}`);
+            filterButton.addEventListener('click', (event) =>
+            {
+               event.stopPropagation();
+               this.toggleFilterMenu(column.key, filterButton);
+            });
+            hasIcons = true;
+         }
+
+         if (hasIcons)
+         {
+            const iconGroup = document.createElement('span');
+            iconGroup.className = 'summary-header-icons';
+            if (indicator)
+            {
+               iconGroup.appendChild(indicator);
+            }
+            if (filterButton)
+            {
+               iconGroup.appendChild(filterButton);
+            }
+            headerContent.appendChild(iconGroup);
+         }
 
          const labelSpan = document.createElement('span');
          labelSpan.className = 'summary-header-label';
          labelSpan.textContent = column.label;
-         th.appendChild(labelSpan);
+         headerContent.appendChild(labelSpan);
 
-         const indicator = document.createElement('span');
-         indicator.className = 'summary-sort-indicator';
-         th.appendChild(indicator);
+         th.appendChild(headerContent);
 
-         const filterButton = document.createElement('button');
-         filterButton.type = 'button';
-         filterButton.className = 'summary-filter-btn';
-         filterButton.innerHTML = '⚙︎';
-         filterButton.setAttribute('aria-label', `Filter ${column.label}`);
-         filterButton.addEventListener('click', (event) =>
-         {
-            event.stopPropagation();
-            this.toggleFilterMenu(column.key, filterButton);
-         });
-         th.appendChild(filterButton);
-
-         if (this.activeFilters[column.key])
+         if (filterButton && this.activeFilters[column.key])
          {
             th.classList.add('summary-header-filtered');
             filterButton.classList.add('active');
          }
 
-         if (this.activeFilterColumnKey === column.key && this.filterMenu?.classList.contains('open'))
+         if (filterButton && this.activeFilterColumnKey === column.key && this.filterMenu?.classList.contains('open'))
          {
             this.filterMenuAnchor = filterButton;
             this.positionFilterMenu(filterButton);
          }
 
-         th.addEventListener('click', (event) =>
+         if (isSortable)
          {
-            if (event.target === filterButton)
+            th.addEventListener('click', (event) =>
             {
-               return;
-            }
-            this.handleSort(column.key);
-         });
-         th.addEventListener('keydown', (event) =>
-         {
-            if (event.key === 'Enter' || event.key === ' ')
-            {
-               event.preventDefault();
+               if (event.target === filterButton)
+               {
+                  return;
+               }
                this.handleSort(column.key);
-            }
-         });
+            });
+            th.addEventListener('keydown', (event) =>
+            {
+               if (event.key === 'Enter' || event.key === ' ')
+               {
+                  event.preventDefault();
+                  this.handleSort(column.key);
+               }
+            });
+         }
 
          th.addEventListener('dragstart', (event) => this.handleHeaderDragStart(event, column.key));
          th.addEventListener('dragover', (event) => this.handleHeaderDragOver(event));
@@ -931,6 +1076,43 @@ export class SummaryDialog extends BaseDialog
       container.appendChild(wrapper);
    }
 
+   renderAdjacentStarsCell(cell, connectedIds)
+   {
+      const mapModel = window.globalMapModel || window.mapGenerator?.mapModel || null;
+      const starIds = Array.isArray(connectedIds) ? connectedIds : [];
+
+      if (starIds.length === 0)
+      {
+         const empty = document.createElement('div');
+         empty.textContent = '—';
+         empty.className = 'summary-adjacent-line summary-adjacent-line-empty';
+         cell.appendChild(empty);
+         cell.classList.add('summary-adjacent-cell');
+         return;
+      }
+
+      starIds.forEach((adjacentId) =>
+      {
+         let label = `Star ${adjacentId}`;
+
+         if (mapModel && typeof mapModel.getStarById === 'function')
+         {
+            const adjacentStar = mapModel.getStarById(adjacentId);
+            if (adjacentStar && typeof adjacentStar.getName === 'function')
+            {
+               label = adjacentStar.getName() || label;
+            }
+         }
+
+         const line = document.createElement('div');
+         line.className = 'summary-adjacent-line';
+         line.textContent = label;
+         cell.appendChild(line);
+      });
+
+      cell.classList.add('summary-adjacent-cell');
+   }
+
    toggleColumnMenu()
    {
       if (!this.columnMenu)
@@ -1000,9 +1182,9 @@ export class SummaryDialog extends BaseDialog
             column.visible = checkbox.checked;
             this.columns = this.allColumns.filter(col => col.visible);
 
-            if (!this.columns.find(col => col.key === this.sortColumn))
+            if (!this.columns.find(col => col.key === this.sortColumn && col.sortable !== false))
             {
-               const fallbackColumn = this.columns[0];
+               const fallbackColumn = this.columns.find(col => col.sortable !== false);
                if (fallbackColumn)
                {
                   this.sortColumn = fallbackColumn.key;

@@ -13,6 +13,7 @@ import { MapModel } from '@loh/shared';
 import { DevPanel } from './dev/DevPanel.js';
 import { TurnEventsPanel } from './TurnEventsPanel.js';
 import { SummaryDialog } from './SummaryDialog.js';
+import { OrderSummaryDialog } from './OrderSummaryDialog.js';
 
 // Global MapModel instance
 window.globalMapModel = null;
@@ -23,6 +24,7 @@ window.globalPlayers = null;
 // Global instances
 let turnEventsPanel = new TurnEventsPanel();
 let summaryDialog = null;
+let orderSummaryDialog = null;
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -127,10 +129,14 @@ document.addEventListener('DOMContentLoaded', () =>
     loadingElement.style.display = 'none';
   }
   
+  // Create button container for top-right buttons
+  createButtonContainer();
+  
   // Create refresh button, events button, and end turn button
   createRefreshButton();
   createEventsButton();
   createSummaryButton();
+  createOrderButton();
   createEndTurnButton();
   
   // Log development mode status
@@ -210,29 +216,22 @@ function onGameStart(players)
   // No need to manually create them here
 }
 
+// Create button container for top-right buttons
+function createButtonContainer()
+{
+  const buttonContainer = document.createElement('div');
+  buttonContainer.id = 'top-right-buttons';
+  buttonContainer.className = 'top-right-buttons-container';
+  document.body.appendChild(buttonContainer);
+}
+
 // Create refresh button
 function createRefreshButton()
 {
   const refreshButton = document.createElement('button');
   refreshButton.id = 'refresh-button';
+  refreshButton.className = 'top-right-button top-right-button-refresh';
   refreshButton.innerHTML = '🔄 Refresh';
-  refreshButton.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 1000;
-    padding: 10px 15px;
-    background: rgba(0, 255, 136, 0.2);
-    border: 2px solid #00ff88;
-    border-radius: 8px;
-    color: #00ff88;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
-  `;
   
   // Hover effects
   refreshButton.addEventListener('mouseenter', () => {
@@ -263,8 +262,11 @@ function createRefreshButton()
     });
   });
   
-  // Add to DOM
-  document.body.appendChild(refreshButton);
+  // Add to container
+  const container = document.getElementById('top-right-buttons');
+  if (container) {
+    container.appendChild(refreshButton);
+  }
 }
 
 // Create events button
@@ -272,25 +274,8 @@ function createEventsButton()
 {
   const eventsButton = document.createElement('button');
   eventsButton.id = 'events-button';
+  eventsButton.className = 'top-right-button top-right-button-events';
   eventsButton.innerHTML = '📝 Events';
-  eventsButton.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 136px;
-    z-index: 1000;
-    padding: 10px 15px;
-    background: rgba(0, 150, 255, 0.2);
-    border: 2px solid #0096ff;
-    border-radius: 8px;
-    color: #0096ff;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
-  `;
   
   // Hover effects
   eventsButton.addEventListener('mouseenter', () => {
@@ -302,7 +287,7 @@ function createEventsButton()
   eventsButton.addEventListener('mouseleave', () => {
     eventsButton.style.background = 'rgba(0, 150, 255, 0.2)';
     eventsButton.style.transform = 'scale(1)';
-    eventsButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+    eventsButton.style.boxShadow = 'none';
   });
   
   // Click handler
@@ -318,8 +303,11 @@ function createEventsButton()
     turnEventsPanel.show();
   });
   
-  // Add to DOM
-  document.body.appendChild(eventsButton);
+  // Add to container
+  const container = document.getElementById('top-right-buttons');
+  if (container) {
+    container.appendChild(eventsButton);
+  }
 }
 
 // Create summary button
@@ -327,24 +315,8 @@ function createSummaryButton()
 {
   const summaryButton = document.createElement('button');
   summaryButton.id = 'summary-button';
+  summaryButton.className = 'top-right-button top-right-button-summary';
   summaryButton.innerHTML = '📊 Summary';
-  summaryButton.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 252px;
-    z-index: 1000;
-    padding: 10px 15px;
-    background: rgba(255, 215, 0, 0.18);
-    border: 2px solid #ffd700;
-    border-radius: 8px;
-    color: #ffd700;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
-  `;
 
   summaryButton.addEventListener('mouseenter', () => {
     summaryButton.style.background = 'rgba(255, 215, 0, 0.28)';
@@ -371,7 +343,51 @@ function createSummaryButton()
     }
   });
 
-  document.body.appendChild(summaryButton);
+  // Add to container
+  const container = document.getElementById('top-right-buttons');
+  if (container) {
+    container.appendChild(summaryButton);
+  }
+}
+
+// Create order button
+function createOrderButton()
+{
+  const orderButton = document.createElement('button');
+  orderButton.id = 'order-button';
+  orderButton.className = 'top-right-button top-right-button-order';
+  orderButton.innerHTML = '📋 Orders';
+
+  orderButton.addEventListener('mouseenter', () => {
+    orderButton.style.background = 'rgba(135, 206, 250, 0.28)';
+    orderButton.style.transform = 'scale(1.05)';
+    orderButton.style.boxShadow = '0 0 15px rgba(135, 206, 250, 0.5)';
+  });
+
+  orderButton.addEventListener('mouseleave', () => {
+    orderButton.style.background = 'rgba(135, 206, 250, 0.18)';
+    orderButton.style.transform = 'scale(1)';
+    orderButton.style.boxShadow = 'none';
+  });
+
+  orderButton.addEventListener('click', () => {
+    if (!orderSummaryDialog) {
+      orderSummaryDialog = new OrderSummaryDialog();
+      window.orderSummaryDialog = orderSummaryDialog;
+    }
+
+    if (orderSummaryDialog.isOpen()) {
+      orderSummaryDialog.hide();
+    } else {
+      orderSummaryDialog.show();
+    }
+  });
+
+  // Add to container
+  const container = document.getElementById('top-right-buttons');
+  if (container) {
+    container.appendChild(orderButton);
+  }
 }
 
 // Create end turn button
@@ -379,24 +395,8 @@ function createEndTurnButton()
 {
   const endTurnButton = document.createElement('button');
   endTurnButton.id = 'end-turn-button';
+  endTurnButton.className = 'top-right-button top-right-button-end-turn';
   endTurnButton.innerHTML = '✅ End Turn';
-  endTurnButton.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 368px;
-    z-index: 1000;
-    padding: 10px 15px;
-    background: rgba(255, 165, 0, 0.2);
-    border: 2px solid #ffa500;
-    border-radius: 8px;
-    color: #ffa500;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
-  `;
   
   // Hover effects
   endTurnButton.addEventListener('mouseenter', () => {
@@ -490,8 +490,11 @@ function createEndTurnButton()
     }
   });
   
-  // Add to DOM
-  document.body.appendChild(endTurnButton);
+  // Add to container
+  const container = document.getElementById('top-right-buttons');
+  if (container) {
+    container.appendChild(endTurnButton);
+  }
 }
 
 // Make mapGenerator available globally for development scenarios
