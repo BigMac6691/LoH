@@ -126,6 +126,22 @@ export async function deleteOrder(gameId, turnId, playerId) {
 }
 
 /**
+ * Delete an order by its ID
+ * @param {string} orderId - Order UUID
+ * @param {string} playerId - Player UUID (for validation)
+ * @returns {Promise<boolean>} True if an order was deleted
+ */
+export async function deleteOrderById(orderId, playerId) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM orders 
+     WHERE id=$1 AND player_id=$2`,
+    [orderId, playerId]
+  );
+  
+  return rowCount > 0;
+}
+
+/**
  * Get orders by JSONB payload filter
  * @param {Object} params
  * @param {string} params.gameId - Game UUID

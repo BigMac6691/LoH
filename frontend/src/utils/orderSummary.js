@@ -34,6 +34,42 @@ function getStarNameById(starId)
 }
 
 /**
+ * Get owner color for a star
+ * @param {string} starId - Star ID
+ * @returns {string} Owner color hex code, or '#FFFFFF' for neutral/unowned
+ */
+function getStarOwnerColor(starId)
+{
+   const mapModel = window.globalMapModel || window.mapGenerator?.mapModel;
+   if (!mapModel || typeof mapModel.getStarById !== 'function')
+   {
+      return '#FFFFFF';
+   }
+
+   const star = mapModel.getStarById(starId);
+   if (!star)
+   {
+      return '#FFFFFF';
+   }
+
+   const owner = typeof star.getOwner === 'function' ? star.getOwner() : star.owner;
+   if (!owner)
+   {
+      return '#FFFFFF';
+   }
+
+   // Try various property names for owner color
+   const ownerColor = owner.color_hex
+      || owner.colorHex
+      || owner.color
+      || owner.colour
+      || (typeof star.getColor === 'function' ? star.getColor() : null)
+      || '#FFFFFF';
+
+   return ownerColor;
+}
+
+/**
  * Get destination star name from order payload
  * @param {Object} order - Order object
  * @returns {string|null} Destination star name or null
@@ -227,15 +263,23 @@ export async function getOrderSummaryRows(gameId, turnId, playerId)
                };
             }
 
+            // Get owner colors for source and destination stars
+            const sourceStarColor = getStarOwnerColor(starId);
+            const destinationStarColor = destination && payload.destinationStarId 
+               ? getStarOwnerColor(payload.destinationStarId) 
+               : '#FFFFFF';
+
             rows.push({
                starId: starId,
                starName: starName,
+               starNameColor: sourceStarColor,
                orderType: orderType,
                industry: industry,
                research: research,
                build: build,
                move: move,
                destination: destination,
+               destinationColor: destinationStarColor,
                order: order,
                isFirstRow: index === 0,
                rowSpan: starOrders.length

@@ -31,6 +31,7 @@ export class OrderSummaryDialog extends BaseDialog
          {key: 'build', label: 'Build', type: 'number', visible: true, filterType: 'range', sortable: true, filterable: true},
          {key: 'move', label: 'Move', type: 'text', visible: true, filterType: null, sortable: false, filterable: false},
          {key: 'destination', label: 'Destination', type: 'text', visible: true, filterType: 'text', sortable: true, filterable: true},
+         {key: 'actions', label: 'Actions', type: 'text', visible: true, filterType: null, sortable: false, filterable: false},
       ];
 
       this.orderTypeOptions = [
@@ -164,73 +165,86 @@ export class OrderSummaryDialog extends BaseDialog
       {
          const th = document.createElement('th');
          th.scope = 'col';
-         th.className = `order-table-header ${column.sortable ? 'order-sortable' : ''} ${column.filterable ? 'order-filterable' : ''}`;
+         th.className = `order-table-header ${column.sortable ? 'order-sortable' : ''} ${column.filterable ? 'order-filterable' : ''} ${column.key === 'actions' ? 'order-header-actions order-header-center' : ''}`;
          th.dataset.key = column.key;
 
-         const headerContent = document.createElement('span');
-         headerContent.className = 'order-header-content';
-
-         if (column.sortable || column.filterable)
+         if (column.key === 'actions')
          {
-            const iconsContainer = document.createElement('span');
-            iconsContainer.className = 'order-header-icons';
+            // Actions column - no sort/filter, just label
+            th.textContent = column.label;
+         }
+         else
+         {
+            const headerContent = document.createElement('span');
+            headerContent.className = 'order-header-content';
+
+            if (column.sortable || column.filterable)
+            {
+               const iconsContainer = document.createElement('span');
+               iconsContainer.className = 'order-header-icons';
+
+               if (column.sortable)
+               {
+                  const sortIndicator = document.createElement('span');
+                  sortIndicator.className = 'order-sort-indicator';
+                  sortIndicator.textContent = '';
+                  iconsContainer.appendChild(sortIndicator);
+               }
+
+               if (column.filterable)
+               {
+                  const filterBtn = document.createElement('button');
+                  filterBtn.type = 'button';
+                  filterBtn.className = 'order-filter-btn';
+                  filterBtn.textContent = '⚙︎';
+                  filterBtn.setAttribute('aria-label', `Filter ${column.label}`);
+                  filterBtn.addEventListener('click', (event) =>
+                  {
+                     event.stopPropagation();
+                     this.toggleFilterMenu(column.key, filterBtn);
+                  });
+                  iconsContainer.appendChild(filterBtn);
+               }
+
+               headerContent.appendChild(iconsContainer);
+            }
+
+            const label = document.createElement('span');
+            label.className = 'order-header-label';
+            label.textContent = column.label;
+            headerContent.appendChild(label);
+
+            th.appendChild(headerContent);
 
             if (column.sortable)
             {
-               const sortIndicator = document.createElement('span');
-               sortIndicator.className = 'order-sort-indicator';
-               sortIndicator.textContent = '';
-               iconsContainer.appendChild(sortIndicator);
-            }
-
-            if (column.filterable)
-            {
-               const filterBtn = document.createElement('button');
-               filterBtn.type = 'button';
-               filterBtn.className = 'order-filter-btn';
-               filterBtn.textContent = '⚙︎';
-               filterBtn.setAttribute('aria-label', `Filter ${column.label}`);
-               filterBtn.addEventListener('click', (event) =>
+               th.addEventListener('click', () => this.handleSort(column.key));
+               th.setAttribute('tabIndex', '0');
+               th.setAttribute('role', 'button');
+               th.setAttribute('aria-label', `Sort by ${column.label}`);
+               th.addEventListener('keydown', (event) =>
                {
-                  event.stopPropagation();
-                  this.toggleFilterMenu(column.key, filterBtn);
+                  if (event.key === 'Enter' || event.key === ' ')
+                  {
+                     event.preventDefault();
+                     this.handleSort(column.key);
+                  }
                });
-               iconsContainer.appendChild(filterBtn);
             }
 
-            headerContent.appendChild(iconsContainer);
-         }
-
-         const label = document.createElement('span');
-         label.className = 'order-header-label';
-         label.textContent = column.label;
-         headerContent.appendChild(label);
-
-         th.appendChild(headerContent);
-
-         if (column.sortable)
-         {
-            th.addEventListener('click', () => this.handleSort(column.key));
-            th.setAttribute('tabIndex', '0');
-            th.setAttribute('role', 'button');
-            th.setAttribute('aria-label', `Sort by ${column.label}`);
-            th.addEventListener('keydown', (event) =>
+            if (this.activeFilters[column.key])
             {
-               if (event.key === 'Enter' || event.key === ' ')
-               {
-                  event.preventDefault();
-                  this.handleSort(column.key);
-               }
-            });
-         }
+               th.classList.add('order-header-filtered');
+            }
 
-         if (this.activeFilters[column.key])
-         {
-            th.classList.add('order-header-filtered');
+            const indicator = th.querySelector('.order-sort-indicator');
+            if (indicator)
+            {
+               this.headerCells.set(column.key, {element: th, indicator: indicator});
+            }
          }
 
          headerRow.appendChild(th);
-         this.headerCells.set(column.key, {element: th, indicator: th.querySelector('.order-sort-indicator')});
       });
 
       this.thead.appendChild(headerRow);
@@ -575,7 +589,12 @@ export class OrderSummaryDialog extends BaseDialog
                // Only render star name in first row, with rowspan
                td.textContent = row.starName || '';
                td.rowSpan = rowSpan;
-               td.className += ' order-cell-star-name';
+               td.className += ' order-cell-star-name order-cell-vertically-centered';
+               // Apply owner color to star name
+               if (row.starNameColor)
+               {
+                  td.style.color = row.starNameColor;
+               }
             }
             else if (column.key === 'orderType')
             {
@@ -603,6 +622,20 @@ export class OrderSummaryDialog extends BaseDialog
             else if (column.key === 'destination')
             {
                td.textContent = row.destination || '—';
+               // Apply owner color to destination star name
+               if (row.destination && row.destinationColor)
+               {
+                  td.style.color = row.destinationColor;
+               }
+               else if (!row.destination)
+               {
+                  // Reset to default color for '—'
+                  td.style.color = '';
+               }
+            }
+            else if (column.key === 'actions')
+            {
+               this.renderActionsCell(td, row);
             }
             else
             {
@@ -690,22 +723,101 @@ export class OrderSummaryDialog extends BaseDialog
          return;
       }
 
-      // Create scrollable container
+      // Create scrollable container that shows up to 5 ships at a time
+      // maxHeight is set in CSS to 8.4em
       const container = document.createElement('div');
       container.className = 'order-move-ship-list';
-      container.style.maxHeight = '5em';
       container.style.overflowY = 'auto';
       container.style.overflowX = 'hidden';
 
+      // Show all ships in the list
       shipIds.forEach((shipId) =>
       {
          const shipItem = document.createElement('div');
          shipItem.className = 'order-move-ship-item';
-         shipItem.textContent = `Ship ${shipId}`;
+         // Show only last 5 characters of ship ID
+         const shortId = String(shipId).slice(-5);
+         shipItem.textContent = `Ship-${shortId}`;
          container.appendChild(shipItem);
       });
 
       cell.appendChild(container);
+   }
+
+   /**
+    * Render actions cell with cancel button
+    * @param {HTMLTableCellElement} cell - Cell element
+    * @param {Object} row - Row data
+    */
+   renderActionsCell(cell, row)
+   {
+      cell.className += ' order-cell-actions';
+
+      if (!row.order || !row.order.id)
+      {
+         cell.textContent = '—';
+         return;
+      }
+
+      const cancelButton = document.createElement('button');
+      cancelButton.type = 'button';
+      cancelButton.className = 'order-action-btn order-cancel-btn';
+      cancelButton.textContent = 'Cancel';
+      cancelButton.dataset.orderId = row.order.id;
+      cancelButton.addEventListener('click', (event) =>
+      {
+         event.stopPropagation();
+         this.handleCancelOrder(row.order.id);
+      });
+
+      cell.appendChild(cancelButton);
+   }
+
+   /**
+    * Handle cancel order action
+    * @param {string} orderId - Order ID to cancel
+    */
+   async handleCancelOrder(orderId)
+   {
+      if (!this.currentGameId || !this.currentPlayerId)
+      {
+         console.error('📋 OrderSummaryDialog: Cannot cancel order - missing gameId or playerId');
+         alert('Error: Cannot cancel order - missing game or player information');
+         return;
+      }
+
+      if (!confirm('Are you sure you want to cancel this order?'))
+      {
+         return;
+      }
+
+      try
+      {
+         const response = await fetch(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`, {
+            method: 'DELETE',
+            headers: {
+               'Content-Type': 'application/json'
+            }
+         });
+
+         if (!response.ok)
+         {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to cancel order');
+         }
+
+         const result = await response.json();
+         console.log('📋 OrderSummaryDialog: Order cancelled successfully:', result);
+
+         // Refresh data to update the table
+         await this.refreshData();
+
+      }
+      catch (error)
+      {
+         console.error('📋 OrderSummaryDialog: Error cancelling order', error);
+         alert(`Error cancelling order: ${error.message}`);
+      }
    }
 
    /**

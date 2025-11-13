@@ -118,6 +118,22 @@ export async function setStandingOrders({ gameId, starId, standingOrders }, clie
     ...standingOrders
   };
 
+  // Remove properties that are explicitly set to null or undefined
+  // This allows clients to delete specific standing orders
+  for (const key in updatedStandingOrders)
+  {
+    if (updatedStandingOrders[key] === null || updatedStandingOrders[key] === undefined)
+    {
+      delete updatedStandingOrders[key];
+    }
+  }
+
+  // Also check if properties are missing from the new standingOrders
+  // If a property exists in existing but not in new, and new is a partial update,
+  // we need to determine if it should be removed
+  // For now, we'll only remove properties explicitly set to null
+  // If a property is missing from new standingOrders, it's preserved from existing
+
   console.log('🏭 StandingOrdersService: Updated standing orders:', updatedStandingOrders);
   
   const updatedDetails = {

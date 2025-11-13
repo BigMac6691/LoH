@@ -14,6 +14,7 @@ import { DevPanel } from './dev/DevPanel.js';
 import { TurnEventsPanel } from './TurnEventsPanel.js';
 import { SummaryDialog } from './SummaryDialog.js';
 import { OrderSummaryDialog } from './OrderSummaryDialog.js';
+import { ShipSummaryDialog } from './ShipSummaryDialog.js';
 
 // Global MapModel instance
 window.globalMapModel = null;
@@ -25,6 +26,7 @@ window.globalPlayers = null;
 let turnEventsPanel = new TurnEventsPanel();
 let summaryDialog = null;
 let orderSummaryDialog = null;
+let shipSummaryDialog = null;
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -132,12 +134,14 @@ document.addEventListener('DOMContentLoaded', () =>
   // Create button container for top-right buttons
   createButtonContainer();
   
-  // Create refresh button, events button, and end turn button
-  createRefreshButton();
-  createEventsButton();
-  createSummaryButton();
-  createOrderButton();
+  // Create buttons in reverse order (row-reverse means first added = rightmost)
+  // Desired order (right to left): End Turn, Ships, Orders, Summary, Events, Refresh
   createEndTurnButton();
+  createShipSummaryButton();
+  createOrderButton();
+  createSummaryButton();
+  createEventsButton();
+  createRefreshButton();
   
   // Log development mode status
   logDevModeStatus();
@@ -494,6 +498,46 @@ function createEndTurnButton()
   const container = document.getElementById('top-right-buttons');
   if (container) {
     container.appendChild(endTurnButton);
+  }
+}
+
+// Create ship summary button
+function createShipSummaryButton()
+{
+  const shipSummaryButton = document.createElement('button');
+  shipSummaryButton.id = 'ship-summary-button';
+  shipSummaryButton.className = 'top-right-button top-right-button-ship';
+  shipSummaryButton.innerHTML = '🚢 Ships';
+
+  shipSummaryButton.addEventListener('mouseenter', () => {
+    shipSummaryButton.style.background = 'rgba(135, 206, 250, 0.3)';
+    shipSummaryButton.style.transform = 'scale(1.05)';
+    shipSummaryButton.style.boxShadow = '0 0 15px rgba(135, 206, 250, 0.5)';
+  });
+
+  shipSummaryButton.addEventListener('mouseleave', () => {
+    shipSummaryButton.style.background = 'rgba(135, 206, 250, 0.2)';
+    shipSummaryButton.style.transform = 'scale(1)';
+    shipSummaryButton.style.boxShadow = 'none';
+  });
+
+  shipSummaryButton.addEventListener('click', () => {
+    if (!shipSummaryDialog) {
+      shipSummaryDialog = new ShipSummaryDialog();
+      window.shipSummaryDialog = shipSummaryDialog;
+    }
+
+    if (shipSummaryDialog.isOpen()) {
+      shipSummaryDialog.hide();
+    } else {
+      shipSummaryDialog.show();
+    }
+  });
+
+  // Add to container
+  const container = document.getElementById('top-right-buttons');
+  if (container) {
+    container.appendChild(shipSummaryButton);
   }
 }
 

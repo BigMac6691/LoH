@@ -2,6 +2,7 @@ import express from 'express';
 import { OrdersService } from '../services/OrdersService.js';
 import { getOpenTurn } from '../repos/turnsRepo.js';
 import { getStandingOrders, setStandingOrders, clearStandingOrders, getStarState } from '../repos/starsRepo.js';
+import { deleteOrderById } from '../repos/ordersRepo.js';
 
 export class OrdersRouter
 {
@@ -31,6 +32,9 @@ export class OrdersRouter
     
     // DELETE /api/orders/standing/:starId - Clear standing orders for a star
     this.router.delete('/standing/:starId', this.deleteStandingOrders.bind(this));
+    
+    // DELETE /api/orders/:orderId - Delete an order by ID
+    this.router.delete('/:orderId', this.deleteOrderById.bind(this));
   }
 
   /**
@@ -329,6 +333,50 @@ export class OrdersRouter
       console.error('Error clearing standing orders:', error);
       res.status(500).json({
         error: 'Failed to clear standing orders',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * DELETE /api/orders/:orderId
+   * Delete an order by its ID
+   */
+  async deleteOrderById(req, res)
+  {
+    try
+    {
+      const { orderId } = req.params;
+      const { gameId, playerId } = req.query;
+
+      if (!gameId || !playerId)
+      {
+        return res.status(400).json({
+          error: 'Missing required parameters: gameId, playerId'
+        });
+      }
+
+      // Delete the order (deleteOrderById validates playerId)
+      const deleted = await deleteOrderById(orderId, playerId);
+
+      if (!deleted)
+      {
+        return res.status(404).json({
+          error: 'Order not found or access denied'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Order deleted successfully'
+      });
+
+    }
+    catch (error)
+    {
+      console.error('Error deleting order:', error);
+      res.status(500).json({
+        error: 'Failed to delete order',
         details: error.message
       });
     }
