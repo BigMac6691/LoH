@@ -4,6 +4,8 @@
 @import './base.css';
 
 /* Import component-specific styles */
+@import './splash-screen.css';
+@import './home-page.css';
 @import './dev-panels.css';
 @import './ui-components.css';
 @import './dialogs.css';

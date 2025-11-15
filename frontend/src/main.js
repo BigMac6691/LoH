@@ -9,6 +9,8 @@ import { eventBus } from './eventBus.js';
 import { assetManager } from './engine/AssetManager.js';
 import { SystemEventHandler, GameEventHandler, DevEventHandler, OrderEventHandler, TurnEventHandler } from './events/index.js';
 import { MapModel } from '@loh/shared';
+import { SplashScreen } from './SplashScreen.js';
+import { HomePage } from './HomePage.js';
 
 import { DevPanel } from './dev/DevPanel.js';
 import { TurnEventsPanel } from './TurnEventsPanel.js';
@@ -107,6 +109,8 @@ let orderEventHandler;
 let turnEventHandler;
 
 let devPanel;
+let splashScreen;
+let homePage;
 
 // Start loading assets immediately (before DOM ready)
 console.log('🎨 Starting asset loading...');
@@ -122,13 +126,44 @@ assetManager.loadGLTF('models/toy_rocket_4k_free_3d_model_gltf/scene.gltf')
     console.warn('⚠️ Could not load rocket model for fleet icons:', error.message);
   });
 
+// Initialize splash screen early (before DOM ready)
+// It will handle showing itself and tracking asset loading
+if (typeof window !== 'undefined') {
+  // Wait for DOM to be ready to create splash screen
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      splashScreen = new SplashScreen();
+      splashScreen.init();
+    });
+  } else {
+    // DOM already ready
+    splashScreen = new SplashScreen();
+    splashScreen.init();
+  }
+}
+
 // Remove loading screen and start animation
 document.addEventListener('DOMContentLoaded', () =>
 {
+  // Hide old loading element if it exists
   const loadingElement = document.getElementById('loading');
   if (loadingElement)
   {
     loadingElement.style.display = 'none';
+  }
+  
+  // Listen for login success to hide splash screen and show home page
+  if (eventBus) {
+    eventBus.on('auth:loginSuccess', (context, data) => {
+      if (splashScreen) {
+        splashScreen.hide();
+      }
+      // Show home page after login
+      homePage = new HomePage();
+      homePage.init();
+      // Start the game initialization after login
+      initializeGameAfterLogin();
+    });
   }
   
   // Create button container for top-right buttons
@@ -180,21 +215,39 @@ document.addEventListener('DOMContentLoaded', () =>
   // Set up event listeners for game flow
   setupGameEventListeners();
   
-  // Handle development mode vs normal flow
+  // Don't auto-start in normal mode - wait for login
+  // In dev mode, we can skip the splash screen
   if (DEV_MODE === 2)
   {
+    // Hide splash screen in dev mode
+    if (splashScreen) {
+      splashScreen.hide();
+    }
+    
     // Set up dev mode event listeners
     setupDevModeEventListeners(playerManager);
     
     // Start the development scenario immediately
     // Font loading will be handled by AssetManager events automatically
     autoStartDevMode();
-  } else
-  {
-    // Show the map controls on load for normal flow
+  }
+  // Normal flow - splash screen will show login, game starts after successful login
+});
+
+/**
+ * Initialize game after successful login
+ */
+function initializeGameAfterLogin() {
+  console.log('🎮 Initializing game after login...');
+  
+  // Show the map controls
+  if (uiController) {
     uiController.showPanel();
   }
-});
+  
+  // Any other post-login initialization
+  // For example, you might want to load user-specific game state here
+}
 
 // Set up event listeners for game flow
 function setupGameEventListeners()

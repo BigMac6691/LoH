@@ -10,7 +10,7 @@ import {PlayerManager} from './PlayerManager.js';
 import {Ship} from '@loh/shared';
 
 // Development mode flag
-export const DEV_MODE = 1; // Set to 0 for production
+export const DEV_MODE = 0; // Set to 0 for production
 
 /**
  * Default map configuration for development testing
