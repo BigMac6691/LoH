@@ -37,6 +37,9 @@ services:
       # live-edit backend & shared during dev:
       - ./backend:/app/backend:rw,delegated
       - ./packages/shared:/app/packages/shared:rw,delegated
+      # Mount SSL certificates for HTTPS (read-only)
+      - ./localhost+1.pem:/app/localhost+1.pem:ro
+      - ./localhost+1-key.pem:/app/localhost+1-key.pem:ro
       # prevent node_modules from being shadowed by bind mounts:
       - /app/node_modules
       - /app/backend/node_modules

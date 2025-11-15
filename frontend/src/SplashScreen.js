@@ -239,6 +239,16 @@ export class SplashScreen {
    * Show login form with animation
    */
   showLoginForm() {
+    // Hide registration form if visible
+    const registerForm = document.getElementById('register-form');
+    if (registerForm) {
+      registerForm.style.opacity = '0';
+      registerForm.style.transform = 'translateY(20px)';
+      setTimeout(() => {
+        registerForm.remove();
+      }, 500);
+    }
+
     // Fade out loading animation
     if (this.loadingAnimation) {
       this.loadingAnimation.style.opacity = '0';
@@ -505,15 +515,333 @@ export class SplashScreen {
   }
 
   /**
-   * Handle registration
+   * Handle registration - Show registration form
    */
   async handleRegister() {
     const emailInput = document.getElementById('login-email');
-    const email = emailInput.value.trim() || emailInput.placeholder;
+    const email = emailInput.value.trim() || '';
     
-    // For now, just show an alert
-    // TODO: Implement registration flow
-    alert(`Registration for ${email} - Feature coming soon!`);
+    // Hide login form and show registration form
+    this.showRegistrationForm(email);
+  }
+
+  /**
+   * Show registration form
+   */
+  showRegistrationForm(prefilledEmail = '') {
+    // Hide login form
+    if (this.loginForm) {
+      this.loginForm.style.display = 'none';
+    }
+
+    // Remove existing registration form if any
+    const existingRegister = document.getElementById('register-form');
+    if (existingRegister) {
+      existingRegister.remove();
+    }
+
+    // Create registration form
+    const registerForm = document.createElement('div');
+    registerForm.id = 'register-form';
+    registerForm.className = 'splash-login-form';
+
+    registerForm.innerHTML = `
+      <div class="login-title">New Commander Registration ⭐</div>
+      <div class="login-error" id="register-error" style="display: none;"></div>
+      
+      <form id="registration-form" class="login-form">
+        <div class="form-group">
+          <label for="register-email" class="form-label">
+            <span class="form-icon">📧</span>
+            Email Address
+          </label>
+          <input 
+            type="email" 
+            id="register-email" 
+            class="form-input" 
+            placeholder="commander@hyperspace.space"
+            required
+            autocomplete="email"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="register-display-name" class="form-label">
+            <span class="form-icon">👤</span>
+            Display Name
+          </label>
+          <input 
+            type="text" 
+            id="register-display-name" 
+            class="form-input" 
+            placeholder="Commander Name"
+            required
+            autocomplete="name"
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="register-password" class="form-label">
+            <span class="form-icon">🔑</span>
+            Password
+          </label>
+          <input 
+            type="password" 
+            id="register-password" 
+            class="form-input" 
+            placeholder="Enter password (8+ chars, upper, lower, number, symbol)"
+            required
+            autocomplete="new-password"
+            minlength="8"
+          />
+          <div class="password-hint" style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">
+            Must include: uppercase, lowercase, number, and symbol (!@#$%^&*()_+-=[]{}|;:,.<>?)
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label for="register-password-confirm" class="form-label">
+            <span class="form-icon">🔒</span>
+            Confirm Password
+          </label>
+          <input 
+            type="password" 
+            id="register-password-confirm" 
+            class="form-input" 
+            placeholder="Confirm your password"
+            required
+            autocomplete="new-password"
+            minlength="8"
+          />
+        </div>
+        
+        <div class="login-actions">
+          <button type="submit" class="btn btn-primary btn-login" id="register-submit-btn">
+            Register! ⭐
+          </button>
+        </div>
+        
+        <div class="login-links" style="margin-top: 15px; text-align: center;">
+          <a href="#" id="back-to-login-link" class="login-link">← Back to Login</a>
+        </div>
+      </form>
+    `;
+
+    // Insert after login form (or in same container)
+    if (this.loginForm && this.loginForm.parentNode) {
+      this.loginForm.parentNode.insertBefore(registerForm, this.loginForm.nextSibling);
+    } else if (this.container) {
+      const content = this.container.querySelector('.splash-content');
+      if (content) {
+        content.appendChild(registerForm);
+      }
+    }
+
+    // Fade in registration form
+    registerForm.style.opacity = '0';
+    registerForm.style.transform = 'translateY(20px)';
+    setTimeout(() => {
+      registerForm.style.transition = 'all 0.5s ease-out';
+      registerForm.style.opacity = '1';
+      registerForm.style.transform = 'translateY(0)';
+    }, 100);
+
+    // Setup form handler
+    const formElement = registerForm.querySelector('#registration-form');
+    formElement.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.handleRegistrationSubmit();
+    });
+
+    // Setup back to login link
+    const backLink = registerForm.querySelector('#back-to-login-link');
+    backLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.showLoginForm();
+      registerForm.remove();
+    });
+
+    // Focus on first input and set prefilled email
+    setTimeout(() => {
+      const emailInput = registerForm.querySelector('#register-email');
+      if (emailInput) {
+        // Safely set email value (browser will escape)
+        if (prefilledEmail) {
+          emailInput.value = prefilledEmail;
+        }
+        emailInput.focus();
+        if (prefilledEmail) {
+          emailInput.select();
+        }
+      }
+    }, 200);
+  }
+
+  /**
+   * Handle registration form submission
+   */
+  async handleRegistrationSubmit() {
+    const emailInput = document.getElementById('register-email');
+    const displayNameInput = document.getElementById('register-display-name');
+    const passwordInput = document.getElementById('register-password');
+    const passwordConfirmInput = document.getElementById('register-password-confirm');
+    const submitBtn = document.getElementById('register-submit-btn');
+    const errorDiv = document.getElementById('register-error');
+
+    const email = emailInput.value.trim();
+    const displayName = displayNameInput.value.trim();
+    const password = passwordInput.value;
+    const passwordConfirm = passwordConfirmInput.value;
+
+    // Clear previous errors
+    if (errorDiv) {
+      errorDiv.style.display = 'none';
+      errorDiv.textContent = '';
+    }
+
+    // Validate inputs
+    if (!email || !displayName || !password || !passwordConfirm) {
+      this.showRegistrationError('Please fill in all fields.');
+      return;
+    }
+
+    if (!this.validateEmail(email)) {
+      this.showRegistrationError('Please enter a valid email address.');
+      emailInput.focus();
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      this.showRegistrationError('Passwords do not match.');
+      passwordConfirmInput.focus();
+      return;
+    }
+
+    const passwordValidation = this.validatePassword(password);
+    if (!passwordValidation.valid) {
+      this.showRegistrationError(passwordValidation.errors.join('. '));
+      passwordInput.focus();
+      return;
+    }
+
+    // Disable submit button
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Registering... ⭐';
+    }
+
+    try {
+      // Attempt registration via API
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email, 
+          password,
+          displayName 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Registration successful
+        this.showRegistrationSuccess(data, email);
+      } else {
+        // Handle registration errors
+        this.handleRegistrationFailure(data);
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      this.showRegistrationError('Connection error. Please try again.');
+    } finally {
+      // Re-enable submit button
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Register! ⭐';
+      }
+    }
+  }
+
+  /**
+   * Show registration error
+   */
+  showRegistrationError(message) {
+    const errorDiv = document.getElementById('register-error');
+    if (errorDiv) {
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      errorDiv.className = 'login-error error-message';
+    }
+  }
+
+  /**
+   * Show registration success message
+   */
+  showRegistrationSuccess(data, email) {
+    const registerForm = document.getElementById('register-form');
+    if (!registerForm) return;
+
+    // Show success message with verification info
+    let message = data.message || 'Registration successful! Please check your email to verify your account.';
+    
+    // Log verification token to console if provided (for development)
+    if (data.verificationToken) {
+      console.log('🔐 Verification token (dev mode):', data.verificationToken);
+      message += `\n\n⚠️ Check the browser console for verification details.`;
+    }
+
+    const successDiv = document.createElement('div');
+    successDiv.className = 'login-error';
+    successDiv.style.background = 'rgba(0, 255, 0, 0.2)';
+    successDiv.style.border = '2px solid var(--color-success)';
+    successDiv.style.color = 'var(--color-success)';
+    successDiv.style.display = 'block';
+    successDiv.style.whiteSpace = 'pre-line';
+    successDiv.textContent = message;
+
+    // Replace form with success message
+    const form = registerForm.querySelector('#registration-form');
+    if (form) {
+      form.style.display = 'none';
+    }
+
+    registerForm.insertBefore(successDiv, registerForm.firstChild);
+
+    // Show back to login link
+    const backLink = registerForm.querySelector('#back-to-login-link');
+    if (backLink) {
+      backLink.style.display = 'block';
+    }
+
+    // After 3 seconds, show login form with email prefilled
+    setTimeout(() => {
+      this.showLoginForm();
+      const loginEmailInput = document.getElementById('login-email');
+      if (loginEmailInput) {
+        loginEmailInput.value = email;
+      }
+      registerForm.remove();
+    }, 5000);
+  }
+
+  /**
+   * Handle registration failure
+   */
+  handleRegistrationFailure(data) {
+    let errorMessage = data.message || 'Registration failed. Please try again.';
+
+    if (data.error === 'EMAIL_ALREADY_EXISTS') {
+      errorMessage = 'This email address is already registered. Try logging in instead.';
+    } else if (data.error === 'PASSWORD_INVALID') {
+      errorMessage = data.message || 'Password does not meet requirements.';
+    } else if (data.error === 'MISSING_FIELDS') {
+      errorMessage = 'Please fill in all required fields.';
+    }
+
+    this.showRegistrationError(errorMessage);
   }
 }
 

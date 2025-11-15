@@ -1,7 +1,16 @@
+import 'dotenv/config'; // Load .env file at startup
 import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
+import https from 'https';
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { pool } from './src/db/pool.js';
 import { GameRouter } from './src/routes/GameRouter.js';
 import { OrdersRouter } from './src/routes/OrdersRouter.js';
@@ -73,6 +82,52 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('🔧 Legacy DEV routes enabled at /api/dev-legacy (forwarding to production routes)');
 }
 
-app.listen(port, () => {
-  console.log(`API listening on ${port}`);
-});
+// HTTPS Configuration (development only)
+const useHTTPS = process.env.USE_HTTPS === 'true' || (process.env.NODE_ENV === 'development' && process.env.USE_HTTPS !== 'false');
+
+if (useHTTPS) {
+  // Path to certificates (in project root, one level up from backend/)
+  const certPath = path.resolve(__dirname, '..');
+  const keyFile = path.join(certPath, 'localhost+1-key.pem');
+  const certFile = path.join(certPath, 'localhost+1.pem');
+
+  // Check if certificate files exist
+  if (fs.existsSync(keyFile) && fs.existsSync(certFile)) {
+    try {
+      const options = {
+        key: fs.readFileSync(keyFile),
+        cert: fs.readFileSync(certFile)
+      };
+
+      https.createServer(options, app).listen(port, () => {
+        console.log(`🔒 HTTPS server listening on port ${port}`);
+        console.log(`🌐 Access your API at: https://localhost:${port}`);
+        console.log(`📝 Health check: https://localhost:${port}/api/health`);
+      });
+    } catch (error) {
+      console.error('❌ Error setting up HTTPS:', error.message);
+      console.log('⚠️  Falling back to HTTP...');
+      http.createServer(app).listen(port, () => {
+        console.log(`🔓 HTTP server listening on port ${port} (HTTPS failed)`);
+        console.log(`🌐 Access your API at: http://localhost:${port}`);
+      });
+    }
+  } else {
+    console.warn('⚠️  Certificate files not found. Expected:');
+    console.warn(`   - ${keyFile}`);
+    console.warn(`   - ${certFile}`);
+    console.warn('⚠️  Falling back to HTTP...');
+    console.warn('💡 To use HTTPS: run "mkcert localhost 127.0.0.1" in project root');
+    http.createServer(app).listen(port, () => {
+      console.log(`🔓 HTTP server listening on port ${port}`);
+      console.log(`🌐 Access your API at: http://localhost:${port}`);
+    });
+  }
+} else {
+  // Use HTTP (production or explicitly disabled)
+  http.createServer(app).listen(port, () => {
+    const protocol = process.env.NODE_ENV === 'production' ? '🔒 HTTPS' : '🔓 HTTP';
+    console.log(`${protocol} server listening on port ${port}`);
+    console.log(`🌐 Access your API at: http${process.env.NODE_ENV === 'production' ? 's' : ''}://localhost:${port}`);
+  });
+}
