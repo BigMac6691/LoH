@@ -44,7 +44,7 @@ export class GamesPlayingList {
     try {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
-      const response = await fetch(`/api/games/playing?userId=${this.userId}`, {
+      const response = await fetch(`/api/games/playing`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
         }

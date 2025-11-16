@@ -44,7 +44,7 @@ export class GamesAvailableList {
     try {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
-      const response = await fetch(`/api/games/available?userId=${this.userId}`, {
+      const response = await fetch(`/api/games/available`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
         }
@@ -138,7 +138,9 @@ export class GamesAvailableList {
           'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
         },
         body: JSON.stringify({
-          userId: this.userId
+          // userId is now extracted from JWT token on backend
+          name: null,
+          colorHex: null
         })
       });
 

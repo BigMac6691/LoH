@@ -1,6 +1,8 @@
 import express from 'express';
 import { getGame, getGamesByScenario, updateGameParams } from '../repos/gamesRepo.js';
 import { listPlayers } from '../repos/playersRepo.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireRole } from '../middleware/rbac.js';
 
 export class DevRouter {
   constructor() {
@@ -9,20 +11,21 @@ export class DevRouter {
   }
 
   setupRoutes() {
+    // All dev routes require admin or owner role
     // GET /api/dev/games/check/:scenario - Check for games with matching scenario
-    this.router.get('/games/check/:scenario', this.checkGame.bind(this));
+    this.router.get('/games/check/:scenario', authenticate, requireRole(['admin', 'owner']), this.checkGame.bind(this));
     
     // GET /api/dev/games/:gameId - Get game by ID
-    this.router.get('/games/:gameId', this.getGameById.bind(this));
+    this.router.get('/games/:gameId', authenticate, requireRole(['admin', 'owner']), this.getGameById.bind(this));
     
     // GET /api/dev/games/by-scenario/:scenario - Get games by scenario
-    this.router.get('/games/by-scenario/:scenario', this.getGamesByScenario.bind(this));
+    this.router.get('/games/by-scenario/:scenario', authenticate, requireRole(['admin', 'owner']), this.getGamesByScenario.bind(this));
     
     // GET /api/dev/games/:gameId/players - Get players for a game
-    this.router.get('/games/:gameId/players', this.getGamePlayers.bind(this));
+    this.router.get('/games/:gameId/players', authenticate, requireRole(['admin', 'owner']), this.getGamePlayers.bind(this));
     
     // PUT /api/dev/games/:gameId/state - Update game state
-    this.router.put('/games/:gameId/state', this.updateGameState.bind(this));
+    this.router.put('/games/:gameId/state', authenticate, requireRole(['admin', 'owner']), this.updateGameState.bind(this));
   }
 
   /**

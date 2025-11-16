@@ -3,6 +3,8 @@ import { OrdersService } from '../services/OrdersService.js';
 import { getOpenTurn } from '../repos/turnsRepo.js';
 import { getStandingOrders, setStandingOrders, clearStandingOrders, getStarState } from '../repos/starsRepo.js';
 import { deleteOrderById } from '../repos/ordersRepo.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireGamePlayer } from '../middleware/rbac.js';
 
 export class OrdersRouter
 {
@@ -15,26 +17,26 @@ export class OrdersRouter
 
   setupRoutes()
   {
-    // POST /api/orders - Create a new order
-    this.router.post('/', this.createOrder.bind(this));
+    // POST /api/orders - Create a new order (requires auth and game player)
+    this.router.post('/', authenticate, requireGamePlayer(), this.createOrder.bind(this));
     
-    // GET /api/orders/star/:starId - Get orders for a specific star
-    this.router.get('/star/:starId', this.getOrdersForStar.bind(this));
+    // GET /api/orders/star/:starId - Get orders for a specific star (requires auth)
+    this.router.get('/star/:starId', authenticate, this.getOrdersForStar.bind(this));
     
-    // GET /api/orders/turn/:turnId - Get orders for a specific turn
-    this.router.get('/turn/:turnId', this.getOrdersForTurn.bind(this));
+    // GET /api/orders/turn/:turnId - Get orders for a specific turn (requires auth)
+    this.router.get('/turn/:turnId', authenticate, this.getOrdersForTurn.bind(this));
     
-    // POST /api/orders/standing - Save standing orders for a star
-    this.router.post('/standing', this.saveStandingOrders.bind(this));
+    // POST /api/orders/standing - Save standing orders for a star (requires auth and game player)
+    this.router.post('/standing', authenticate, requireGamePlayer(), this.saveStandingOrders.bind(this));
     
-    // GET /api/orders/standing/:starId - Get standing orders for a star
-    this.router.get('/standing/:starId', this.getStandingOrders.bind(this));
+    // GET /api/orders/standing/:starId - Get standing orders for a star (requires auth)
+    this.router.get('/standing/:starId', authenticate, this.getStandingOrders.bind(this));
     
-    // DELETE /api/orders/standing/:starId - Clear standing orders for a star
-    this.router.delete('/standing/:starId', this.deleteStandingOrders.bind(this));
+    // DELETE /api/orders/standing/:starId - Clear standing orders for a star (requires auth and game player)
+    this.router.delete('/standing/:starId', authenticate, requireGamePlayer(), this.deleteStandingOrders.bind(this));
     
-    // DELETE /api/orders/:orderId - Delete an order by ID
-    this.router.delete('/:orderId', this.deleteOrderById.bind(this));
+    // DELETE /api/orders/:orderId - Delete an order by ID (requires auth and game player)
+    this.router.delete('/:orderId', authenticate, requireGamePlayer(), this.deleteOrderById.bind(this));
   }
 
   /**

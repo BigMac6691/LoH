@@ -4,6 +4,8 @@ import { getOpenTurn, openTurn } from '../repos/turnsRepo.js';
 import { listPlayers } from '../repos/playersRepo.js';
 import { listGames } from '../repos/gamesRepo.js';
 import { pool } from '../db/pool.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireRole, requireGameOwnerOrAdmin, requireGamePlayer } from '../middleware/rbac.js';
 
 export class GameRouter
 {
@@ -15,58 +17,62 @@ export class GameRouter
 
   setupRoutes()
   {
-    // POST /api/games - Create a new game
-    this.router.post('/', this.createGame.bind(this));
+    // POST /api/games - Create a new game (sponsor, admin, owner only)
+    this.router.post('/', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.createGame.bind(this));
     
-    // GET /api/games - List all games
-    this.router.get('/', this.listGames.bind(this));
+    // GET /api/games - List all games (authenticated users only)
+    this.router.get('/', authenticate, this.listGames.bind(this));
     
     // GET /api/games/playing - Get games where current user is a player
-    this.router.get('/playing', this.getGamesPlaying.bind(this));
+    this.router.get('/playing', authenticate, this.getGamesPlaying.bind(this));
     
     // GET /api/games/available - Get games available for current user to join
-    this.router.get('/available', this.getGamesAvailable.bind(this));
+    this.router.get('/available', authenticate, this.getGamesAvailable.bind(this));
     
     // POST /api/games/:gameId/join - Join a game
-    this.router.post('/:gameId/join', this.joinGame.bind(this));
+    this.router.post('/:gameId/join', authenticate, this.joinGame.bind(this));
     
-    // GET /api/games/:gameId - Get specific game
-    this.router.get('/:gameId', this.getGame.bind(this));
+    // GET /api/games/:gameId - Get specific game (authenticated users only)
+    this.router.get('/:gameId', authenticate, this.getGame.bind(this));
     
-    // GET /api/games/:gameId/state - Get game state
-    this.router.get('/:gameId/state', this.getGameState.bind(this));
+    // GET /api/games/:gameId/state - Get game state (authenticated users only)
+    this.router.get('/:gameId/state', authenticate, this.getGameState.bind(this));
     
-    // GET /api/games/current - Get latest game (for development)
-    this.router.get('/current/latest', this.getCurrentGame.bind(this));
+    // GET /api/games/current - Get latest game (for development, authenticated users only)
+    this.router.get('/current/latest', authenticate, this.getCurrentGame.bind(this));
     
-    // POST /api/games/players - Add a player to a game
-    this.router.post('/players', this.addPlayer.bind(this));
+    // POST /api/games/players - Add a player to a game (sponsor, admin, owner only)
+    this.router.post('/players', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.addPlayer.bind(this));
     
-    // POST /api/games/:gameId/generate-map - Generate map for a game
-    this.router.post('/:gameId/generate-map', this.generateMap.bind(this));
+    // POST /api/games/:gameId/generate-map - Generate map for a game (owner or admin only)
+    this.router.post('/:gameId/generate-map', authenticate, requireGameOwnerOrAdmin(), this.generateMap.bind(this));
     
-    // POST /api/games/:gameId/place-players - Place players on the map
-    this.router.post('/:gameId/place-players', this.placePlayers.bind(this));
+    // POST /api/games/:gameId/place-players - Place players on the map (owner or admin only)
+    this.router.post('/:gameId/place-players', authenticate, requireGameOwnerOrAdmin(), this.placePlayers.bind(this));
     
-    // GET /api/games/:gameId/turn/open - Get open turn for a game
-    this.router.get('/:gameId/turn/open', this.getOpenTurn.bind(this));
+    // GET /api/games/:gameId/turn/open - Get open turn for a game (authenticated users only)
+    this.router.get('/:gameId/turn/open', authenticate, this.getOpenTurn.bind(this));
     
-    // POST /api/games/:gameId/turn - Create a new turn for a game
-    this.router.post('/:gameId/turn', this.createTurn.bind(this));
+    // POST /api/games/:gameId/turn - Create a new turn for a game (owner or admin only)
+    this.router.post('/:gameId/turn', authenticate, requireGameOwnerOrAdmin(), this.createTurn.bind(this));
     
-    // GET /api/games/:gameId/turns - Get all turns for a game
-    this.router.get('/:gameId/turns', this.getTurns.bind(this));
+    // GET /api/games/:gameId/turns - Get all turns for a game (authenticated users only)
+    this.router.get('/:gameId/turns', authenticate, this.getTurns.bind(this));
   }
 
   /**
    * POST /api/games
    * Create a new game from seed with provided configuration
+   * Requires: sponsor, admin, or owner role
    */
   async createGame(req, res)
   {
     try
     {
-      const { seed, mapSize, densityMin, densityMax, title, description, status, ownerId, params } = req.body;
+      const { seed, mapSize, densityMin, densityMax, title, description, status, params } = req.body;
+      
+      // Use authenticated user ID as owner
+      const ownerId = req.user.id;
       
       // Debug logging
       console.log('Received request body:', req.body);
@@ -136,13 +142,8 @@ export class GameRouter
   {
     try
     {
-      const userId = req.query.userId || req.headers['x-user-id'];
-      
-      if (!userId) {
-        return res.status(400).json({
-          error: 'User ID is required (userId query param or X-User-Id header)'
-        });
-      }
+      // Use authenticated user ID from JWT
+      const userId = req.user.id;
 
       // Get games where user is a player, with owner info and latest turn
       const { rows } = await pool.query(
@@ -190,13 +191,8 @@ export class GameRouter
   {
     try
     {
-      const userId = req.query.userId || req.headers['x-user-id'];
-      
-      if (!userId) {
-        return res.status(400).json({
-          error: 'User ID is required (userId query param or X-User-Id header)'
-        });
-      }
+      // Use authenticated user ID from JWT
+      const userId = req.user.id;
 
       // Get games where user is NOT a player, with player count and owner info
       const { rows } = await pool.query(
@@ -244,17 +240,14 @@ export class GameRouter
     try
     {
       const { gameId } = req.params;
-      const { userId, name, colorHex } = req.body;
+      const { name, colorHex } = req.body;
+      
+      // Use authenticated user ID from JWT
+      const userId = req.user.id;
       
       if (!gameId) {
         return res.status(400).json({
           error: 'Game ID is required'
-        });
-      }
-
-      if (!userId) {
-        return res.status(400).json({
-          error: 'User ID is required'
         });
       }
 

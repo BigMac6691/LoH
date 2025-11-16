@@ -17,6 +17,8 @@ import { OrdersRouter } from './src/routes/OrdersRouter.js';
 import { TurnRouter } from './src/routes/TurnRouter.js';
 import { DevRouter } from './src/routes/DevRouter.js';
 import { AuthRouter } from './src/routes/AuthRouter.js';
+import { AdminRouter } from './src/routes/AdminRouter.js';
+import { SystemEventRouter } from './src/routes/SystemEventRouter.js';
 import turnEventRouter from './src/routes/TurnEventRouter.js';
 
 const app = express();
@@ -41,12 +43,16 @@ const ordersRouter = new OrdersRouter();
 const turnRouter = new TurnRouter();
 const devRouter = new DevRouter();
 const authRouter = new AuthRouter();
+const adminRouter = new AdminRouter();
+const systemEventRouter = new SystemEventRouter();
 app.use('/api/games', gameRouter.getRouter());
 app.use('/api/orders', ordersRouter.getRouter());
 app.use('/api/turns', turnRouter.getRouter());
 app.use('/api/turn-events', turnEventRouter);
 app.use('/api/auth', authRouter.getRouter());
 app.use('/api/dev', devRouter.router);
+app.use('/api/admin', adminRouter.getRouter());
+app.use('/api/system-events', systemEventRouter.getRouter());
 
 // DEV-only routes (for backward compatibility during transition)
 if (process.env.NODE_ENV !== 'production') {

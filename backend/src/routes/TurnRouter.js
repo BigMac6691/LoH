@@ -1,5 +1,7 @@
 import express from 'express';
 import { TurnService } from '../services/TurnService.js';
+import { authenticate } from '../middleware/auth.js';
+import { requireGamePlayer } from '../middleware/rbac.js';
 
 export class TurnRouter
 {
@@ -12,14 +14,14 @@ export class TurnRouter
 
   setupRoutes()
   {
-    // POST /api/turns/end-turn - End a player's turn
-    this.router.post('/end-turn', this.endTurn.bind(this));
+    // POST /api/turns/end-turn - End a player's turn (requires auth and game player)
+    this.router.post('/end-turn', authenticate, requireGamePlayer(), this.endTurn.bind(this));
     
-    // GET /api/turns/players/:gameId - Get all players turn status
-    this.router.get('/players/:gameId', this.getPlayersTurnStatus.bind(this));
+    // GET /api/turns/players/:gameId - Get all players turn status (requires auth)
+    this.router.get('/players/:gameId', authenticate, this.getPlayersTurnStatus.bind(this));
     
-    // POST /api/turns/reset/:gameId - Reset all players for new turn
-    this.router.post('/reset/:gameId', this.resetPlayersForNewTurn.bind(this));
+    // POST /api/turns/reset/:gameId - Reset all players for new turn (requires auth and game player)
+    this.router.post('/reset/:gameId', authenticate, requireGamePlayer(), this.resetPlayersForNewTurn.bind(this));
   }
 
   /**
