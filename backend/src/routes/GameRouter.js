@@ -29,6 +29,10 @@ export class GameRouter
     // GET /api/games/available - Get games available for current user to join
     this.router.get('/available', authenticate, this.getGamesAvailable.bind(this));
     
+    // Game management endpoints (sponsor, admin, owner only) - MUST be before /:gameId route
+    // GET /api/games/manage - List games for management (filtered by role)
+    this.router.get('/manage', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.getManageGames.bind(this));
+    
     // POST /api/games/:gameId/join - Join a game
     this.router.post('/:gameId/join', authenticate, this.joinGame.bind(this));
     
@@ -58,6 +62,21 @@ export class GameRouter
     
     // GET /api/games/:gameId/turns - Get all turns for a game (authenticated users only)
     this.router.get('/:gameId/turns', authenticate, this.getTurns.bind(this));
+    
+    // GET /api/games/:gameId/manage/players - Get players for a game (for management)
+    this.router.get('/:gameId/manage/players', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.getManageGamePlayers.bind(this));
+    
+    // PUT /api/games/:gameId/status - Update game status
+    this.router.put('/:gameId/status', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.updateGameStatus.bind(this));
+    
+    // POST /api/games/:gameId/players/:playerId/end-turn - End a player's turn
+    this.router.post('/:gameId/players/:playerId/end-turn', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.endPlayerTurn.bind(this));
+    
+    // PUT /api/games/:gameId/players/:playerId/status - Update player status
+    this.router.put('/:gameId/players/:playerId/status', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.updatePlayerStatus.bind(this));
+    
+    // PUT /api/games/:gameId/players/:playerId/meta - Update player meta
+    this.router.put('/:gameId/players/:playerId/meta', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.updatePlayerMeta.bind(this));
   }
 
   /**
@@ -779,6 +798,499 @@ export class GameRouter
       console.error('Error getting turns:', error);
       res.status(500).json({
         error: 'Failed to get turns',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * GET /api/games/manage
+   * List games for management (filtered by role)
+   * - sponsor: only games they created
+   * - admin/owner: all games
+   */
+  async getManageGames(req, res)
+  {
+    try
+    {
+      const userId = req.user.id;
+      const userRole = req.user.role;
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 10;
+      const offset = (page - 1) * limit;
+
+      let query;
+      let queryParams;
+
+      if (userRole === 'sponsor') {
+        // Sponsors only see their own games
+        query = `
+          SELECT 
+            g.*,
+            u.display_name as owner_display_name,
+            COALESCE(gt.number, 0) as current_turn_number,
+            COUNT(gp.id) as player_count
+          FROM game g
+          LEFT JOIN app_user u ON g.owner_id = u.id
+          LEFT JOIN LATERAL (
+            SELECT number 
+            FROM game_turn 
+            WHERE game_id = g.id 
+            ORDER BY number DESC 
+            LIMIT 1
+          ) gt ON true
+          LEFT JOIN game_player gp ON g.id = gp.game_id
+          WHERE g.owner_id = $1
+          GROUP BY g.id, u.display_name, gt.number
+          ORDER BY g.created_at DESC
+          LIMIT $2 OFFSET $3
+        `;
+        queryParams = [userId, limit, offset];
+      } else {
+        // Admin/owner see all games
+        query = `
+          SELECT 
+            g.*,
+            u.display_name as owner_display_name,
+            COALESCE(gt.number, 0) as current_turn_number,
+            COUNT(gp.id) as player_count
+          FROM game g
+          LEFT JOIN app_user u ON g.owner_id = u.id
+          LEFT JOIN LATERAL (
+            SELECT number 
+            FROM game_turn 
+            WHERE game_id = g.id 
+            ORDER BY number DESC 
+            LIMIT 1
+          ) gt ON true
+          LEFT JOIN game_player gp ON g.id = gp.game_id
+          GROUP BY g.id, u.display_name, gt.number
+          ORDER BY g.created_at DESC
+          LIMIT $1 OFFSET $2
+        `;
+        queryParams = [limit, offset];
+      }
+
+      const { rows: games } = await pool.query(query, queryParams);
+
+      // Get total count for pagination
+      let countQuery;
+      let countParams;
+      if (userRole === 'sponsor') {
+        countQuery = `SELECT COUNT(*) as total FROM game WHERE owner_id = $1`;
+        countParams = [userId];
+      } else {
+        countQuery = `SELECT COUNT(*) as total FROM game`;
+        countParams = [];
+      }
+      const { rows: countRows } = await pool.query(countQuery, countParams);
+      const total = parseInt(countRows[0].total);
+
+      res.json({
+        success: true,
+        games,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      });
+    }
+    catch (error)
+    {
+      console.error('Error getting manage games:', error);
+      res.status(500).json({
+        error: 'Failed to get manage games',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * GET /api/games/:gameId/manage/players
+   * Get all players for a game (for management)
+   */
+  async getManageGamePlayers(req, res)
+  {
+    try
+    {
+      const { gameId } = req.params;
+      
+      if (!gameId) {
+        return res.status(400).json({
+          error: 'Game ID is required'
+        });
+      }
+
+      // Verify game exists and user has permission
+      const { rows: gameRows } = await pool.query(
+        `SELECT g.*, u.role as user_role
+         FROM game g
+         LEFT JOIN app_user u ON g.owner_id = u.id
+         WHERE g.id = $1`,
+        [gameId]
+      );
+
+      if (gameRows.length === 0) {
+        return res.status(404).json({
+          error: 'Game not found'
+        });
+      }
+
+      const game = gameRows[0];
+      const userRole = req.user.role;
+
+      // Check permission: sponsor can only manage their own games
+      if (userRole === 'sponsor' && game.owner_id !== req.user.id) {
+        return res.status(403).json({
+          error: 'You can only manage games you created'
+        });
+      }
+
+      // Get all players for the game
+      const players = await listPlayers(gameId);
+
+      res.json({
+        success: true,
+        players
+      });
+    }
+    catch (error)
+    {
+      console.error('Error getting manage game players:', error);
+      res.status(500).json({
+        error: 'Failed to get game players',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * PUT /api/games/:gameId/status
+   * Update game status
+   */
+  async updateGameStatus(req, res)
+  {
+    try
+    {
+      const { gameId } = req.params;
+      const { status } = req.body;
+      
+      if (!gameId || !status) {
+        return res.status(400).json({
+          error: 'Game ID and status are required'
+        });
+      }
+
+      // Validate status
+      const validStatuses = ['lobby', 'running', 'paused', 'frozen', 'finished'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+        });
+      }
+
+      // Verify game exists and user has permission
+      const { rows: gameRows } = await pool.query(
+        `SELECT * FROM game WHERE id = $1`,
+        [gameId]
+      );
+
+      if (gameRows.length === 0) {
+        return res.status(404).json({
+          error: 'Game not found'
+        });
+      }
+
+      const game = gameRows[0];
+      const userRole = req.user.role;
+
+      // Check permission: sponsor can only manage their own games
+      if (userRole === 'sponsor' && game.owner_id !== req.user.id) {
+        return res.status(403).json({
+          error: 'You can only manage games you created'
+        });
+      }
+
+      // Validate status transitions
+      if (game.status === 'finished' && status !== 'finished') {
+        return res.status(400).json({
+          error: 'Cannot change status of a finished game'
+        });
+      }
+
+      // Update status
+      const { updateGameStatus } = await import('../repos/gamesRepo.js');
+      const updatedGame = await updateGameStatus({ id: gameId, status });
+
+      // Set started_at if transitioning to running
+      if (status === 'running' && !game.started_at) {
+        await pool.query(
+          `UPDATE game SET started_at = now() WHERE id = $1`,
+          [gameId]
+        );
+      }
+
+      res.json({
+        success: true,
+        game: updatedGame
+      });
+    }
+    catch (error)
+    {
+      console.error('Error updating game status:', error);
+      res.status(500).json({
+        error: 'Failed to update game status',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * POST /api/games/:gameId/players/:playerId/end-turn
+   * End a player's turn (admin/sponsor/owner action)
+   */
+  async endPlayerTurn(req, res)
+  {
+    try
+    {
+      const { gameId, playerId } = req.params;
+      
+      if (!gameId || !playerId) {
+        return res.status(400).json({
+          error: 'Game ID and player ID are required'
+        });
+      }
+
+      // Verify game exists and user has permission
+      const { rows: gameRows } = await pool.query(
+        `SELECT * FROM game WHERE id = $1`,
+        [gameId]
+      );
+
+      if (gameRows.length === 0) {
+        return res.status(404).json({
+          error: 'Game not found'
+        });
+      }
+
+      const game = gameRows[0];
+      const userRole = req.user.role;
+
+      // Check permission: sponsor can only manage their own games
+      if (userRole === 'sponsor' && game.owner_id !== req.user.id) {
+        return res.status(403).json({
+          error: 'You can only manage games you created'
+        });
+      }
+
+      // Use TurnService to end the turn
+      const { TurnService } = await import('../services/TurnService.js');
+      const turnService = new TurnService();
+      const result = await turnService.endPlayerTurn(gameId, playerId);
+
+      res.json({
+        success: true,
+        ...result
+      });
+    }
+    catch (error)
+    {
+      console.error('Error ending player turn:', error);
+      res.status(500).json({
+        error: 'Failed to end player turn',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * PUT /api/games/:gameId/players/:playerId/status
+   * Update player status
+   */
+  async updatePlayerStatus(req, res)
+  {
+    try
+    {
+      const { gameId, playerId } = req.params;
+      const { status } = req.body;
+      
+      if (!gameId || !playerId || !status) {
+        return res.status(400).json({
+          error: 'Game ID, player ID, and status are required'
+        });
+      }
+
+      // Validate status
+      const validStatuses = ['active', 'waiting', 'suspended', 'ejected'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+        });
+      }
+
+      // Verify game exists and user has permission
+      const { rows: gameRows } = await pool.query(
+        `SELECT * FROM game WHERE id = $1`,
+        [gameId]
+      );
+
+      if (gameRows.length === 0) {
+        return res.status(404).json({
+          error: 'Game not found'
+        });
+      }
+
+      const game = gameRows[0];
+      const userRole = req.user.role;
+
+      // Check permission: sponsor can only manage their own games
+      if (userRole === 'sponsor' && game.owner_id !== req.user.id) {
+        return res.status(403).json({
+          error: 'You can only manage games you created'
+        });
+      }
+
+      // Verify player exists
+      const { rows: playerRows } = await pool.query(
+        `SELECT * FROM game_player WHERE id = $1 AND game_id = $2`,
+        [playerId, gameId]
+      );
+
+      if (playerRows.length === 0) {
+        return res.status(404).json({
+          error: 'Player not found in this game'
+        });
+      }
+
+      const player = playerRows[0];
+
+      // Validate status transitions
+      if (player.status === 'ejected' && status !== 'ejected') {
+        return res.status(400).json({
+          error: 'Cannot change status of an ejected player'
+        });
+      }
+
+      // Update status
+      const { rows: updatedRows } = await pool.query(
+        `UPDATE game_player 
+         SET status = $1 
+         WHERE id = $2 AND game_id = $3 
+         RETURNING *`,
+        [status, playerId, gameId]
+      );
+
+      res.json({
+        success: true,
+        player: updatedRows[0]
+      });
+    }
+    catch (error)
+    {
+      console.error('Error updating player status:', error);
+      res.status(500).json({
+        error: 'Failed to update player status',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * PUT /api/games/:gameId/players/:playerId/meta
+   * Update player meta (must be valid JSON)
+   */
+  async updatePlayerMeta(req, res)
+  {
+    try
+    {
+      const { gameId, playerId } = req.params;
+      const { meta } = req.body;
+      
+      if (!gameId || !playerId) {
+        return res.status(400).json({
+          error: 'Game ID and player ID are required'
+        });
+      }
+
+      if (meta === undefined) {
+        return res.status(400).json({
+          error: 'Meta is required'
+        });
+      }
+
+      // Validate meta is valid JSON (if it's a string, try to parse it)
+      let metaData;
+      if (typeof meta === 'string') {
+        try {
+          metaData = JSON.parse(meta);
+        } catch (e) {
+          return res.status(400).json({
+            error: 'Meta must be valid JSON'
+          });
+        }
+      } else if (typeof meta === 'object') {
+        metaData = meta;
+      } else {
+        return res.status(400).json({
+          error: 'Meta must be a valid JSON object or string'
+        });
+      }
+
+      // Verify game exists and user has permission
+      const { rows: gameRows } = await pool.query(
+        `SELECT * FROM game WHERE id = $1`,
+        [gameId]
+      );
+
+      if (gameRows.length === 0) {
+        return res.status(404).json({
+          error: 'Game not found'
+        });
+      }
+
+      const game = gameRows[0];
+      const userRole = req.user.role;
+
+      // Check permission: sponsor can only manage their own games
+      if (userRole === 'sponsor' && game.owner_id !== req.user.id) {
+        return res.status(403).json({
+          error: 'You can only manage games you created'
+        });
+      }
+
+      // Verify player exists
+      const { rows: playerRows } = await pool.query(
+        `SELECT * FROM game_player WHERE id = $1 AND game_id = $2`,
+        [playerId, gameId]
+      );
+
+      if (playerRows.length === 0) {
+        return res.status(404).json({
+          error: 'Player not found in this game'
+        });
+      }
+
+      // Update meta
+      const { rows: updatedRows } = await pool.query(
+        `UPDATE game_player 
+         SET meta = $1 
+         WHERE id = $2 AND game_id = $3 
+         RETURNING *`,
+        [JSON.stringify(metaData), playerId, gameId]
+      );
+
+      res.json({
+        success: true,
+        player: updatedRows[0]
+      });
+    }
+    catch (error)
+    {
+      console.error('Error updating player meta:', error);
+      res.status(500).json({
+        error: 'Failed to update player meta',
         details: error.message
       });
     }
