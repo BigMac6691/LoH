@@ -2,12 +2,14 @@
  * HomePage - Main home page after login with sidebar menu and main content area
  */
 import { UTClock } from './components/UTClock.js';
+import { PlayerProfileView } from './components/PlayerProfileView.js';
 import { NewsEventsView } from './components/NewsEventsView.js';
 import { GamesPlayingList } from './components/GamesPlayingList.js';
 import { GamesAvailableList } from './components/GamesAvailableList.js';
 import { RulesView } from './components/RulesView.js';
 import { ManageGamesView } from './components/ManageGamesView.js';
 import { UserManagerView } from './components/UserManagerView.js';
+import { ManageNewsEventsView } from './components/ManageNewsEventsView.js';
 import { UIController } from './UIController.js';
 
 export class HomePage {
@@ -115,13 +117,15 @@ export class HomePage {
     this.sidebar.className = 'home-sidebar';
     
     const menuItems = [
-      { id: 'news-events', label: 'News and Events', icon: '📰', roles: ['player', 'sponsor', 'admin'] },
-      { id: 'games-playing', label: 'Games Playing', icon: '🎮', roles: ['player', 'sponsor', 'admin'] },
-      { id: 'games-available', label: 'Games Available', icon: '🔍', roles: ['player', 'sponsor', 'admin'] },
-      { id: 'rules', label: 'Rules/Instructions', icon: '📖', roles: ['player', 'sponsor', 'admin'] },
-      { id: 'create-game', label: 'Create Game', icon: '✨', roles: ['sponsor', 'admin'] },
-      { id: 'manage-games', label: 'Manage Games', icon: '⚙️', roles: ['sponsor', 'admin'] },
-      { id: 'user-manager', label: 'User Manager', icon: '👥', roles: ['admin'] },
+      { id: 'player-profile', label: 'Player Profile', icon: '👤', roles: ['player', 'sponsor', 'admin', 'owner'] },
+      { id: 'news-events', label: 'News and Events', icon: '📰', roles: ['player', 'sponsor', 'admin', 'owner'] },
+      { id: 'games-playing', label: 'Games Playing', icon: '🎮', roles: ['player', 'sponsor', 'admin', 'owner'] },
+      { id: 'games-available', label: 'Games Available', icon: '🔍', roles: ['player', 'sponsor', 'admin', 'owner'] },
+      { id: 'rules', label: 'Rules/Instructions', icon: '📖', roles: ['player', 'sponsor', 'admin', 'owner'] },
+      { id: 'create-game', label: 'Create Game', icon: '✨', roles: ['sponsor', 'admin', 'owner'] },
+      { id: 'manage-games', label: 'Manage Games', icon: '⚙️', roles: ['sponsor', 'admin', 'owner'] },
+      { id: 'user-manager', label: 'User Manager', icon: '👥', roles: ['admin', 'owner'] },
+      { id: 'manage-news-events', label: 'Manage News and Events', icon: '✏️', roles: ['admin', 'owner'] },
     ];
 
     const menuHtml = menuItems
@@ -181,6 +185,12 @@ export class HomePage {
     this.currentView = viewId;
 
     switch (viewId) {
+      case 'player-profile':
+        this.currentViewInstance = new PlayerProfileView();
+        this.mainContent.innerHTML = '';
+        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        break;
+
       case 'news-events':
         this.currentViewInstance = new NewsEventsView();
         this.mainContent.innerHTML = '';
@@ -218,6 +228,12 @@ export class HomePage {
 
       case 'user-manager':
         this.currentViewInstance = new UserManagerView();
+        this.mainContent.innerHTML = '';
+        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        break;
+
+      case 'manage-news-events':
+        this.currentViewInstance = new ManageNewsEventsView();
         this.mainContent.innerHTML = '';
         this.mainContent.appendChild(this.currentViewInstance.getContainer());
         break;

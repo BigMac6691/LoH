@@ -68,6 +68,22 @@
   color: var(--color-primary, #00ff88);
 }
 
+.role-badge.role-owner {
+  background: rgba(255, 20, 147, 0.2);
+  border-color: #ff1493;
+  color: #ff1493;
+  animation: pulse-owner 2s ease-in-out infinite;
+}
+
+@keyframes pulse-owner {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(255, 20, 147, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 20, 147, 0.8);
+  }
+}
+
 .role-badge.role-admin {
   background: rgba(255, 215, 0, 0.2);
   border-color: #ffd700;
@@ -358,6 +374,56 @@
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Player Profile View Styles */
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.profile-section {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-primary, #00ff88);
+  border-radius: 12px;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.profile-section h3 {
+  color: var(--color-primary, #00ff88);
+  font-size: 20px;
+  margin: 0 0 15px 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.profile-row {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.profile-row:last-child {
+  margin-bottom: 0;
+}
+
+.profile-label {
+  font-weight: bold;
+  color: var(--color-secondary, #00ffff);
+  min-width: 140px;
+}
+
+.profile-value {
+  color: var(--text-primary, #ffffff);
+  flex: 1;
+}
+
+.profile-value .role-badge {
+  display: inline-block;
+  margin-left: 0;
 }
 
 /* Responsive */
