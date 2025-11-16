@@ -21,6 +21,15 @@ export class GameRouter
     // GET /api/games - List all games
     this.router.get('/', this.listGames.bind(this));
     
+    // GET /api/games/playing - Get games where current user is a player
+    this.router.get('/playing', this.getGamesPlaying.bind(this));
+    
+    // GET /api/games/available - Get games available for current user to join
+    this.router.get('/available', this.getGamesAvailable.bind(this));
+    
+    // POST /api/games/:gameId/join - Join a game
+    this.router.post('/:gameId/join', this.joinGame.bind(this));
+    
     // GET /api/games/:gameId - Get specific game
     this.router.get('/:gameId', this.getGame.bind(this));
     
@@ -113,6 +122,260 @@ export class GameRouter
       console.error('Error getting games list:', error);
       res.status(500).json({
         error: 'Failed to get games list',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * GET /api/games/playing
+   * Get games where current user is a player
+   * Query params: userId (will use JWT in Phase 1)
+   */
+  async getGamesPlaying(req, res)
+  {
+    try
+    {
+      const userId = req.query.userId || req.headers['x-user-id'];
+      
+      if (!userId) {
+        return res.status(400).json({
+          error: 'User ID is required (userId query param or X-User-Id header)'
+        });
+      }
+
+      // Get games where user is a player, with owner info and latest turn
+      const { rows } = await pool.query(
+        `SELECT 
+          g.*,
+          u.display_name as owner_display_name,
+          COALESCE(gt.number, 0) as current_turn_number,
+          gp.status as player_status
+        FROM game g
+        INNER JOIN game_player gp ON g.id = gp.game_id
+        LEFT JOIN app_user u ON g.owner_id = u.id
+        LEFT JOIN LATERAL (
+          SELECT number 
+          FROM game_turn 
+          WHERE game_id = g.id 
+          ORDER BY number DESC 
+          LIMIT 1
+        ) gt ON true
+        WHERE gp.user_id = $1
+        ORDER BY g.created_at DESC`,
+        [userId]
+      );
+
+      res.json({
+        success: true,
+        games: rows
+      });
+    }
+    catch (error)
+    {
+      console.error('Error getting games playing:', error);
+      res.status(500).json({
+        error: 'Failed to get games playing',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * GET /api/games/available
+   * Get games available for current user to join
+   * Query params: userId (will use JWT in Phase 1)
+   */
+  async getGamesAvailable(req, res)
+  {
+    try
+    {
+      const userId = req.query.userId || req.headers['x-user-id'];
+      
+      if (!userId) {
+        return res.status(400).json({
+          error: 'User ID is required (userId query param or X-User-Id header)'
+        });
+      }
+
+      // Get games where user is NOT a player, with player count and owner info
+      const { rows } = await pool.query(
+        `SELECT 
+          g.*,
+          u.display_name as owner_display_name,
+          COALESCE(player_counts.player_count, 0) as player_count
+        FROM game g
+        LEFT JOIN app_user u ON g.owner_id = u.id
+        LEFT JOIN LATERAL (
+          SELECT COUNT(*) as player_count
+          FROM game_player
+          WHERE game_id = g.id
+        ) player_counts ON true
+        LEFT JOIN game_player gp ON g.id = gp.game_id AND gp.user_id = $1
+        WHERE gp.user_id IS NULL
+          AND g.status IN ('lobby', 'running')
+          AND COALESCE(player_counts.player_count, 0) < g.max_players
+        ORDER BY g.created_at DESC`,
+        [userId]
+      );
+
+      res.json({
+        success: true,
+        games: rows
+      });
+    }
+    catch (error)
+    {
+      console.error('Error getting games available:', error);
+      res.status(500).json({
+        error: 'Failed to get games available',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * POST /api/games/:gameId/join
+   * Join a game (add current user as a player)
+   * Body: { userId, name, colorHex } (will use JWT in Phase 1)
+   */
+  async joinGame(req, res)
+  {
+    try
+    {
+      const { gameId } = req.params;
+      const { userId, name, colorHex } = req.body;
+      
+      if (!gameId) {
+        return res.status(400).json({
+          error: 'Game ID is required'
+        });
+      }
+
+      if (!userId) {
+        return res.status(400).json({
+          error: 'User ID is required'
+        });
+      }
+
+      // Check if game exists and has space
+      const { rows: gameRows } = await pool.query(
+        `SELECT g.*, 
+         COUNT(gp.id) as player_count
+         FROM game g
+         LEFT JOIN game_player gp ON g.id = gp.game_id
+         WHERE g.id = $1
+         GROUP BY g.id`,
+        [gameId]
+      );
+
+      if (gameRows.length === 0) {
+        return res.status(404).json({
+          error: 'Game not found'
+        });
+      }
+
+      const game = gameRows[0];
+      
+      if (parseInt(game.player_count) >= parseInt(game.max_players)) {
+        return res.status(400).json({
+          error: 'Game is full'
+        });
+      }
+
+      // Check if user is already in the game
+      const { rows: existingPlayer } = await pool.query(
+        `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2`,
+        [gameId, userId]
+      );
+
+      if (existingPlayer.length > 0) {
+        return res.status(400).json({
+          error: 'User is already in this game'
+        });
+      }
+
+      // Get user info for default name if not provided
+      if (!name || !colorHex) {
+        const { rows: userRows } = await pool.query(
+          `SELECT display_name FROM app_user WHERE id = $1`,
+          [userId]
+        );
+        
+        if (userRows.length === 0) {
+          return res.status(404).json({
+            error: 'User not found'
+          });
+        }
+
+        const playerName = name || userRows[0].display_name;
+        // Generate a default color if not provided
+        const colors = ['#ff4444', '#4444ff', '#44ff44', '#ffff44', '#ff44ff', '#44ffff'];
+        const existingColors = await pool.query(
+          `SELECT color_hex FROM game_player WHERE game_id = $1`,
+          [gameId]
+        );
+        const usedColors = existingColors.rows.map(r => r.color_hex);
+        const availableColor = colors.find(c => !usedColors.includes(c)) || colors[0];
+        const playerColorHex = colorHex || availableColor;
+
+        // Add player to game
+        const { addPlayer: addPlayerToGame } = await import('../repos/playersRepo.js');
+        const result = await addPlayerToGame({
+          gameId,
+          userId,
+          name: playerName,
+          colorHex: playerColorHex,
+          countryName: null,
+          meta: {}
+        });
+
+        return res.json({
+          success: true,
+          message: 'Successfully joined game',
+          player: {
+            id: result.id,
+            name: result.name,
+            colorHex: result.color_hex
+          }
+        });
+      }
+
+      // Add player with provided name and color
+      const { addPlayer: addPlayerToGame } = await import('../repos/playersRepo.js');
+      const result = await addPlayerToGame({
+        gameId,
+        userId,
+        name,
+        colorHex,
+        countryName: null,
+        meta: {}
+      });
+
+      res.json({
+        success: true,
+        message: 'Successfully joined game',
+        player: {
+          id: result.id,
+          name: result.name,
+          colorHex: result.color_hex
+        }
+      });
+
+    }
+    catch (error)
+    {
+      console.error('Error joining game:', error);
+      
+      // Handle duplicate key errors
+      if (error.code === '23505') {
+        return res.status(400).json({
+          error: 'Name or color already taken in this game'
+        });
+      }
+
+      res.status(500).json({
+        error: 'Failed to join game',
         details: error.message
       });
     }

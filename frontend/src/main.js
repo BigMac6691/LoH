@@ -161,8 +161,26 @@ document.addEventListener('DOMContentLoaded', () =>
       // Show home page after login
       homePage = new HomePage();
       homePage.init();
-      // Start the game initialization after login
-      initializeGameAfterLogin();
+      // Don't show UIController automatically - user can choose from menu
+    });
+
+    // Listen for game:load event from home page (PLAY/JOIN buttons)
+    eventBus.on('game:load', (context, data) => {
+      const { gameId } = data;
+      if (!gameId) {
+        console.error('game:load event missing gameId');
+        return;
+      }
+
+      // Hide home page
+      if (homePage) {
+        homePage.hide();
+      }
+
+      // Load the game by emitting game:startGame event
+      // This will be handled by GameEventHandler
+      // GameEventHandler expects gameId directly in the data object
+      eventBus.emit('game:startGame', { gameId });
     });
   }
   
@@ -236,17 +254,13 @@ document.addEventListener('DOMContentLoaded', () =>
 
 /**
  * Initialize game after successful login
+ * Note: Game is not auto-loaded - user must select from home page
  */
 function initializeGameAfterLogin() {
-  console.log('🎮 Initializing game after login...');
+  console.log('🎮 Ready for game selection after login...');
   
-  // Show the map controls
-  if (uiController) {
-    uiController.showPanel();
-  }
-  
-  // Any other post-login initialization
-  // For example, you might want to load user-specific game state here
+  // Game will be loaded when user clicks PLAY or JOIN from home page
+  // This function can be used for any post-login initialization that doesn't require a game
 }
 
 // Set up event listeners for game flow
