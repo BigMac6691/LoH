@@ -161,6 +161,8 @@ document.addEventListener('DOMContentLoaded', () =>
       // Show home page after login
       homePage = new HomePage();
       homePage.init();
+      // Make homePage accessible globally for profile updates
+      window.homePage = homePage;
       // Don't show UIController automatically - user can choose from menu
     });
 

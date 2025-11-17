@@ -6,13 +6,16 @@
 - [ ] Choose email service (SendGrid, AWS SES, Mailgun, etc.)
 - [ ] Configure email service credentials in `.env`
 - [ ] Create email templates (verification, recovery)
-- [ ] Send verification emails on registration (replace console.log in `AuthRouter.js:378`)
-- [ ] Send recovery emails on password recovery request (replace console.log in `AuthRouter.js:604`)
-- [ ] Send resend verification emails (replace console.log in `AuthRouter.js:540`)
+- [ ] Send verification emails on registration (replace console.log in `AuthRouter.js:396`)
+- [ ] Send recovery emails on password recovery request (replace console.log in `AuthRouter.js:746`)
+- [ ] Send resend verification emails - unauthenticated (replace console.log in `AuthRouter.js:681`)
+- [ ] Send resend verification emails - authenticated (replace console.log in `AuthRouter.js:600`)
+- [ ] Send verification email on profile email change (replace console.log in `AuthRouter.js:1233`)
 - [ ] Handle email sending errors gracefully
+- [ ] Consider implementing email link verification (click link in email) in addition to manual token entry
 
 **Files to modify:**
-- `backend/src/routes/AuthRouter.js` (lines 378, 540, 604)
+- `backend/src/routes/AuthRouter.js` (lines 396, 600, 681, 746, 1233)
 
 ---
 
@@ -34,20 +37,22 @@
 ---
 
 ### 3. Email Verification Frontend
-- [ ] Create email verification page/component
+- [x] Create email verification dialog in Player Profile (manual token entry)
+- [x] Add "Resend Verification" button in Player Profile
+- [x] Call `/api/auth/verify-email` endpoint
+- [x] Show success/error messages
+- [x] Update menu after verification (role changes, email verification status)
 - [ ] Add verification link in registration success message
-- [ ] Handle verification token from URL query parameter
-- [ ] Call `/api/auth/verify-email` endpoint
-- [ ] Show success/error messages
-- [ ] Redirect to login after successful verification
-- [ ] Add "Resend Verification" functionality/button
-- [ ] Create resend verification form/page
+- [ ] Handle verification token from URL query parameter (for email link verification)
+- [ ] Redirect to login after successful verification (if verifying from email link while logged out)
+- [ ] Create email link verification page (alternative to manual token entry)
 
 **Files to create:**
-- `frontend/src/EmailVerification.js` (or add to `SplashScreen.js`)
+- `frontend/src/EmailVerification.js` (optional - for email link verification page)
 
-**Files to modify:**
-- `frontend/src/SplashScreen.js` (add verification UI to registration success)
+**Files already modified:**
+- `frontend/src/components/PlayerProfileView.js` (verification dialog and resend button implemented)
+- `frontend/src/HomePage.js` (menu refresh after verification)
 
 ---
 
@@ -121,9 +126,12 @@
 - ✅ Backend endpoints complete for all auth features
 - ✅ Email/recovery tokens are generated and stored in database
 - ✅ Tokens are logged to console for development
-- ❌ Emails are NOT actually sent
+- ✅ Email verification dialog implemented in Player Profile (manual token entry)
+- ✅ Resend verification button implemented in Player Profile
+- ✅ Menu refresh after email verification
+- ❌ Emails are NOT actually sent (tokens only logged to console)
 - ❌ Frontend recovery flow shows alert instead of form
-- ❌ Frontend verification flow doesn't exist
+- ❌ Email link verification (click link in email) not implemented
 
 ### Quick Wins
 1. **Email Service:** Biggest blocker - everything else depends on emails working
@@ -135,9 +143,11 @@
 ## Files with TODO Comments
 
 ### Backend
-- `backend/src/routes/AuthRouter.js:378` - `// TODO: Send verification email with token`
-- `backend/src/routes/AuthRouter.js:540` - `// TODO: Send verification email`
-- `backend/src/routes/AuthRouter.js:604` - `// TODO: Send recovery email`
+- `backend/src/routes/AuthRouter.js:396` - `// TODO: Send verification email with token` (registration)
+- `backend/src/routes/AuthRouter.js:600` - `// TODO: Send verification email` (authenticated resend)
+- `backend/src/routes/AuthRouter.js:681` - `// TODO: Send verification email` (unauthenticated resend)
+- `backend/src/routes/AuthRouter.js:746` - `// TODO: Send recovery email` (password recovery)
+- `backend/src/routes/AuthRouter.js:1233` - `// TODO: Email verification token` (profile email change)
 - `backend/src/middleware/csrf.js:71` - `// TODO: Implement proper CSRF token validation`
 
 ### Frontend

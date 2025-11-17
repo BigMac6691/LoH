@@ -669,9 +669,14 @@ export class PlayerProfileView {
 
         // Show success message
         alert('Email verified successfully!' + (data.roleUpdated ? `\n\nYour role has been updated to: ${data.newRole}` : ''));
-        
-        // Reload page to update menu items if role changed
-        if (data.roleUpdated) {
+
+        // Refresh HomePage menu and header to reflect new role/verification status
+        // Access homePage from window if available, or use eventBus to notify
+        if (window.homePage && typeof window.homePage.refreshSidebar === 'function') {
+          window.homePage.refreshSidebar();
+          window.homePage.refreshHeader();
+        } else {
+          // Fallback: reload page to ensure menu updates
           window.location.reload();
         }
       } else {

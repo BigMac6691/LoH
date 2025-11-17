@@ -65,6 +65,28 @@ export class HomePage {
   }
 
   /**
+   * Refresh header (updates role from localStorage)
+   */
+  refreshHeader() {
+    // Update role from localStorage
+    this.userRole = localStorage.getItem('user_role') || 'player';
+    this.displayName = localStorage.getItem('user_display_name') || localStorage.getItem('user_email') || 'Commander';
+    
+    // Update role badge if header exists
+    if (this.header) {
+      const roleBadge = this.header.querySelector('.role-badge');
+      if (roleBadge) {
+        roleBadge.className = `role-badge role-${this.userRole}`;
+        roleBadge.textContent = this.userRole;
+      }
+      const playerName = this.header.querySelector('.player-name');
+      if (playerName) {
+        playerName.textContent = this.escapeHtml(this.displayName);
+      }
+    }
+  }
+
+  /**
    * Create header with UTC clock, display name, and logoff button
    */
   createHeader() {
@@ -112,11 +134,42 @@ export class HomePage {
   }
 
   /**
+   * Refresh sidebar menu (updates role and emailVerified from localStorage)
+   */
+  refreshSidebar() {
+    // Update role and emailVerified from localStorage
+    this.userRole = localStorage.getItem('user_role') || 'player';
+    this.emailVerified = localStorage.getItem('user_email_verified') === 'true';
+    
+    // Recreate the sidebar
+    if (this.sidebar) {
+      const currentView = this.sidebar.querySelector('.menu-item.active')?.getAttribute('data-view');
+      this.createSidebar();
+      // Restore active menu item if it still exists
+      if (currentView) {
+        const menuItem = this.sidebar.querySelector(`[data-view="${currentView}"]`);
+        if (menuItem) {
+          this.setActiveMenuItem(currentView);
+        } else {
+          // If the current view is no longer available, default to news-events
+          this.setActiveMenuItem('news-events');
+          this.showView('news-events');
+        }
+      }
+    }
+  }
+
+  /**
    * Create sidebar menu
    */
   createSidebar() {
-    this.sidebar = document.createElement('div');
-    this.sidebar.className = 'home-sidebar';
+    // If sidebar already exists, clear it
+    if (this.sidebar) {
+      this.sidebar.innerHTML = '';
+    } else {
+      this.sidebar = document.createElement('div');
+      this.sidebar.className = 'home-sidebar';
+    }
     
     const menuItems = [
       { id: 'player-profile', label: 'Player Profile', icon: '👤', roles: ['visitor', 'player', 'sponsor', 'admin', 'owner'] },
