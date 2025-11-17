@@ -10,6 +10,7 @@ import { RulesView } from './components/RulesView.js';
 import { ManageGamesView } from './components/ManageGamesView.js';
 import { UserManagerView } from './components/UserManagerView.js';
 import { ManageNewsEventsView } from './components/ManageNewsEventsView.js';
+import { CreateGameView } from './components/CreateGameView.js';
 import { UIController } from './UIController.js';
 
 export class HomePage {
@@ -216,8 +217,10 @@ export class HomePage {
         break;
 
       case 'create-game':
-        // Show UIController for game creation
-        this.showUIController();
+        // Show CreateGameView for game creation
+        this.currentViewInstance = new CreateGameView();
+        this.mainContent.innerHTML = '';
+        this.mainContent.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'manage-games':
@@ -247,7 +250,9 @@ export class HomePage {
    * Show UIController for game creation
    */
   showUIController() {
+    console.log('showUIController called');
     if (!this.uiController) {
+      console.log('Creating new UIController');
       this.uiController = new UIController();
     }
     
@@ -260,8 +265,10 @@ export class HomePage {
     // UIController creates its own panel that's positioned fixed
     // We just need to make sure it's visible
     if (this.uiController.panel) {
+      console.log('Panel exists, showing it');
       this.uiController.panel.style.display = 'block';
     } else {
+      console.log('Panel does not exist, calling showPanel()');
       this.uiController.showPanel();
     }
   }

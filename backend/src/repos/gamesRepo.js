@@ -16,17 +16,20 @@ import { randomUUID } from 'crypto';
  * @param {Object} [client] - Optional database client for transactions
  * @returns {Promise<Object>} The created game row
  */
-export async function createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, params = {} }, client = null) {
+export async function createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, maxPlayers, params = {} }, client = null) {
   const id = randomUUID();
   const dbClient = client || pool;
   
   // Debug logging
-  console.log('createGame called with:', { ownerId, seed, mapSize, densityMin, densityMax, title, description, params });
+  console.log('createGame called with:', { ownerId, seed, mapSize, densityMin, densityMax, title, description, maxPlayers, params });
+  
+  // Default maxPlayers to 2 if not provided
+  const maxPlayersValue = maxPlayers || 2;
   
   const { rows } = await dbClient.query(
-    `INSERT INTO game (id, owner_id, seed, map_size, density_min, density_max, title, description, params, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'lobby') RETURNING *`,
-    [id, ownerId, seed, mapSize, densityMin, densityMax, title, description, params]
+    `INSERT INTO game (id, owner_id, seed, map_size, density_min, density_max, title, description, max_players, params, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'lobby') RETURNING *`,
+    [id, ownerId, seed, mapSize, densityMin, densityMax, title, description, maxPlayersValue, params]
   );
   
   return rows[0];

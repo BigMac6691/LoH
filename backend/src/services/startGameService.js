@@ -8,14 +8,14 @@ import { addShip } from '../repos/shipsRepo.js';
 import { logEvent } from '../repos/eventsRepo.js';
 import { generateMap } from '../MapFactory.js';
 
-export async function createEmptyGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, status, params = {} })
+export async function createEmptyGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, maxPlayers, status, params = {} })
 {
   const client = await pool.connect();
   try
   {
     await client.query('BEGIN');
 
-    const game = await createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, params, status }, client);
+    const game = await createGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, maxPlayers, params, status }, client);
 
     await client.query('COMMIT');
     return { game };

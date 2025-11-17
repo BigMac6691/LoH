@@ -88,14 +88,14 @@ export class GameRouter
   {
     try
     {
-      const { seed, mapSize, densityMin, densityMax, title, description, status, params } = req.body;
+      const { seed, mapSize, densityMin, densityMax, title, description, maxPlayers, status, params } = req.body;
       
       // Use authenticated user ID as owner
       const ownerId = req.user.id;
       
       // Debug logging
       console.log('Received request body:', req.body);
-      console.log('Extracted values:', { seed, mapSize, densityMin, densityMax, title, description, status, ownerId, params });
+      console.log('Extracted values:', { seed, mapSize, densityMin, densityMax, title, description, maxPlayers, status, ownerId, params });
       
       // Validate required parameters
       if (!seed || !mapSize || densityMin === undefined || densityMax === undefined || !title || !description || !status || !ownerId)
@@ -103,6 +103,15 @@ export class GameRouter
         return res.status(400).json({
           error: 'Missing required parameters: seed, mapSize, densityMin, densityMax, title, description, status, ownerId'
         });
+      }
+      
+      // Validate maxPlayers if provided
+      if (maxPlayers !== undefined) {
+        if (maxPlayers < 1 || maxPlayers > mapSize * 2) {
+          return res.status(400).json({
+            error: `maxPlayers must be between 1 and ${mapSize * 2} (mapSize * 2)`
+          });
+        }
       }
       
       const result = await createEmptyGame({
@@ -113,6 +122,7 @@ export class GameRouter
         densityMax,
         title,
         description,
+        maxPlayers,
         status: status || 'lobby',
         params: params || {}
       });
@@ -259,7 +269,7 @@ export class GameRouter
     try
     {
       const { gameId } = req.params;
-      const { name, colorHex } = req.body;
+      const { name, colorHex, countryName } = req.body;
       
       // Use authenticated user ID from JWT
       const userId = req.user.id;
@@ -307,6 +317,25 @@ export class GameRouter
         });
       }
 
+      // Validate country name (required and must be unique per game)
+      if (!countryName || !countryName.trim()) {
+        return res.status(400).json({
+          error: 'Country name is required'
+        });
+      }
+
+      const trimmedCountryName = countryName.trim();
+      const { rows: existingCountry } = await pool.query(
+        `SELECT id FROM game_player WHERE game_id = $1 AND country_name = $2`,
+        [gameId, trimmedCountryName]
+      );
+
+      if (existingCountry.length > 0) {
+        return res.status(400).json({
+          error: 'Country name is already taken in this game'
+        });
+      }
+
       // Get user info for default name if not provided
       if (!name || !colorHex) {
         const { rows: userRows } = await pool.query(
@@ -338,7 +367,7 @@ export class GameRouter
           userId,
           name: playerName,
           colorHex: playerColorHex,
-          countryName: null,
+          countryName: trimmedCountryName,
           meta: {}
         });
 
@@ -360,7 +389,7 @@ export class GameRouter
         userId,
         name,
         colorHex,
-        countryName: null,
+        countryName: countryName ? countryName.trim() : null,
         meta: {}
       });
 

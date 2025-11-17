@@ -106,7 +106,7 @@ export class GamesPlayingList {
           </div>
         </div>
         <div class="game-card-footer">
-          <button class="game-action-btn play-btn" data-game-id="${game.id}">
+          <button class="game-action-btn play-btn" data-game-id="${game.id}" ${game.status === 'lobby' || game.status === 'frozen' ? 'disabled' : ''}>
             PLAY
           </button>
         </div>
@@ -116,6 +116,7 @@ export class GamesPlayingList {
     // Add click handlers for PLAY buttons
     listContainer.querySelectorAll('.play-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        if (btn.disabled) return;
         const gameId = e.target.getAttribute('data-game-id');
         this.playGame(gameId);
       });

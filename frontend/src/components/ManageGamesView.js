@@ -45,6 +45,7 @@ export class ManageGamesView {
             <button class="control-btn" id="pause-unpause-btn" disabled>Pause</button>
             <button class="control-btn" id="freeze-unfreeze-btn" disabled>Freeze</button>
             <button class="control-btn" id="finish-game-btn" disabled>Finish Game</button>
+            <button class="control-btn" id="add-ai-player-btn" disabled>Add AI Player</button>
           </div>
         </div>
 
@@ -105,6 +106,7 @@ export class ManageGamesView {
     this.container.querySelector('#pause-unpause-btn')?.addEventListener('click', () => this.pauseUnpauseGame());
     this.container.querySelector('#freeze-unfreeze-btn')?.addEventListener('click', () => this.freezeUnfreezeGame());
     this.container.querySelector('#finish-game-btn')?.addEventListener('click', () => this.finishGame());
+    this.container.querySelector('#add-ai-player-btn')?.addEventListener('click', () => this.showAddAIPlayerDialog());
 
     // Player control buttons
     this.container.querySelector('#end-turn-btn')?.addEventListener('click', () => this.endPlayerTurn());
@@ -190,7 +192,7 @@ export class ManageGamesView {
             </div>
             <div class="game-info-row">
               <span class="game-label">Players:</span>
-              <span class="game-value">${game.player_count || 0}</span>
+              <span class="game-value">${game.player_count || 0} / ${game.max_players || 6}</span>
             </div>
           </div>
         </div>
@@ -226,6 +228,9 @@ export class ManageGamesView {
 
     // Load players for this game
     await this.loadPlayers(gameId);
+    
+    // Update game control buttons after loading players (in case player count changed)
+    this.updateGameControlButtons();
 
     // Clear player selection
     this.selectedPlayer = null;
@@ -241,6 +246,7 @@ export class ManageGamesView {
     const pauseBtn = this.container.querySelector('#pause-unpause-btn');
     const freezeBtn = this.container.querySelector('#freeze-unfreeze-btn');
     const finishBtn = this.container.querySelector('#finish-game-btn');
+    const addAIBtn = this.container.querySelector('#add-ai-player-btn');
 
     if (!this.selectedGame) {
       // No game selected - show default text and disable all buttons
@@ -252,13 +258,39 @@ export class ManageGamesView {
       freezeBtn.textContent = 'Freeze';
       finishBtn.disabled = true;
       finishBtn.textContent = 'Finish Game';
+      addAIBtn.disabled = true;
+      addAIBtn.textContent = 'Add AI Player';
       return;
     }
 
     const status = this.selectedGame.status;
+    const playerCount = this.selectedGame.player_count || 0;
+    const maxPlayers = this.selectedGame.max_players || 6;
+    const allPlayersAdded = playerCount >= maxPlayers;
 
-    // Start Game: only if status is 'lobby'
-    startBtn.disabled = status !== 'lobby';
+    // If status is 'lobby', disable all buttons except Start Game and Add AI Player
+    if (status === 'lobby') {
+      // Start Game: only enabled when all players have been added
+      startBtn.disabled = !allPlayersAdded;
+      startBtn.textContent = 'Start Game';
+      
+      // All other buttons disabled in lobby
+      pauseBtn.disabled = true;
+      pauseBtn.textContent = 'Pause';
+      freezeBtn.disabled = true;
+      freezeBtn.textContent = 'Freeze';
+      finishBtn.disabled = true;
+      finishBtn.textContent = 'Finish Game';
+      
+      // Add AI Player: enabled in lobby if not at max players
+      addAIBtn.disabled = allPlayersAdded;
+      addAIBtn.textContent = 'Add AI Player';
+      return;
+    }
+
+    // For non-lobby statuses, normal behavior
+    // Start Game: disabled (only available in lobby)
+    startBtn.disabled = true;
     startBtn.textContent = 'Start Game';
 
     // Pause/Unpause: only if status is 'running' or 'paused'
@@ -272,6 +304,10 @@ export class ManageGamesView {
     // Finish Game: can change from any status except 'finished'
     finishBtn.disabled = status === 'finished';
     finishBtn.textContent = 'Finish Game';
+    
+    // Add AI Player: disabled when not in lobby
+    addAIBtn.disabled = true;
+    addAIBtn.textContent = 'Add AI Player';
   }
 
   /**
@@ -487,8 +523,16 @@ export class ManageGamesView {
 
       // Update selected game status
       this.selectedGame.status = newStatus;
+      
+      // Reload games to get updated data (including player count)
+      await this.loadGames(this.currentPage);
+      
+      // Re-select the game to update the UI
+      if (this.selectedGame) {
+        await this.selectGame(this.selectedGame.id);
+      }
+      
       this.updateGameControlButtons();
-      this.renderGames(); // Re-render to update status badge
 
       alert(`Game status updated to ${newStatus}`);
 
@@ -578,6 +622,74 @@ export class ManageGamesView {
       console.error('Error updating player status:', error);
       alert(`Error: ${error.message}`);
     }
+  }
+
+  /**
+   * Show Add AI Player dialog (placeholder)
+   */
+  showAddAIPlayerDialog() {
+    if (!this.selectedGame) return;
+
+    // Create a simple placeholder dialog
+    const dialog = document.createElement('div');
+    dialog.className = 'ai-player-dialog';
+    dialog.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      border: 2px solid #00ff88;
+      border-radius: 15px;
+      padding: 30px;
+      color: white;
+      z-index: 10002;
+      min-width: 400px;
+      max-width: 500px;
+      backdrop-filter: blur(10px);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    `;
+
+    dialog.innerHTML = `
+      <h2 style="margin: 0 0 20px 0; color: #00ff88; text-align: center;">Add AI Player</h2>
+      <p style="color: #ccc; margin-bottom: 20px;">AI Player configuration dialog - Coming soon!</p>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        <button id="ai-dialog-close" style="
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: bold;
+          cursor: pointer;
+          border: 2px solid #00ff88;
+          background: rgba(0, 255, 136, 0.2);
+          color: #00ff88;
+          text-transform: uppercase;
+        ">Close</button>
+      </div>
+    `;
+
+    document.body.appendChild(dialog);
+
+    // Close button handler
+    dialog.querySelector('#ai-dialog-close').addEventListener('click', () => {
+      document.body.removeChild(dialog);
+    });
+
+    // Close on outside click
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) {
+        document.body.removeChild(dialog);
+      }
+    });
+
+    // Close on Escape key
+    const escapeHandler = (e) => {
+      if (e.key === 'Escape') {
+        document.body.removeChild(dialog);
+        document.removeEventListener('keydown', escapeHandler);
+      }
+    };
+    document.addEventListener('keydown', escapeHandler);
   }
 
   /**

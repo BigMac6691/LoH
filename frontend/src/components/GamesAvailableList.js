@@ -102,6 +102,13 @@ export class GamesAvailableList {
           </div>
         </div>
         <div class="game-card-footer">
+          <input 
+            type="text" 
+            class="country-name-input" 
+            data-game-id="${game.id}"
+            placeholder="Country name" 
+            maxlength="50"
+          />
           <button class="game-action-btn join-btn" data-game-id="${game.id}">
             JOIN
           </button>
@@ -113,7 +120,33 @@ export class GamesAvailableList {
     listContainer.querySelectorAll('.join-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const gameId = e.target.getAttribute('data-game-id');
-        this.joinGame(gameId);
+        const countryInput = listContainer.querySelector(`.country-name-input[data-game-id="${gameId}"]`);
+        const countryName = countryInput ? countryInput.value.trim() : '';
+        
+        if (!countryName) {
+          alert('Please enter a country name');
+          if (countryInput) countryInput.focus();
+          return;
+        }
+        
+        this.joinGame(gameId, countryName);
+      });
+    });
+    
+    // Allow Enter key to trigger join
+    listContainer.querySelectorAll('.country-name-input').forEach(input => {
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          const gameId = input.getAttribute('data-game-id');
+          const countryName = input.value.trim();
+          
+          if (!countryName) {
+            alert('Please enter a country name');
+            return;
+          }
+          
+          this.joinGame(gameId, countryName);
+        }
       });
     });
   }
@@ -121,13 +154,22 @@ export class GamesAvailableList {
   /**
    * Handle JOIN button click - join the game then load it
    */
-  async joinGame(gameId) {
+  async joinGame(gameId, countryName) {
     if (!gameId || !this.userId) return;
+    if (!countryName || !countryName.trim()) {
+      alert('Please enter a country name');
+      return;
+    }
 
     const btn = this.container?.querySelector(`[data-game-id="${gameId}"].join-btn`);
+    const countryInput = this.container?.querySelector(`.country-name-input[data-game-id="${gameId}"]`);
+    
     if (btn) {
       btn.disabled = true;
       btn.textContent = 'Joining...';
+    }
+    if (countryInput) {
+      countryInput.disabled = true;
     }
 
     try {
@@ -140,7 +182,8 @@ export class GamesAvailableList {
         body: JSON.stringify({
           // userId is now extracted from JWT token on backend
           name: null,
-          colorHex: null
+          colorHex: null,
+          countryName: countryName.trim()
         })
       });
 
@@ -150,12 +193,14 @@ export class GamesAvailableList {
         throw new Error(data.error || 'Failed to join game');
       }
 
-      // Successfully joined - now load the game
-      if (window.eventBus) {
-        window.eventBus.emit('game:load', { gameId });
-      } else {
-        console.error('Event bus not available');
-      }
+      // Successfully joined - show success message and refresh the games list
+      alert(`Successfully joined game! You can now see it in your "Games Playing" list.`);
+      
+      // Refresh the available games list (this game should no longer appear)
+      this.loadGames();
+      
+      // Optionally, you could emit an event to refresh the "Games Playing" list
+      // but we'll let the user navigate there manually
 
     } catch (error) {
       console.error('Error joining game:', error);
@@ -164,6 +209,10 @@ export class GamesAvailableList {
       if (btn) {
         btn.disabled = false;
         btn.textContent = 'JOIN';
+      }
+      if (countryInput) {
+        countryInput.disabled = false;
+        countryInput.focus();
       }
     }
   }
