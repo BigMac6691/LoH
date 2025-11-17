@@ -22,31 +22,105 @@ from '@loh/shared';
 export class RandyAI extends BaseAI
 {
    /**
+    * Get configuration schema for RandyAI
+    * @returns {Object} Configuration schema
+    * @static
+    */
+   static getConfigSchema() {
+      return {
+         aggression: {
+            type: 'number',
+            min: 0.1,
+            max: 5.0,
+            step: 0.1,
+            default: 1.0,
+            label: 'Aggression Level',
+            description: 'Controls how likely the AI is to attack enemy stars. Higher values make the AI more aggressive. The AI will only attack if the ratio of friendly ships to enemy ships exceeds this value.'
+         },
+         buildWeight: {
+            type: 'number',
+            min: 0,
+            max: 1,
+            step: 0.01,
+            default: 0.33,
+            label: 'Build Weight',
+            description: 'Raw weight for building ships. This value will be normalized with other weights. Higher values prioritize ship construction over expansion and research.'
+         },
+         expandWeight: {
+            type: 'number',
+            min: 0,
+            max: 1,
+            step: 0.01,
+            default: 0.33,
+            label: 'Expand Weight',
+            description: 'Raw weight for expanding to new stars. This value will be normalized with other weights. Higher values prioritize expansion over building and research.'
+         },
+         researchWeight: {
+            type: 'number',
+            min: 0,
+            max: 1,
+            step: 0.01,
+            default: 0.34,
+            label: 'Research Weight',
+            description: 'Raw weight for research and technology. This value will be normalized with other weights. Higher values prioritize research over building and expansion.'
+         }
+      };
+   }
+
+   /**
+    * Get description of RandyAI
+    * @returns {string} Description
+    * @static
+    */
+   static getDescription() {
+      return 'RandyAI is a weighted random AI that makes decisions based on configurable weights for building, expanding, and research. It uses a seeded random number generator for consistent behavior. The AI prioritizes expansion to unowned stars, attacks enemy stars when it has sufficient advantage, and distributes industry spending based on configured weights.';
+   }
+
+   /**
     * Constructor for RandyAI
     * @param {string} gameId - The game ID
     * @param {string} playerId - The player ID
+    * @param {Object} config - Optional configuration object
     */
-   constructor(gameId, playerId)
+   constructor(gameId, playerId, config = {})
    {
       super(gameId, playerId);
-      this.aggression = 1.0; // Default aggression level (friendly/enemy ratio threshold)
-
+      
+      const schema = this.constructor.getConfigSchema();
+      
+      // Use config values or defaults from schema
+      this.aggression = config.aggression ?? schema.aggression.default;
+      
       // Create seeded random from hash of gameId and playerId
       const seed = this.hashStrings(gameId, playerId);
       this.random = new SeededRandom(seed);
 
-      // Generate random weights for each action type
-      const buildWeight = this.random.nextFloat(0.1, 0.5);
-      const expandWeight = this.random.nextFloat(0.1, 0.5);
-      const researchWeight = this.random.nextFloat(0.1, 0.5);
+      // Get weights from config or generate random ones
+      let buildWeight = config.buildWeight;
+      let expandWeight = config.expandWeight;
+      let researchWeight = config.researchWeight;
 
-      // Normalize weights to sum to 1
+      // If weights not provided, generate random ones
+      if (buildWeight === undefined || expandWeight === undefined || researchWeight === undefined) {
+         buildWeight = this.random.nextFloat(0.1, 0.5);
+         expandWeight = this.random.nextFloat(0.1, 0.5);
+         researchWeight = this.random.nextFloat(0.1, 0.5);
+      }
+
+      // Normalize weights to sum to 1 (AI is responsible for normalization)
       const sum = buildWeight + expandWeight + researchWeight;
-      this.buildWeight = buildWeight / sum;
-      this.expandWeight = expandWeight / sum;
-      this.researchWeight = researchWeight / sum;
+      if (sum > 0) {
+         this.buildWeight = buildWeight / sum;
+         this.expandWeight = expandWeight / sum;
+         this.researchWeight = researchWeight / sum;
+      } else {
+         // Fallback to equal weights if all are zero
+         this.buildWeight = 0.33;
+         this.expandWeight = 0.33;
+         this.researchWeight = 0.34;
+      }
 
-      this.log(`Initialized with weights: build=${this.buildWeight.toFixed(2)}, expand=${this.expandWeight.toFixed(2)}, research=${this.researchWeight.toFixed(2)}`);
+      this.log(`Initialized with weights: build=${this.buildWeight.toFixed(2)}, expand=${this.expandWeight.toFixed(2)}, research=${this.researchWeight.toFixed(2)}, aggression=${this.aggression.toFixed(2)}`);
    }
 
    /**

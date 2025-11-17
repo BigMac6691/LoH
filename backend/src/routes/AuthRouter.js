@@ -21,6 +21,7 @@ import {
   registerRateLimiter, 
   recoverRateLimiter 
 } from '../middleware/rateLimiter.js';
+import { authenticate } from '../middleware/auth.js';
 
 /**
  * AuthRouter - Handles authentication routes with comprehensive security
@@ -56,6 +57,11 @@ export class AuthRouter {
     this.router.post('/reset-password', this.resetPassword.bind(this));
     this.router.post('/refresh-token', this.refreshToken.bind(this));
     this.router.post('/logout', this.logout.bind(this));
+    
+    // Profile management routes (require authentication)
+    this.router.get('/profile', authenticate, this.getProfile.bind(this));
+    this.router.put('/profile', authenticate, this.updateProfile.bind(this));
+    this.router.post('/change-password', authenticate, this.changePassword.bind(this));
   }
 
   /**
@@ -871,6 +877,329 @@ export class AuthRouter {
         success: false,
         error: 'INTERNAL_ERROR',
         message: 'An error occurred during logout'
+      });
+    }
+  }
+
+  /**
+   * GET /api/auth/profile
+   * Get current user's profile
+   */
+  async getProfile(req, res) {
+    try {
+      const userId = req.user.id;
+
+      const { rows } = await pool.query(
+        `SELECT id, email, display_name, role, status, email_verified, bio, text_message_contact, created_at, updated_at
+         FROM app_user
+         WHERE id = $1`,
+        [userId]
+      );
+
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'USER_NOT_FOUND',
+          message: 'User not found'
+        });
+      }
+
+      const user = rows[0];
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          displayName: user.display_name,
+          role: user.role,
+          status: user.status,
+          emailVerified: user.email_verified,
+          bio: user.bio || '',
+          textMessageContact: user.text_message_contact || '',
+          createdAt: user.created_at,
+          updatedAt: user.updated_at
+        }
+      });
+    } catch (error) {
+      console.error('Error getting profile:', error);
+      res.status(500).json({
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'An error occurred while fetching profile'
+      });
+    }
+  }
+
+  /**
+   * PUT /api/auth/profile
+   * Update current user's profile
+   */
+  async updateProfile(req, res) {
+    try {
+      const userId = req.user.id;
+      const { email, displayName, bio, textMessageContact } = req.body;
+
+      // Fetch current user data
+      const { rows: userRows } = await pool.query(
+        `SELECT email, email_verified FROM app_user WHERE id = $1`,
+        [userId]
+      );
+
+      if (userRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'USER_NOT_FOUND',
+          message: 'User not found'
+        });
+      }
+
+      const currentUser = userRows[0];
+      const updates = [];
+      const values = [];
+      let paramIndex = 1;
+      let emailChanged = false;
+
+      // Validate and prepare email update
+      if (email !== undefined) {
+        const sanitizedEmail = sanitizeEmail(email);
+        if (!validateEmail(sanitizedEmail)) {
+          return res.status(400).json({
+            success: false,
+            error: 'INVALID_EMAIL',
+            message: 'Invalid email format'
+          });
+        }
+
+        // Check if email is already taken by another user
+        const { rows: existingEmail } = await pool.query(
+          `SELECT id FROM app_user WHERE email = $1 AND id != $2`,
+          [sanitizedEmail, userId]
+        );
+
+        if (existingEmail.length > 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'EMAIL_EXISTS',
+            message: 'Email address is already in use'
+          });
+        }
+
+        if (sanitizedEmail !== currentUser.email) {
+          emailChanged = true;
+          updates.push(`email = $${paramIndex++}`);
+          values.push(sanitizedEmail);
+        }
+      }
+
+      // Validate and prepare display name update
+      if (displayName !== undefined) {
+        const sanitizedDisplayName = sanitizeInput(displayName.trim());
+        if (!sanitizedDisplayName || sanitizedDisplayName.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'INVALID_DISPLAY_NAME',
+            message: 'Display name cannot be empty'
+          });
+        }
+        updates.push(`display_name = $${paramIndex++}`);
+        values.push(sanitizedDisplayName);
+      }
+
+      // Validate and prepare bio update
+      if (bio !== undefined) {
+        const sanitizedBio = sanitizeInput(bio);
+        updates.push(`bio = $${paramIndex++}`);
+        values.push(sanitizedBio || null);
+      }
+
+      // Validate and prepare text_message_contact update (10-digit phone number)
+      if (textMessageContact !== undefined) {
+        const sanitizedContact = textMessageContact.trim();
+        
+        // If provided, validate it's exactly 10 digits
+        if (sanitizedContact) {
+          // Remove any non-digit characters for validation
+          const digitsOnly = sanitizedContact.replace(/\D/g, '');
+          
+          if (digitsOnly.length !== 10) {
+            return res.status(400).json({
+              success: false,
+              error: 'INVALID_PHONE_NUMBER',
+              message: 'Phone number must be exactly 10 digits'
+            });
+          }
+          
+          // Store only the digits
+          updates.push(`text_message_contact = $${paramIndex++}`);
+          values.push(digitsOnly);
+        } else {
+          // Empty string means null (no phone number)
+          updates.push(`text_message_contact = $${paramIndex++}`);
+          values.push(null);
+        }
+      }
+
+      // If email changed, set email_verified to false
+      if (emailChanged) {
+        updates.push(`email_verified = false`);
+      }
+
+      // Add updated_at
+      updates.push(`updated_at = now()`);
+
+      if (updates.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'NO_UPDATES',
+          message: 'No fields to update'
+        });
+      }
+
+      // Build and execute update query
+      values.push(userId);
+      const query = `
+        UPDATE app_user
+        SET ${updates.join(', ')}
+        WHERE id = $${paramIndex}
+        RETURNING id, email, display_name, role, status, email_verified, bio, text_message_contact, updated_at
+      `;
+
+      const { rows } = await pool.query(query, values);
+
+      const updatedUser = rows[0];
+
+      // If email changed, generate new verification token
+      if (emailChanged) {
+        const verificationToken = generateSecureToken(32);
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours
+
+        // Delete any existing verification tokens for this user
+        await pool.query(
+          `DELETE FROM email_verification WHERE user_id = $1`,
+          [userId]
+        );
+
+        // Insert new verification token
+        await pool.query(
+          `INSERT INTO email_verification (id, user_id, token, expires_at, ip_address)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4)`,
+          [userId, verificationToken, expiresAt, getClientIp(req)]
+        );
+
+        // Log verification token for development (remove in production)
+        console.log(`📧 Email verification token for ${updatedUser.email}: ${verificationToken}`);
+      }
+
+      res.json({
+        success: true,
+        message: emailChanged ? 'Profile updated. Please verify your new email address.' : 'Profile updated successfully',
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          displayName: updatedUser.display_name,
+          role: updatedUser.role,
+          status: updatedUser.status,
+          emailVerified: updatedUser.email_verified,
+          bio: updatedUser.bio || '',
+          textMessageContact: updatedUser.text_message_contact || '',
+          updatedAt: updatedUser.updated_at
+        }
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      res.status(500).json({
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'An error occurred while updating profile'
+      });
+    }
+  }
+
+  /**
+   * POST /api/auth/change-password
+   * Change password (requires old password)
+   */
+  async changePassword(req, res) {
+    try {
+      const userId = req.user.id;
+      const { oldPassword, newPassword, confirmPassword } = req.body;
+
+      // Validate required fields
+      if (!oldPassword || !newPassword || !confirmPassword) {
+        return res.status(400).json({
+          success: false,
+          error: 'MISSING_FIELDS',
+          message: 'Old password, new password, and confirm password are required'
+        });
+      }
+
+      // Validate new password matches confirmation
+      if (newPassword !== confirmPassword) {
+        return res.status(400).json({
+          success: false,
+          error: 'PASSWORD_MISMATCH',
+          message: 'New password and confirmation do not match'
+        });
+      }
+
+      // Validate new password complexity
+      if (!validatePassword(newPassword)) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_PASSWORD',
+          message: 'Password must be at least 8 characters and contain uppercase, lowercase, number, and symbol'
+        });
+      }
+
+      // Fetch user and verify old password
+      const { rows } = await pool.query(
+        `SELECT id, password_hash FROM app_user WHERE id = $1`,
+        [userId]
+      );
+
+      if (rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'USER_NOT_FOUND',
+          message: 'User not found'
+        });
+      }
+
+      const user = rows[0];
+
+      // Verify old password
+      const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password_hash);
+      if (!isOldPasswordValid) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_OLD_PASSWORD',
+          message: 'Old password is incorrect'
+        });
+      }
+
+      // Hash new password
+      const saltRounds = 10;
+      const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+
+      // Update password
+      await pool.query(
+        `UPDATE app_user 
+         SET password_hash = $1, updated_at = now()
+         WHERE id = $2`,
+        [newPasswordHash, userId]
+      );
+
+      res.json({
+        success: true,
+        message: 'Password changed successfully'
+      });
+    } catch (error) {
+      console.error('Error changing password:', error);
+      res.status(500).json({
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'An error occurred while changing password'
       });
     }
   }

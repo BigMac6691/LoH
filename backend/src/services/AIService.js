@@ -46,8 +46,11 @@ export class AIService {
         return { success: false, error: `AI '${aiName}' not found` };
       }
       
-      // Instantiate the AI
-      const ai = aiRegistry.createAI(aiName, gameId, playerId);
+      // Get AI configuration from meta
+      const aiConfig = meta.ai_config || {};
+      
+      // Instantiate the AI with configuration
+      const ai = aiRegistry.createAI(aiName, gameId, playerId, aiConfig);
       
       if (!ai) {
         console.error(`❌ AIService: Failed to instantiate AI '${aiName}'`);

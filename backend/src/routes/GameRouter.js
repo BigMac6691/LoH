@@ -33,6 +33,9 @@ export class GameRouter
     // GET /api/games/manage - List games for management (filtered by role)
     this.router.get('/manage', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.getManageGames.bind(this));
     
+    // POST /api/games/:gameId/ai-players - Add an AI player to a game (sponsor, admin, owner only)
+    this.router.post('/:gameId/ai-players', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.addAIPlayer.bind(this));
+    
     // POST /api/games/:gameId/join - Join a game
     this.router.post('/:gameId/join', authenticate, this.joinGame.bind(this));
     
@@ -623,6 +626,163 @@ export class GameRouter
       console.error('Error adding player:', error);
       res.status(500).json({
         error: 'Failed to add player',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * POST /api/games/:gameId/ai-players
+   * Add an AI player to a game
+   */
+  async addAIPlayer(req, res) {
+    try {
+      const { gameId } = req.params;
+      const { aiName, countryName, aiConfig } = req.body;
+      const userId = req.user.id; // Use the authenticated user (sponsor/admin) as the userId for AI players
+      
+      if (!gameId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Game ID is required'
+        });
+      }
+
+      if (!aiName) {
+        return res.status(400).json({
+          success: false,
+          error: 'AI name is required'
+        });
+      }
+
+      if (!countryName || !countryName.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Country name is required'
+        });
+      }
+
+      // Check if game exists and has space
+      const { rows: gameRows } = await pool.query(
+        `SELECT g.*, 
+         COUNT(gp.id) as player_count
+         FROM game g
+         LEFT JOIN game_player gp ON g.id = gp.game_id
+         WHERE g.id = $1
+         GROUP BY g.id`,
+        [gameId]
+      );
+
+      if (gameRows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Game not found'
+        });
+      }
+
+      const game = gameRows[0];
+      
+      if (parseInt(game.player_count) >= parseInt(game.max_players)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Game is full'
+        });
+      }
+
+      // Validate country name uniqueness
+      const trimmedCountryName = countryName.trim();
+      const { rows: existingCountry } = await pool.query(
+        `SELECT id FROM game_player WHERE game_id = $1 AND country_name = $2`,
+        [gameId, trimmedCountryName]
+      );
+
+      if (existingCountry.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Country name is already taken in this game'
+        });
+      }
+
+      // Validate AI exists
+      const { aiRegistry } = await import('../ai/index.js');
+      if (!aiRegistry.hasAI(aiName)) {
+        return res.status(400).json({
+          success: false,
+          error: `AI '${aiName}' is not available`
+        });
+      }
+
+      // Validate AI config against schema
+      const schema = aiRegistry.getAISchema(aiName);
+      if (schema) {
+        // Basic validation - ensure all provided config keys exist in schema
+        const configKeys = Object.keys(aiConfig || {});
+        const schemaKeys = Object.keys(schema);
+        const invalidKeys = configKeys.filter(key => !schemaKeys.includes(key));
+        if (invalidKeys.length > 0) {
+          return res.status(400).json({
+            success: false,
+            error: `Invalid configuration keys: ${invalidKeys.join(', ')}`
+          });
+        }
+      }
+
+      // Generate a default color
+      const colors = ['#ff4444', '#4444ff', '#44ff44', '#ffff44', '#ff44ff', '#44ffff', '#ff8844', '#8844ff', '#44ff88', '#ff4488'];
+      const { rows: existingColors } = await pool.query(
+        `SELECT color_hex FROM game_player WHERE game_id = $1`,
+        [gameId]
+      );
+      const usedColors = existingColors.map(r => r.color_hex);
+      const availableColor = colors.find(c => !usedColors.includes(c)) || colors[0];
+
+      // Create player name from AI name and country
+      const playerName = `${aiName} (${trimmedCountryName})`;
+
+      // Prepare meta with AI configuration
+      const meta = {
+        main_ai: aiName,
+        ai_config: aiConfig || {}
+      };
+
+      // Add AI player to game
+      const { addPlayer: addPlayerToGame } = await import('../repos/playersRepo.js');
+      const result = await addPlayerToGame({
+        gameId,
+        userId, // Use the authenticated user's ID (sponsor/admin who added the AI)
+        name: playerName,
+        colorHex: availableColor,
+        countryName: trimmedCountryName,
+        meta
+      });
+
+      return res.json({
+        success: true,
+        message: 'AI player added successfully',
+        player: {
+          id: result.id,
+          name: result.name,
+          colorHex: result.color_hex,
+          countryName: result.country_name,
+          aiName,
+          aiConfig: aiConfig || {}
+        }
+      });
+
+    } catch (error) {
+      console.error('Error adding AI player:', error);
+      
+      // Handle duplicate key errors
+      if (error.code === '23505') {
+        return res.status(400).json({
+          success: false,
+          error: 'Name or color already taken in this game'
+        });
+      }
+      
+      res.status(500).json({
+        success: false,
+        error: 'Failed to add AI player',
         details: error.message
       });
     }

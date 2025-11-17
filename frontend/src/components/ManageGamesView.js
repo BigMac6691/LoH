@@ -1,6 +1,8 @@
 /**
  * ManageGamesView - Manage games interface (sponsor/admin/owner only)
  */
+import { AIConfigFormBuilder } from './AIConfigFormBuilder.js';
+
 export class ManageGamesView {
   constructor() {
     this.container = null;
@@ -419,7 +421,7 @@ export class ManageGamesView {
   }
 
   /**
-   * Update player control buttons based on selected player status
+   * Update player control buttons based on selected player status and game status
    */
   updatePlayerControlButtons() {
     if (!this.selectedPlayer) {
@@ -427,17 +429,27 @@ export class ManageGamesView {
       return;
     }
 
-    const status = this.selectedPlayer.status;
+    const playerStatus = this.selectedPlayer.status;
+    const gameStatus = this.selectedGame ? this.selectedGame.status : null;
     const endTurnBtn = this.container.querySelector('#end-turn-btn');
     const resetBtn = this.container.querySelector('#reset-status-btn');
     const suspendBtn = this.container.querySelector('#suspend-btn');
     const ejectBtn = this.container.querySelector('#eject-btn');
 
-    // All buttons enabled if player is not ejected
-    const isEjected = status === 'ejected';
-    endTurnBtn.disabled = isEjected;
-    resetBtn.disabled = isEjected;
-    suspendBtn.disabled = isEjected;
+    const isEjected = playerStatus === 'ejected';
+    const isLobby = gameStatus === 'lobby';
+    const isRunning = gameStatus === 'running';
+
+    // End Turn: Only enabled when game is running and player is not ejected
+    endTurnBtn.disabled = !isRunning || isEjected;
+
+    // Reset Status: Disabled if game is lobby or player is ejected
+    resetBtn.disabled = isLobby || isEjected;
+
+    // Suspend: Disabled if game is lobby or player is ejected
+    suspendBtn.disabled = isLobby || isEjected;
+
+    // Eject: Always enabled unless player is already ejected
     ejectBtn.disabled = isEjected;
   }
 
@@ -533,6 +545,12 @@ export class ManageGamesView {
       }
       
       this.updateGameControlButtons();
+      
+      // Update player control buttons in case a player is selected
+      // (selectGame clears selection, but this is a safety check)
+      if (this.selectedPlayer) {
+        this.updatePlayerControlButtons();
+      }
 
       alert(`Game status updated to ${newStatus}`);
 
@@ -625,12 +643,39 @@ export class ManageGamesView {
   }
 
   /**
-   * Show Add AI Player dialog (placeholder)
+   * Show Add AI Player dialog
    */
-  showAddAIPlayerDialog() {
+  async showAddAIPlayerDialog() {
     if (!this.selectedGame) return;
 
-    // Create a simple placeholder dialog
+    // Fetch available AIs
+    let availableAIs = [];
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('/api/ai/list', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (data.success && data.ais) {
+        availableAIs = data.ais;
+      } else {
+        alert('Failed to load available AIs: ' + (data.error || 'Unknown error'));
+        return;
+      }
+    } catch (error) {
+      console.error('Error fetching AIs:', error);
+      alert('Failed to load available AIs: ' + error.message);
+      return;
+    }
+
+    if (availableAIs.length === 0) {
+      alert('No AI implementations are available.');
+      return;
+    }
+
+    // Create dialog
     const dialog = document.createElement('div');
     dialog.className = 'ai-player-dialog';
     dialog.style.cssText = `
@@ -644,34 +689,242 @@ export class ManageGamesView {
       padding: 30px;
       color: white;
       z-index: 10002;
-      min-width: 400px;
-      max-width: 500px;
+      min-width: 500px;
+      max-width: 700px;
+      max-height: 90vh;
+      overflow-y: auto;
       backdrop-filter: blur(10px);
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     `;
 
     dialog.innerHTML = `
       <h2 style="margin: 0 0 20px 0; color: #00ff88; text-align: center;">Add AI Player</h2>
-      <p style="color: #ccc; margin-bottom: 20px;">AI Player configuration dialog - Coming soon!</p>
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-        <button id="ai-dialog-close" style="
-          padding: 10px 20px;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: bold;
-          cursor: pointer;
-          border: 2px solid #00ff88;
-          background: rgba(0, 255, 136, 0.2);
-          color: #00ff88;
-          text-transform: uppercase;
-        ">Close</button>
+      <div class="ai-dialog-content">
+        <div class="ai-selection-group">
+          <label for="ai-select" style="display: block; margin-bottom: 8px; color: #00ff88;">Select AI:</label>
+          <select id="ai-select" class="ai-select" style="
+            width: 100%;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            color: white;
+            font-size: 14px;
+            margin-bottom: 15px;
+          ">
+            <option value="">-- Select an AI --</option>
+          </select>
+        </div>
+        <div id="ai-description" class="ai-description" style="
+          margin-bottom: 15px;
+          padding: 10px;
+          background: rgba(0, 255, 136, 0.1);
+          border-left: 3px solid #00ff88;
+          border-radius: 5px;
+          font-size: 13px;
+          line-height: 1.5;
+          display: none;
+        "></div>
+        <div class="country-name-group">
+          <label for="country-name-input" style="display: block; margin-bottom: 8px; color: #00ff88;">Country Name:</label>
+          <input type="text" id="country-name-input" class="country-name-input" placeholder="Enter unique country name" style="
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            color: white;
+            font-size: 14px;
+            margin-bottom: 15px;
+          " />
+        </div>
+        <div id="ai-config-container" class="ai-config-container" style="
+          margin-bottom: 20px;
+          display: none;
+        "></div>
+        <div id="ai-dialog-error" class="ai-dialog-error" style="
+          color: #ff4444;
+          margin-bottom: 15px;
+          display: none;
+        "></div>
+        <div class="ai-dialog-actions" style="
+          display: flex;
+          gap: 10px;
+          justify-content: flex-end;
+        ">
+          <button class="close-dialog-btn" style="
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+          ">Cancel</button>
+          <button class="add-ai-player-btn" style="
+            padding: 10px 20px;
+            background: #00ff88;
+            color: black;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+          " disabled>Add AI Player</button>
+        </div>
       </div>
     `;
 
     document.body.appendChild(dialog);
 
+    // Populate AI select
+    const aiSelect = dialog.querySelector('#ai-select');
+    availableAIs.forEach(ai => {
+      const option = document.createElement('option');
+      option.value = ai.name;
+      option.textContent = ai.name;
+      aiSelect.appendChild(option);
+    });
+
+    const aiDescription = dialog.querySelector('#ai-description');
+    const aiConfigContainer = dialog.querySelector('#ai-config-container');
+    const countryNameInput = dialog.querySelector('#country-name-input');
+    const addBtn = dialog.querySelector('.add-ai-player-btn');
+    const errorDiv = dialog.querySelector('#ai-dialog-error');
+    const formBuilder = new AIConfigFormBuilder();
+    let currentForm = null;
+    let selectedAI = null;
+
+    // AI selection handler
+    aiSelect.addEventListener('change', async (e) => {
+      const aiName = e.target.value;
+      if (!aiName) {
+        aiDescription.style.display = 'none';
+        aiConfigContainer.style.display = 'none';
+        addBtn.disabled = true;
+        selectedAI = null;
+        return;
+      }
+
+      selectedAI = availableAIs.find(ai => ai.name === aiName);
+      if (!selectedAI) return;
+
+      // Show description
+      if (selectedAI.description) {
+        aiDescription.textContent = selectedAI.description;
+        aiDescription.style.display = 'block';
+      } else {
+        aiDescription.style.display = 'none';
+      }
+
+      // Build config form
+      if (selectedAI.schema && Object.keys(selectedAI.schema).length > 0) {
+        currentForm = formBuilder.buildForm(selectedAI.schema, {}, aiConfigContainer);
+        aiConfigContainer.style.display = 'block';
+      } else {
+        aiConfigContainer.innerHTML = '<p style="color: #888; font-size: 13px;">This AI has no configurable options.</p>';
+        aiConfigContainer.style.display = 'block';
+        currentForm = { getData: () => ({}), validate: () => [] };
+      }
+
+      // Enable add button if country name is filled
+      updateAddButtonState();
+    });
+
+    // Country name input handler
+    countryNameInput.addEventListener('input', () => {
+      updateAddButtonState();
+    });
+
+    // Update add button state
+    function updateAddButtonState() {
+      const hasCountryName = countryNameInput.value.trim().length > 0;
+      const hasAI = selectedAI !== null;
+      addBtn.disabled = !(hasCountryName && hasAI);
+    }
+
+    // Add AI player handler
+    addBtn.addEventListener('click', async () => {
+      if (addBtn.disabled) return;
+
+      const countryName = countryNameInput.value.trim();
+      if (!countryName) {
+        showError('Country name is required');
+        return;
+      }
+
+      if (!selectedAI) {
+        showError('Please select an AI');
+        return;
+      }
+
+      // Validate form
+      if (currentForm) {
+        const errors = currentForm.validate();
+        if (errors.length > 0) {
+          showError(errors.join(', '));
+          return;
+        }
+      }
+
+      // Get AI config
+      const aiConfig = currentForm ? currentForm.getData() : {};
+
+      // Disable button during request
+      addBtn.disabled = true;
+      addBtn.textContent = 'Adding...';
+      hideError();
+
+      try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`/api/games/${this.selectedGame.id}/ai-players`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            aiName: selectedAI.name,
+            countryName,
+            aiConfig
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Close dialog
+          document.body.removeChild(dialog);
+          
+          // Reload games and players
+          await this.loadGames(this.currentPage);
+          if (this.selectedGame) {
+            await this.selectGame(this.selectedGame.id);
+          }
+        } else {
+          showError(data.error || 'Failed to add AI player');
+          addBtn.disabled = false;
+          addBtn.textContent = 'Add AI Player';
+        }
+      } catch (error) {
+        console.error('Error adding AI player:', error);
+        showError('Failed to add AI player: ' + error.message);
+        addBtn.disabled = false;
+        addBtn.textContent = 'Add AI Player';
+      }
+    });
+
+    function showError(message) {
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+    }
+
+    function hideError() {
+      errorDiv.style.display = 'none';
+    }
+
     // Close button handler
-    dialog.querySelector('#ai-dialog-close').addEventListener('click', () => {
+    const closeBtn = dialog.querySelector('.close-dialog-btn');
+    closeBtn.addEventListener('click', () => {
       document.body.removeChild(dialog);
     });
 

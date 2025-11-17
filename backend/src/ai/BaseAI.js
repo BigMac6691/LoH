@@ -41,5 +41,27 @@ export class BaseAI {
   log(message) {
     console.log(`🤖 ${this.name}[${this.playerId}]: ${message}`);
   }
+
+  /**
+   * Get configuration schema for this AI
+   * Must be implemented by subclasses
+   * @returns {Object} Configuration schema object
+   * @static
+   * @abstract
+   */
+  static getConfigSchema() {
+    throw new Error('getConfigSchema must be implemented by subclass');
+  }
+
+  /**
+   * Get description of this AI
+   * Must be implemented by subclasses
+   * @returns {string} Description of the AI's capabilities and features
+   * @static
+   * @abstract
+   */
+  static getDescription() {
+    throw new Error('getDescription must be implemented by subclass');
+  }
 }
 

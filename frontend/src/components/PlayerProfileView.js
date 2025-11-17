@@ -1,25 +1,95 @@
 /**
- * PlayerProfileView - Player Profile placeholder component
+ * PlayerProfileView - Player Profile component with edit functionality
  */
 export class PlayerProfileView {
   constructor() {
     this.container = null;
+    this.profileData = null;
+    this.isEditing = false;
   }
 
   /**
    * Create and return the player profile view container
    */
-  create() {
-    const userId = localStorage.getItem('user_id');
-    const userEmail = localStorage.getItem('user_email');
-    const userDisplayName = localStorage.getItem('user_display_name');
-    const userRole = localStorage.getItem('user_role');
-
+  async create() {
     this.container = document.createElement('div');
     this.container.className = 'player-profile-view';
+    
+    // Load profile data
+    await this.loadProfile();
+    
+    this.render();
+    return this.container;
+  }
+
+  /**
+   * Load profile data from API
+   */
+  async loadProfile() {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('/api/auth/profile', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        this.profileData = data.user;
+        // Update localStorage with latest data
+        if (data.user.email) localStorage.setItem('user_email', data.user.email);
+        if (data.user.displayName) localStorage.setItem('user_display_name', data.user.displayName);
+      } else {
+        console.error('Failed to load profile:', data.error);
+        this.profileData = null;
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      this.profileData = null;
+    }
+  }
+
+  /**
+   * Render the profile view
+   */
+  render() {
+    if (!this.profileData) {
+      this.container.innerHTML = `
+        <div class="view-header">
+          <h2>Player Profile</h2>
+        </div>
+        <div class="view-content">
+          <p class="error-message">Failed to load profile data.</p>
+        </div>
+      `;
+      return;
+    }
+
+    if (this.isEditing) {
+      this.renderEditForm();
+    } else {
+      this.renderView();
+    }
+  }
+
+  /**
+   * Render view mode
+   */
+  renderView() {
+    const user = this.profileData;
     this.container.innerHTML = `
       <div class="view-header">
         <h2>Player Profile</h2>
+        <button class="edit-profile-btn" style="
+          padding: 8px 16px;
+          background: #00ff88;
+          color: black;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-weight: bold;
+        ">Edit Profile</button>
       </div>
       <div class="view-content">
         <div class="profile-info">
@@ -27,25 +97,377 @@ export class PlayerProfileView {
             <h3>Account Information</h3>
             <div class="profile-row">
               <span class="profile-label">Email:</span>
-              <span class="profile-value">${this.escapeHtml(userEmail || 'N/A')}</span>
+              <span class="profile-value">${this.escapeHtml(user.email || 'N/A')}</span>
+              ${user.emailVerified ? '<span class="email-verified-badge" style="color: #00ff88; margin-left: 10px;">✓ Verified</span>' : '<span class="email-unverified-badge" style="color: #ff4444; margin-left: 10px;">✗ Unverified</span>'}
             </div>
             <div class="profile-row">
               <span class="profile-label">Display Name:</span>
-              <span class="profile-value">${this.escapeHtml(userDisplayName || 'N/A')}</span>
+              <span class="profile-value">${this.escapeHtml(user.displayName || 'N/A')}</span>
             </div>
             <div class="profile-row">
               <span class="profile-label">Role:</span>
-              <span class="profile-value role-badge role-${userRole || 'player'}">${this.escapeHtml(userRole || 'player')}</span>
+              <span class="profile-value role-badge role-${user.role || 'player'}">${this.escapeHtml(user.role || 'player')}</span>
             </div>
           </div>
           <div class="profile-section">
-            <p class="placeholder-text">Profile management features coming soon.</p>
-            <p class="placeholder-text">You will be able to change your email, update your display name, and manage other account settings here.</p>
+            <h3>Profile Information</h3>
+            <div class="profile-row">
+              <span class="profile-label">Bio/Message:</span>
+              <span class="profile-value">${user.bio ? this.escapeHtml(user.bio) : '<em style="color: #888;">No bio set</em>'}</span>
+            </div>
+            <div class="profile-row">
+              <span class="profile-label">Text Message Contact:</span>
+              <span class="profile-value">${user.textMessageContact ? this.formatPhoneNumber(user.textMessageContact) : '<em style="color: #888;">Not provided</em>'}</span>
+            </div>
+          </div>
+          <div class="profile-section">
+            <h3>Password</h3>
+            <button class="change-password-btn" style="
+              padding: 8px 16px;
+              background: rgba(0, 255, 136, 0.2);
+              color: #00ff88;
+              border: 1px solid #00ff88;
+              border-radius: 5px;
+              cursor: pointer;
+              font-weight: bold;
+            ">Change Password</button>
           </div>
         </div>
       </div>
     `;
-    return this.container;
+
+    // Add event listeners
+    this.container.querySelector('.edit-profile-btn')?.addEventListener('click', () => {
+      this.isEditing = true;
+      this.render();
+    });
+
+    this.container.querySelector('.change-password-btn')?.addEventListener('click', () => {
+      this.showChangePasswordDialog();
+    });
+  }
+
+  /**
+   * Render edit form
+   */
+  renderEditForm() {
+    const user = this.profileData;
+    this.container.innerHTML = `
+      <div class="view-header">
+        <h2>Edit Profile</h2>
+        <button class="cancel-edit-btn" style="
+          padding: 8px 16px;
+          background: rgba(255, 255, 255, 0.1);
+          color: white;
+          border: 1px solid #00ff88;
+          border-radius: 5px;
+          cursor: pointer;
+          font-weight: bold;
+          margin-right: 10px;
+        ">Cancel</button>
+        <button class="save-profile-btn" style="
+          padding: 8px 16px;
+          background: #00ff88;
+          color: black;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-weight: bold;
+        ">Save Changes</button>
+      </div>
+      <div class="view-content">
+        <form class="profile-edit-form" id="profile-edit-form">
+          <div class="form-group">
+            <label for="email-input">Email:</label>
+            <input type="email" id="email-input" class="profile-input" value="${this.escapeHtml(user.email || '')}" required />
+            <small class="form-hint">If changed, you will need to verify your new email address.</small>
+          </div>
+          <div class="form-group">
+            <label for="display-name-input">Display Name:</label>
+            <input type="text" id="display-name-input" class="profile-input" value="${this.escapeHtml(user.displayName || '')}" required />
+          </div>
+          <div class="form-group">
+            <label for="bio-input">Bio/Message:</label>
+            <textarea id="bio-input" class="profile-textarea" rows="5" placeholder="Tell us about yourself...">${this.escapeHtml(user.bio || '')}</textarea>
+          </div>
+          <div class="form-group">
+            <label for="text-message-contact-input">Text Message Contact (Phone Number):</label>
+            <input type="tel" id="text-message-contact-input" class="profile-input" placeholder="1234567890" maxlength="10" pattern="[0-9]{10}" value="${user.textMessageContact ? this.escapeHtml(user.textMessageContact) : ''}" />
+            <small class="form-hint">Enter a 10-digit phone number (digits only, no dashes or spaces)</small>
+          </div>
+          <div id="profile-error" class="error-message" style="display: none; color: #ff4444; margin-top: 15px;"></div>
+          <div id="profile-success" class="success-message" style="display: none; color: #00ff88; margin-top: 15px;"></div>
+        </form>
+      </div>
+    `;
+
+    // Add event listeners
+    this.container.querySelector('.cancel-edit-btn')?.addEventListener('click', () => {
+      this.isEditing = false;
+      this.render();
+    });
+
+    this.container.querySelector('.save-profile-btn')?.addEventListener('click', () => {
+      this.saveProfile();
+    });
+
+    // Phone number input validation (digits only, max 10)
+    const textMessageContactInput = this.container.querySelector('#text-message-contact-input');
+    if (textMessageContactInput) {
+      textMessageContactInput.addEventListener('input', (e) => {
+        // Remove any non-digit characters
+        e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10);
+      });
+    }
+  }
+
+  /**
+   * Save profile changes
+   */
+  async saveProfile() {
+    const emailInput = this.container.querySelector('#email-input');
+    const displayNameInput = this.container.querySelector('#display-name-input');
+    const bioInput = this.container.querySelector('#bio-input');
+    const textMessageContactInput = this.container.querySelector('#text-message-contact-input');
+    const errorDiv = this.container.querySelector('#profile-error');
+    const successDiv = this.container.querySelector('#profile-success');
+
+    // Hide previous messages
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    const email = emailInput.value.trim();
+    const displayName = displayNameInput.value.trim();
+    const bio = bioInput.value.trim();
+    const textMessageContact = textMessageContactInput.value.trim().replace(/\D/g, ''); // Remove non-digits
+
+    // Validate
+    if (!email || !displayName) {
+      errorDiv.textContent = 'Email and display name are required.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+
+    // Validate phone number if provided
+    if (textMessageContact && textMessageContact.length !== 10) {
+      errorDiv.textContent = 'Phone number must be exactly 10 digits.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email,
+          displayName,
+          bio,
+          textMessageContact
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        this.profileData = data.user;
+        successDiv.textContent = data.message || 'Profile updated successfully!';
+        successDiv.style.display = 'block';
+        
+        // Update localStorage
+        localStorage.setItem('user_email', data.user.email);
+        localStorage.setItem('user_display_name', data.user.displayName);
+        
+        // Update header display name if it exists
+        const headerDisplayName = document.querySelector('.header-center .player-name');
+        if (headerDisplayName) {
+          headerDisplayName.textContent = data.user.displayName;
+        }
+
+        // Switch back to view mode after a delay
+        setTimeout(() => {
+          this.isEditing = false;
+          this.render();
+        }, 2000);
+      } else {
+        errorDiv.textContent = data.message || 'Failed to update profile.';
+        errorDiv.style.display = 'block';
+      }
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      errorDiv.textContent = 'An error occurred while saving profile.';
+      errorDiv.style.display = 'block';
+    }
+  }
+
+  /**
+   * Show change password dialog
+   */
+  showChangePasswordDialog() {
+    const dialog = document.createElement('div');
+    dialog.className = 'change-password-dialog';
+    dialog.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      border: 2px solid #00ff88;
+      border-radius: 15px;
+      padding: 30px;
+      color: white;
+      z-index: 10002;
+      min-width: 400px;
+      max-width: 500px;
+      backdrop-filter: blur(10px);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    `;
+
+    dialog.innerHTML = `
+      <h2 style="margin: 0 0 20px 0; color: #00ff88; text-align: center;">Change Password</h2>
+      <form id="change-password-form">
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label for="old-password" style="display: block; margin-bottom: 5px; color: #00ff88;">Old Password:</label>
+          <input type="password" id="old-password" class="profile-input" required style="
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            color: white;
+            font-size: 14px;
+            box-sizing: border-box;
+          " />
+        </div>
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label for="new-password" style="display: block; margin-bottom: 5px; color: #00ff88;">New Password:</label>
+          <input type="password" id="new-password" class="profile-input" required style="
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            color: white;
+            font-size: 14px;
+            box-sizing: border-box;
+          " />
+          <small style="color: #888; font-size: 12px; display: block; margin-top: 5px;">Must be at least 8 characters with uppercase, lowercase, number, and symbol</small>
+        </div>
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label for="confirm-password" style="display: block; margin-bottom: 5px; color: #00ff88;">Confirm New Password:</label>
+          <input type="password" id="confirm-password" class="profile-input" required style="
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            color: white;
+            font-size: 14px;
+            box-sizing: border-box;
+          " />
+        </div>
+        <div id="password-error" class="error-message" style="display: none; color: #ff4444; margin-bottom: 15px;"></div>
+        <div id="password-success" class="success-message" style="display: none; color: #00ff88; margin-bottom: 15px;"></div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" class="cancel-password-btn" style="
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+          ">Cancel</button>
+          <button type="submit" class="save-password-btn" style="
+            padding: 10px 20px;
+            background: #00ff88;
+            color: black;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+          ">Change Password</button>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(dialog);
+
+    const form = dialog.querySelector('#change-password-form');
+    const errorDiv = dialog.querySelector('#password-error');
+    const successDiv = dialog.querySelector('#password-success');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const oldPassword = dialog.querySelector('#old-password').value;
+      const newPassword = dialog.querySelector('#new-password').value;
+      const confirmPassword = dialog.querySelector('#confirm-password').value;
+
+      errorDiv.style.display = 'none';
+      successDiv.style.display = 'none';
+
+      if (newPassword !== confirmPassword) {
+        errorDiv.textContent = 'New password and confirmation do not match.';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch('/api/auth/change-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            oldPassword,
+            newPassword,
+            confirmPassword
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          successDiv.textContent = data.message || 'Password changed successfully!';
+          successDiv.style.display = 'block';
+          
+          // Clear form
+          form.reset();
+          
+          // Close dialog after delay
+          setTimeout(() => {
+            document.body.removeChild(dialog);
+          }, 2000);
+        } else {
+          errorDiv.textContent = data.message || 'Failed to change password.';
+          errorDiv.style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Error changing password:', error);
+        errorDiv.textContent = 'An error occurred while changing password.';
+        errorDiv.style.display = 'block';
+      }
+    });
+
+    dialog.querySelector('.cancel-password-btn')?.addEventListener('click', () => {
+      document.body.removeChild(dialog);
+    });
+
+    // Close on Escape key
+    const escapeHandler = (e) => {
+      if (e.key === 'Escape') {
+        document.body.removeChild(dialog);
+        document.removeEventListener('keydown', escapeHandler);
+      }
+    };
+    document.addEventListener('keydown', escapeHandler);
   }
 
   /**
@@ -69,6 +491,16 @@ export class PlayerProfileView {
   }
 
   /**
+   * Format phone number for display (e.g., (123) 456-7890)
+   */
+  formatPhoneNumber(phone) {
+    if (!phone || phone.length !== 10) return this.escapeHtml(phone || '');
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length !== 10) return this.escapeHtml(phone);
+    return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+  }
+
+  /**
    * Escape HTML to prevent XSS
    */
   escapeHtml(text) {
@@ -78,4 +510,3 @@ export class PlayerProfileView {
     return div.innerHTML;
   }
 }
-

@@ -19,6 +19,7 @@ import { DevRouter } from './src/routes/DevRouter.js';
 import { AuthRouter } from './src/routes/AuthRouter.js';
 import { AdminRouter } from './src/routes/AdminRouter.js';
 import { SystemEventRouter } from './src/routes/SystemEventRouter.js';
+import { AIRouter } from './src/routes/AIRouter.js';
 import turnEventRouter from './src/routes/TurnEventRouter.js';
 
 const app = express();
@@ -45,6 +46,7 @@ const devRouter = new DevRouter();
 const authRouter = new AuthRouter();
 const adminRouter = new AdminRouter();
 const systemEventRouter = new SystemEventRouter();
+const aiRouter = new AIRouter();
 app.use('/api/games', gameRouter.getRouter());
 app.use('/api/orders', ordersRouter.getRouter());
 app.use('/api/turns', turnRouter.getRouter());
@@ -53,6 +55,7 @@ app.use('/api/auth', authRouter.getRouter());
 app.use('/api/dev', devRouter.router);
 app.use('/api/admin', adminRouter.getRouter());
 app.use('/api/system-events', systemEventRouter.getRouter());
+app.use('/api/ai', aiRouter.getRouter());
 
 // DEV-only routes (for backward compatibility during transition)
 if (process.env.NODE_ENV !== 'production') {
