@@ -202,6 +202,15 @@ export function requireGamePlayer() {
       });
     }
 
+    // Visitors cannot access games
+    if (req.user.role === 'visitor') {
+      return res.status(403).json({
+        success: false,
+        error: 'FORBIDDEN',
+        message: 'Email verification required to access games'
+      });
+    }
+
     // Admin and owner can access any game
     if (req.user.role === 'admin' || req.user.role === 'owner') {
       return next();

@@ -62,6 +62,7 @@ export class AuthRouter {
     this.router.get('/profile', authenticate, this.getProfile.bind(this));
     this.router.put('/profile', authenticate, this.updateProfile.bind(this));
     this.router.post('/change-password', authenticate, this.changePassword.bind(this));
+    this.router.post('/profile/resend-verification', authenticate, this.resendVerificationAuthenticated.bind(this));
   }
 
   /**
@@ -182,11 +183,11 @@ export class AuthRouter {
       // Sanitize and validate input
       const sanitizedEmail = email ? sanitizeEmail(email) : '';
       
-      if (!sanitizedEmail || !password) {
+      if (!sanitizedEmail) {
         return res.status(400).json({
           success: false,
-          error: 'EMAIL_AND_PASSWORD_REQUIRED',
-          message: 'Email and password are required'
+          error: 'EMAIL_REQUIRED',
+          message: 'Email address is required'
         });
       }
 
@@ -195,6 +196,16 @@ export class AuthRouter {
           success: false,
           error: 'INVALID_EMAIL_FORMAT',
           message: 'Invalid email format'
+        });
+      }
+
+      // If password is missing or blank, return error that prompts for recovery
+      if (!password || password.trim().length === 0) {
+        return res.status(401).json({
+          success: false,
+          errorType: 1,
+          error: 'PASSWORD_REQUIRED',
+          message: 'Password is required. If you forgot your password, please use password recovery.'
         });
       }
 
@@ -362,11 +373,11 @@ export class AuthRouter {
       const saltRounds = 10;
       const passwordHash = await bcrypt.hash(password, saltRounds);
 
-      // Create user (unverified)
+      // Create user as visitor (unverified, limited access)
       const userId = randomUUID();
       await pool.query(
         `INSERT INTO app_user (id, email, password_hash, display_name, role, status, email_verified)
-         VALUES ($1, $2, $3, $4, 'player', 'active', false)`,
+         VALUES ($1, $2, $3, $4, 'visitor', 'active', false)`,
         [userId, sanitizedEmail, passwordHash, sanitizedDisplayName]
       );
 
@@ -375,9 +386,10 @@ export class AuthRouter {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 1); // 24 hours
 
+      // Store original role (visitor for new registrations)
       await pool.query(
-        `INSERT INTO email_verification (id, user_id, token, expires_at, ip_address, created_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())`,
+        `INSERT INTO email_verification (id, user_id, token, expires_at, ip_address, original_role, created_at)
+         VALUES ($1, $2, $3, $4, $5, 'visitor', NOW())`,
         [randomUUID(), userId, verificationToken, expiresAt, clientIp]
       );
 
@@ -392,7 +404,7 @@ export class AuthRouter {
           id: userId,
           email: sanitizedEmail,
           displayName: sanitizedDisplayName,
-          role: 'player',
+          role: 'visitor',
           emailVerified: false
         }
       });
@@ -433,7 +445,7 @@ export class AuthRouter {
 
       // Find verification token
       const tokenResult = await pool.query(
-        `SELECT ev.*, u.id as user_id, u.email 
+        `SELECT ev.*, u.id as user_id, u.email, u.role as current_role
          FROM email_verification ev
          JOIN app_user u ON ev.user_id = u.id
          WHERE ev.token = $1 AND ev.verified_at IS NULL`,
@@ -459,10 +471,42 @@ export class AuthRouter {
         });
       }
 
-      // Mark as verified
+      // Determine new role:
+      // - If original_role exists and is higher than 'player', restore it
+      // - If current role is 'visitor', promote to 'player'
+      // - Otherwise, keep current role
+      let newRole = verification.current_role;
+      if (verification.original_role) {
+        // Restore original role if it was higher than 'player'
+        const roleHierarchy = { 'visitor': 0, 'player': 1, 'sponsor': 2, 'admin': 3, 'owner': 4 };
+        const originalLevel = roleHierarchy[verification.original_role] || 0;
+        const currentLevel = roleHierarchy[verification.current_role] || 0;
+        
+        if (originalLevel > 1) { // Higher than 'player'
+          newRole = verification.original_role;
+        } else if (verification.current_role === 'visitor') {
+          newRole = 'player';
+        }
+      } else if (verification.current_role === 'visitor') {
+        // New registration: promote visitor to player
+        newRole = 'player';
+      }
+
+      // Mark as verified and update role if needed
+      const updateFields = ['email_verified = true'];
+      const updateValues = [];
+      let paramIndex = 1;
+
+      if (newRole !== verification.current_role) {
+        updateFields.push(`role = $${paramIndex++}`);
+        updateValues.push(newRole);
+      }
+
+      updateValues.push(verification.user_id);
+
       await pool.query(
-        'UPDATE app_user SET email_verified = true WHERE id = $1',
-        [verification.user_id]
+        `UPDATE app_user SET ${updateFields.join(', ')} WHERE id = $${paramIndex}`,
+        updateValues
       );
 
       await pool.query(
@@ -472,7 +516,9 @@ export class AuthRouter {
 
       res.json({
         success: true,
-        message: 'Email verified successfully'
+        message: 'Email verified successfully',
+        roleUpdated: newRole !== verification.current_role,
+        newRole: newRole !== verification.current_role ? newRole : undefined
       });
     } catch (error) {
       console.error('Email verification error:', error);
@@ -485,8 +531,93 @@ export class AuthRouter {
   }
 
   /**
-   * POST /api/auth/resend-verification
-   * Resend email verification token
+   * POST /api/auth/profile/resend-verification (authenticated)
+   * Resend email verification token for current user
+   */
+  async resendVerificationAuthenticated(req, res) {
+    try {
+      console.log('Resend verification (authenticated) - User ID:', req.user?.id);
+      
+      if (!req.user || !req.user.id) {
+        console.error('Resend verification (authenticated) - No user in request');
+        return res.status(401).json({
+          success: false,
+          error: 'UNAUTHORIZED',
+          message: 'Authentication required'
+        });
+      }
+
+      const userId = req.user.id;
+
+      // Get user info
+      const { rows: userRows } = await pool.query(
+        'SELECT id, email, email_verified, role FROM app_user WHERE id = $1',
+        [userId]
+      );
+
+      if (userRows.length === 0) {
+        console.error('Resend verification (authenticated) - User not found:', userId);
+        return res.status(404).json({
+          success: false,
+          error: 'USER_NOT_FOUND',
+          message: 'User not found'
+        });
+      }
+
+      const user = userRows[0];
+      console.log('Resend verification (authenticated) - User:', { id: user.id, email: user.email, email_verified: user.email_verified, role: user.role });
+
+      if (user.email_verified) {
+        console.log('Resend verification (authenticated) - Email already verified');
+        return res.json({
+          success: true,
+          message: 'Email is already verified'
+        });
+      }
+
+      // Generate new verification token
+      const verificationToken = generateSecureToken(32);
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 1);
+
+      // Store original role for restoration after verification
+      const originalRole = user.role;
+
+      // Delete old tokens
+      await pool.query(
+        'DELETE FROM email_verification WHERE user_id = $1 AND verified_at IS NULL',
+        [user.id]
+      );
+
+      // Create new token with original role
+      await pool.query(
+        `INSERT INTO email_verification (id, user_id, token, expires_at, ip_address, original_role, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+        [randomUUID(), user.id, verificationToken, expiresAt, getClientIp(req), originalRole]
+      );
+
+      // TODO: Send verification email
+      console.log(`📧 Verification token for ${user.email}: ${verificationToken}`);
+
+      res.json({
+        success: true,
+        message: 'Verification token sent. Check console/logs for the token.',
+        verificationToken: process.env.NODE_ENV === 'development' ? verificationToken : undefined
+      });
+    } catch (error) {
+      console.error('Resend verification (authenticated) error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'An error occurred while resending verification',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * POST /api/auth/resend-verification (unauthenticated)
+   * Resend email verification token by email
    */
   async resendVerification(req, res) {
     try {
@@ -504,7 +635,7 @@ export class AuthRouter {
 
       // Find user
       const userResult = await pool.query(
-        'SELECT id, email_verified FROM app_user WHERE email = $1',
+        'SELECT id, email_verified, role FROM app_user WHERE email = $1',
         [sanitizedEmail]
       );
 
@@ -530,17 +661,20 @@ export class AuthRouter {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 1);
 
+      // Store original role for restoration after verification
+      const originalRole = user.role;
+
       // Delete old tokens
       await pool.query(
         'DELETE FROM email_verification WHERE user_id = $1 AND verified_at IS NULL',
         [user.id]
       );
 
-      // Create new token
+      // Create new token with original role
       await pool.query(
-        `INSERT INTO email_verification (id, user_id, token, expires_at, ip_address, created_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())`,
-        [randomUUID(), user.id, verificationToken, expiresAt, getClientIp(req)]
+        `INSERT INTO email_verification (id, user_id, token, expires_at, ip_address, original_role, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+        [randomUUID(), user.id, verificationToken, expiresAt, getClientIp(req), originalRole]
       );
 
       // TODO: Send verification email
@@ -608,7 +742,8 @@ export class AuthRouter {
         );
 
         // TODO: Send recovery email
-        console.log(`Recovery token for ${sanitizedEmail}: ${recoveryToken} (expires: ${expiresAt})`);
+        // For development: Log recovery token to console (similar to email verification)
+        console.log(`Password recovery token for ${sanitizedEmail}: ${recoveryToken}`);
       }
 
       res.json({
@@ -1070,6 +1205,13 @@ export class AuthRouter {
 
       // If email changed, generate new verification token
       if (emailChanged) {
+        // Get current role to store for restoration
+        const { rows: roleRows } = await pool.query(
+          `SELECT role FROM app_user WHERE id = $1`,
+          [userId]
+        );
+        const originalRole = roleRows[0]?.role || 'visitor';
+
         const verificationToken = generateSecureToken(32);
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours
@@ -1080,11 +1222,11 @@ export class AuthRouter {
           [userId]
         );
 
-        // Insert new verification token
+        // Insert new verification token with original role for restoration
         await pool.query(
-          `INSERT INTO email_verification (id, user_id, token, expires_at, ip_address)
-           VALUES (gen_random_uuid(), $1, $2, $3, $4)`,
-          [userId, verificationToken, expiresAt, getClientIp(req)]
+          `INSERT INTO email_verification (id, user_id, token, expires_at, ip_address, original_role)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)`,
+          [userId, verificationToken, expiresAt, getClientIp(req), originalRole]
         );
 
         // Log verification token for development (remove in production)

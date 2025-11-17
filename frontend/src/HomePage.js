@@ -25,6 +25,7 @@ export class HomePage {
     this.uiController = null;
     this.userRole = localStorage.getItem('user_role') || 'player';
     this.displayName = localStorage.getItem('user_display_name') || localStorage.getItem('user_email') || 'Commander';
+    this.emailVerified = localStorage.getItem('user_email_verified') === 'true';
   }
 
   /**
@@ -118,19 +119,32 @@ export class HomePage {
     this.sidebar.className = 'home-sidebar';
     
     const menuItems = [
-      { id: 'player-profile', label: 'Player Profile', icon: '👤', roles: ['player', 'sponsor', 'admin', 'owner'] },
-      { id: 'news-events', label: 'News and Events', icon: '📰', roles: ['player', 'sponsor', 'admin', 'owner'] },
-      { id: 'games-playing', label: 'Games Playing', icon: '🎮', roles: ['player', 'sponsor', 'admin', 'owner'] },
-      { id: 'games-available', label: 'Games Available', icon: '🔍', roles: ['player', 'sponsor', 'admin', 'owner'] },
-      { id: 'rules', label: 'Rules/Instructions', icon: '📖', roles: ['player', 'sponsor', 'admin', 'owner'] },
-      { id: 'create-game', label: 'Create Game', icon: '✨', roles: ['sponsor', 'admin', 'owner'] },
-      { id: 'manage-games', label: 'Manage Games', icon: '⚙️', roles: ['sponsor', 'admin', 'owner'] },
+      { id: 'player-profile', label: 'Player Profile', icon: '👤', roles: ['visitor', 'player', 'sponsor', 'admin', 'owner'] },
+      { id: 'news-events', label: 'News and Events', icon: '📰', roles: ['visitor', 'player', 'sponsor', 'admin', 'owner'] },
+      { id: 'rules', label: 'Rules/Instructions', icon: '📖', roles: ['visitor', 'player', 'sponsor', 'admin', 'owner'] },
+      // Game-related items require verified email (not visitor)
+      { id: 'games-playing', label: 'Games Playing', icon: '🎮', roles: ['player', 'sponsor', 'admin', 'owner'], requiresVerified: true },
+      { id: 'games-available', label: 'Games Available', icon: '🔍', roles: ['player', 'sponsor', 'admin', 'owner'], requiresVerified: true },
+      { id: 'create-game', label: 'Create Game', icon: '✨', roles: ['sponsor', 'admin', 'owner'], requiresVerified: true },
+      { id: 'manage-games', label: 'Manage Games', icon: '⚙️', roles: ['sponsor', 'admin', 'owner'], requiresVerified: true },
       { id: 'user-manager', label: 'User Manager', icon: '👥', roles: ['admin', 'owner'] },
       { id: 'manage-news-events', label: 'Manage News and Events', icon: '✏️', roles: ['admin', 'owner'] },
     ];
 
     const menuHtml = menuItems
-      .filter(item => item.roles.includes(this.userRole))
+      .filter(item => {
+        // Check role access
+        if (!item.roles.includes(this.userRole)) {
+          return false;
+        }
+        // Check if verified email is required
+        // Hide game-related items for visitors OR any unverified users (regardless of role)
+        // This ensures all users verify their email before accessing games
+        if (item.requiresVerified && (this.userRole === 'visitor' || !this.emailVerified)) {
+          return false;
+        }
+        return true;
+      })
       .map(item => `
         <div class="menu-item" data-view="${item.id}">
           <span class="menu-icon">${item.icon}</span>

@@ -357,20 +357,62 @@ export class SplashScreen {
    */
   showError(message, links = null) {
     const errorDiv = document.getElementById('login-error');
-    const linksDiv = document.getElementById('login-links');
+    if (!errorDiv) return;
+
+    // Build error message with links if provided
+    let errorHtml = message;
     
-    if (errorDiv) {
-      errorDiv.textContent = message;
-      errorDiv.style.display = 'block';
-      errorDiv.className = 'login-error error-message';
+    if (links) {
+      let linkHtml = '<div class="error-links" style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">';
+      
+      if (links.recover) {
+        linkHtml += `<a href="#" id="error-recover-link" class="login-link">🔓 Recover Password</a>`;
+      }
+      
+      if (links.register) {
+        linkHtml += `<a href="#" id="error-register-link" class="login-link">⭐ New Commander?</a>`;
+      }
+      
+      linkHtml += '</div>';
+      errorHtml += linkHtml;
     }
-    
-    if (links && linksDiv) {
-      linksDiv.style.display = 'flex';
-      linksDiv.style.flexDirection = 'column';
-      linksDiv.style.gap = '10px';
-      linksDiv.style.marginTop = '15px';
+
+    errorDiv.innerHTML = errorHtml;
+    errorDiv.style.display = 'block';
+    errorDiv.className = 'login-error error-message';
+
+    // Add event listeners for links
+    if (links) {
+      if (links.recover) {
+        const recoverLink = errorDiv.querySelector('#error-recover-link');
+        if (recoverLink) {
+          recoverLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handleRecover(links.email || null);
+          });
+        }
+      }
+
+      if (links.register) {
+        const registerLink = errorDiv.querySelector('#error-register-link');
+        if (registerLink) {
+          registerLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.handleRegister();
+          });
+        }
+      }
     }
+  }
+
+  /**
+   * Escape HTML to prevent XSS
+   */
+  escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   /**
@@ -411,10 +453,12 @@ export class SplashScreen {
       return;
     }
     
-    const passwordValidation = this.validatePassword(password);
-    if (!passwordValidation.valid) {
-      this.showError(passwordValidation.errors.join('. '));
-      passwordInput.focus();
+    // If password is blank, show recovery option
+    if (!password || password.trim().length === 0) {
+      this.showError(
+        'Password is required. If you forgot your password, please use password recovery.',
+        { recover: true, email: email }
+      );
       return;
     }
     
@@ -458,6 +502,9 @@ export class SplashScreen {
           if (data.user.role) {
             localStorage.setItem('user_role', data.user.role);
           }
+          if (data.user.emailVerified !== undefined) {
+            localStorage.setItem('user_email_verified', data.user.emailVerified.toString());
+          }
         }
         
         // Emit login success event
@@ -482,11 +529,18 @@ export class SplashScreen {
    * Handle login failure with different types
    */
   handleLoginFailure(data, email) {
+    // Password required (blank password)
+    if (data.error === 'PASSWORD_REQUIRED') {
+      this.showError(
+        data.message || 'Password is required. If you forgot your password, please use password recovery.',
+        { recover: true, email: email }
+      );
+    }
     // Type 1: Email exists but wrong password
-    if (data.errorType === 1 || data.error === 'INVALID_PASSWORD') {
+    else if (data.errorType === 1 || data.error === 'INVALID_PASSWORD') {
       this.showError(
         'Login failed. Incorrect password.',
-        { recover: true }
+        { recover: true, email: email }
       );
     }
     // Type 2: Email not registered
@@ -505,13 +559,308 @@ export class SplashScreen {
   /**
    * Handle password recovery
    */
-  async handleRecover() {
+  async handleRecover(email = null) {
+    // Get email from parameter or input field
     const emailInput = document.getElementById('login-email');
-    const email = emailInput.value.trim() || emailInput.placeholder;
+    const emailToRecover = email || emailInput?.value.trim() || '';
     
-    // For now, just show an alert
-    // TODO: Implement password recovery flow
-    alert(`Password recovery for ${email} - Feature coming soon!`);
+    if (!emailToRecover) {
+      this.showError('Please enter your email address first.');
+      if (emailInput) emailInput.focus();
+      return;
+    }
+    
+    // Show recovery form
+    this.showRecoveryForm(emailToRecover);
+  }
+
+  /**
+   * Show password recovery form
+   */
+  showRecoveryForm(email = '') {
+    // Hide login form
+    if (this.loginForm) {
+      this.loginForm.style.display = 'none';
+    }
+
+    // Remove existing recovery form if any
+    const existingRecovery = document.getElementById('recovery-form');
+    if (existingRecovery) {
+      existingRecovery.remove();
+    }
+
+    // Create recovery form
+    const recoveryForm = document.createElement('div');
+    recoveryForm.id = 'recovery-form';
+    recoveryForm.className = 'splash-login-form';
+
+    recoveryForm.innerHTML = `
+      <div class="login-title">Password Recovery 🔓</div>
+      <div class="login-error" id="recovery-error" style="display: none;"></div>
+      <div class="login-success" id="recovery-success" style="display: none;"></div>
+      
+      <div id="recovery-step-1">
+        <p style="color: #ccc; margin-bottom: 20px; text-align: center;">
+          Enter your email address to receive a recovery token.
+        </p>
+        <form id="recovery-request-form" class="login-form">
+          <div class="form-group">
+            <label for="recovery-email" class="form-label">
+              <span class="form-icon">📧</span>
+              Email Address
+            </label>
+            <input 
+              type="email" 
+              id="recovery-email" 
+              class="form-input" 
+              placeholder="your.email@example.com"
+              value="${this.escapeHtml(email)}"
+              required
+            />
+          </div>
+          <button type="submit" id="recovery-request-btn" class="login-button">
+            Request Recovery Token 🔓
+          </button>
+        </form>
+      </div>
+
+      <div id="recovery-step-2" style="display: none;">
+        <p style="color: #00ff88; margin-bottom: 10px; text-align: center; font-weight: bold;">
+          ✓ Recovery token sent! Check the console/logs for the token.
+        </p>
+        <p style="color: #ccc; margin-bottom: 20px; text-align: center; font-size: 12px;">
+          Enter the recovery token and your new password below.
+        </p>
+        <form id="recovery-reset-form" class="login-form">
+          <div class="form-group">
+            <label for="recovery-token" class="form-label">
+              <span class="form-icon">🔑</span>
+              Recovery Token
+            </label>
+            <input 
+              type="text" 
+              id="recovery-token" 
+              class="form-input" 
+              placeholder="Enter recovery token from console/logs"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="recovery-new-password" class="form-label">
+              <span class="form-icon">🔒</span>
+              New Password
+            </label>
+            <input 
+              type="password" 
+              id="recovery-new-password" 
+              class="form-input" 
+              placeholder="Enter new password (8+ chars, upper, lower, number, symbol)"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="recovery-confirm-password" class="form-label">
+              <span class="form-icon">🔒</span>
+              Confirm New Password
+            </label>
+            <input 
+              type="password" 
+              id="recovery-confirm-password" 
+              class="form-input" 
+              placeholder="Confirm new password"
+              required
+            />
+          </div>
+          <button type="submit" id="recovery-reset-btn" class="login-button">
+            Reset Password 🔓
+          </button>
+        </form>
+      </div>
+
+      <div class="login-links" style="margin-top: 20px; text-align: center;">
+        <a href="#" id="recovery-back-link" class="login-link">← Back to Login</a>
+      </div>
+    `;
+
+    // Insert recovery form after login form container
+    const loginContainer = document.querySelector('.splash-content');
+    if (loginContainer) {
+      loginContainer.appendChild(recoveryForm);
+    }
+
+    // Setup event listeners
+    const requestForm = recoveryForm.querySelector('#recovery-request-form');
+    const resetForm = recoveryForm.querySelector('#recovery-reset-form');
+    const backLink = recoveryForm.querySelector('#recovery-back-link');
+
+    // Request recovery token
+    requestForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await this.handleRecoveryRequest();
+    });
+
+    // Reset password
+    resetForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await this.handlePasswordReset();
+    });
+
+    // Back to login
+    backLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      recoveryForm.remove();
+      if (this.loginForm) {
+        this.loginForm.style.display = 'block';
+      }
+    });
+  }
+
+  /**
+   * Handle recovery token request
+   */
+  async handleRecoveryRequest() {
+    const emailInput = document.getElementById('recovery-email');
+    const submitBtn = document.getElementById('recovery-request-btn');
+    const errorDiv = document.getElementById('recovery-error');
+    const successDiv = document.getElementById('recovery-success');
+
+    const email = emailInput.value.trim();
+
+    if (!this.validateEmail(email)) {
+      errorDiv.textContent = 'Please enter a valid email address.';
+      errorDiv.style.display = 'block';
+      successDiv.style.display = 'none';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending...';
+
+    try {
+      const response = await fetch('/api/auth/recover', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Show step 2 (token entry)
+        document.getElementById('recovery-step-1').style.display = 'none';
+        document.getElementById('recovery-step-2').style.display = 'block';
+        errorDiv.style.display = 'none';
+        successDiv.style.display = 'block';
+        successDiv.textContent = data.message || 'Recovery token sent! Check console/logs for the token.';
+      } else {
+        errorDiv.textContent = data.message || 'Failed to send recovery token.';
+        errorDiv.style.display = 'block';
+        successDiv.style.display = 'none';
+      }
+    } catch (error) {
+      console.error('Recovery request error:', error);
+      errorDiv.textContent = 'Connection error. Please try again.';
+      errorDiv.style.display = 'block';
+      successDiv.style.display = 'none';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Request Recovery Token 🔓';
+    }
+  }
+
+  /**
+   * Handle password reset with recovery token
+   */
+  async handlePasswordReset() {
+    const tokenInput = document.getElementById('recovery-token');
+    const newPasswordInput = document.getElementById('recovery-new-password');
+    const confirmPasswordInput = document.getElementById('recovery-confirm-password');
+    const submitBtn = document.getElementById('recovery-reset-btn');
+    const errorDiv = document.getElementById('recovery-error');
+    const successDiv = document.getElementById('recovery-success');
+
+    const token = tokenInput.value.trim();
+    const newPassword = newPasswordInput.value;
+    const confirmPassword = confirmPasswordInput.value;
+
+    // Clear previous messages
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    // Validate
+    if (!token || !newPassword || !confirmPassword) {
+      errorDiv.textContent = 'Please fill in all fields.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      errorDiv.textContent = 'Passwords do not match.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+
+    const passwordValidation = this.validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+      errorDiv.textContent = passwordValidation.errors.join('. ');
+      errorDiv.style.display = 'block';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Resetting...';
+
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token,
+          newPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        successDiv.textContent = data.message || 'Password reset successfully! Redirecting to login...';
+        successDiv.style.display = 'block';
+        errorDiv.style.display = 'none';
+
+        // Clear form
+        tokenInput.value = '';
+        newPasswordInput.value = '';
+        confirmPasswordInput.value = '';
+
+        // Redirect to login after delay
+        setTimeout(() => {
+          const recoveryForm = document.getElementById('recovery-form');
+          if (recoveryForm) {
+            recoveryForm.remove();
+          }
+          if (this.loginForm) {
+            this.loginForm.style.display = 'block';
+          }
+          this.clearError();
+        }, 2000);
+      } else {
+        errorDiv.textContent = data.message || 'Failed to reset password.';
+        errorDiv.style.display = 'block';
+        successDiv.style.display = 'none';
+      }
+    } catch (error) {
+      console.error('Password reset error:', error);
+      errorDiv.textContent = 'Connection error. Please try again.';
+      errorDiv.style.display = 'block';
+      successDiv.style.display = 'none';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Reset Password 🔓';
+    }
   }
 
   /**

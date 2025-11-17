@@ -97,8 +97,14 @@ export class PlayerProfileView {
             <h3>Account Information</h3>
             <div class="profile-row">
               <span class="profile-label">Email:</span>
-              <span class="profile-value">${this.escapeHtml(user.email || 'N/A')}</span>
-              ${user.emailVerified ? '<span class="email-verified-badge" style="color: #00ff88; margin-left: 10px;">✓ Verified</span>' : '<span class="email-unverified-badge" style="color: #ff4444; margin-left: 10px;">✗ Unverified</span>'}
+              <span class="profile-value" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                ${this.escapeHtml(user.email || 'N/A')}
+                ${user.emailVerified ? '<span class="email-verified-badge" style="color: #00ff88;">✓ Verified</span>' : '<span class="email-unverified-badge" style="color: #ff4444;">✗ Unverified</span>'}
+                ${!user.emailVerified ? `
+                  <button class="verify-email-btn" style="padding: 4px 12px; background: rgba(0, 255, 136, 0.2); color: #00ff88; border: 1px solid #00ff88; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: bold;">Verify Email</button>
+                  <button class="resend-verification-btn" style="padding: 4px 12px; background: rgba(0, 150, 255, 0.2); color: #0096ff; border: 1px solid #0096ff; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: bold;">Resend Token</button>
+                ` : ''}
+              </span>
             </div>
             <div class="profile-row">
               <span class="profile-label">Display Name:</span>
@@ -144,6 +150,14 @@ export class PlayerProfileView {
 
     this.container.querySelector('.change-password-btn')?.addEventListener('click', () => {
       this.showChangePasswordDialog();
+    });
+
+    this.container.querySelector('.resend-verification-btn')?.addEventListener('click', () => {
+      this.handleResendVerification();
+    });
+
+    this.container.querySelector('.verify-email-btn')?.addEventListener('click', () => {
+      this.showVerifyEmailDialog();
     });
   }
 
@@ -488,6 +502,248 @@ export class PlayerProfileView {
       this.container.parentNode.removeChild(this.container);
     }
     this.container = null;
+  }
+
+  /**
+   * Show dialog to enter verification token
+   */
+  showVerifyEmailDialog() {
+    // Create modal overlay
+    const modal = document.createElement('div');
+    modal.className = 'verify-email-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    `;
+
+    // Create modal content
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+      background: rgba(20, 20, 30, 0.95);
+      border: 2px solid #00ff88;
+      border-radius: 10px;
+      padding: 30px;
+      max-width: 500px;
+      width: 90%;
+      color: #ffffff;
+    `;
+
+    modalContent.innerHTML = `
+      <h2 style="color: #00ff88; margin-top: 0; margin-bottom: 20px;">Verify Email Address</h2>
+      <p style="margin-bottom: 20px; color: #cccccc;">
+        Enter the verification token you received. You can get a new token by clicking "Resend Token".
+      </p>
+      <div style="margin-bottom: 20px;">
+        <label for="verification-token-input" style="display: block; margin-bottom: 8px; color: #00ff88; font-weight: bold;">
+          Verification Token:
+        </label>
+        <input 
+          type="text" 
+          id="verification-token-input" 
+          placeholder="Paste your verification token here"
+          style="
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            color: #ffffff;
+            font-size: 14px;
+            box-sizing: border-box;
+          "
+        />
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button class="verify-cancel-btn" style="
+          padding: 10px 20px;
+          background: rgba(255, 68, 68, 0.2);
+          color: #ff4444;
+          border: 1px solid #ff4444;
+          border-radius: 5px;
+          cursor: pointer;
+          font-weight: bold;
+        ">Cancel</button>
+        <button class="verify-submit-btn" style="
+          padding: 10px 20px;
+          background: rgba(0, 255, 136, 0.2);
+          color: #00ff88;
+          border: 1px solid #00ff88;
+          border-radius: 5px;
+          cursor: pointer;
+          font-weight: bold;
+        ">Verify Email</button>
+      </div>
+      <div class="verify-error-message" style="
+        margin-top: 15px;
+        padding: 10px;
+        background: rgba(255, 68, 68, 0.2);
+        border: 1px solid #ff4444;
+        border-radius: 5px;
+        color: #ff4444;
+        display: none;
+      "></div>
+    `;
+
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+
+    // Focus on input
+    const tokenInput = modalContent.querySelector('#verification-token-input');
+    tokenInput.focus();
+
+    // Handle Enter key
+    tokenInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        modalContent.querySelector('.verify-submit-btn').click();
+      }
+    });
+
+    // Cancel button
+    modalContent.querySelector('.verify-cancel-btn').addEventListener('click', () => {
+      document.body.removeChild(modal);
+    });
+
+    // Close on overlay click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        document.body.removeChild(modal);
+      }
+    });
+
+    // Submit button
+    modalContent.querySelector('.verify-submit-btn').addEventListener('click', async () => {
+      const token = tokenInput.value.trim();
+      if (!token) {
+        this.showVerifyError(modalContent, 'Please enter a verification token');
+        return;
+      }
+
+      await this.handleVerifyEmail(token, modal, modalContent);
+    });
+  }
+
+  /**
+   * Handle email verification with token
+   */
+  async handleVerifyEmail(token, modal, modalContent) {
+    const submitBtn = modalContent.querySelector('.verify-submit-btn');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Verifying...';
+
+    // Hide any previous error
+    this.hideVerifyError(modalContent);
+
+    try {
+      const response = await fetch('/api/auth/verify-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ token })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Success - close modal and reload profile
+        document.body.removeChild(modal);
+        
+        // Update localStorage if role changed
+        if (data.roleUpdated && data.newRole) {
+          localStorage.setItem('user_role', data.newRole);
+        }
+        localStorage.setItem('user_email_verified', 'true');
+
+        // Reload profile
+        await this.loadProfile();
+        this.render();
+
+        // Show success message
+        alert('Email verified successfully!' + (data.roleUpdated ? `\n\nYour role has been updated to: ${data.newRole}` : ''));
+        
+        // Reload page to update menu items if role changed
+        if (data.roleUpdated) {
+          window.location.reload();
+        }
+      } else {
+        this.showVerifyError(modalContent, data.message || 'Verification failed. Please check your token and try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+    } catch (error) {
+      console.error('Error verifying email:', error);
+      this.showVerifyError(modalContent, 'An error occurred while verifying your email. Please try again.');
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
+  }
+
+  /**
+   * Show error message in verify email dialog
+   */
+  showVerifyError(modalContent, message) {
+    const errorDiv = modalContent.querySelector('.verify-error-message');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+  }
+
+  /**
+   * Hide error message in verify email dialog
+   */
+  hideVerifyError(modalContent) {
+    const errorDiv = modalContent.querySelector('.verify-error-message');
+    errorDiv.style.display = 'none';
+    errorDiv.textContent = '';
+  }
+
+  /**
+   * Handle resend verification email
+   */
+  async handleResendVerification() {
+    const btn = this.container.querySelector('.resend-verification-btn');
+    if (!btn) return;
+
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('/api/auth/profile/resend-verification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        const token = data.verificationToken || 'Check server logs';
+        alert(`Verification token sent!\n\nToken: ${token}\n\nClick "Verify Email" to enter this token and verify your email address.`);
+        // Reload profile to update verification status
+        await this.loadProfile();
+        this.render();
+      } else {
+        alert('Failed to send verification token: ' + (data.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error resending verification:', error);
+      alert('An error occurred while sending verification token.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
   }
 
   /**

@@ -271,6 +271,15 @@ export class GameRouter
   {
     try
     {
+      // Block visitors from joining games
+      if (req.user.role === 'visitor') {
+        return res.status(403).json({
+          success: false,
+          error: 'FORBIDDEN',
+          message: 'Email verification required to join games'
+        });
+      }
+
       const { gameId } = req.params;
       const { name, colorHex, countryName } = req.body;
       
