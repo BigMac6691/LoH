@@ -1,6 +1,8 @@
 /**
  * GamesAvailableList - List of games available for the current user to join
  */
+import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+
 export class GamesAvailableList {
   constructor() {
     this.container = null;
@@ -45,9 +47,7 @@ export class GamesAvailableList {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
       const response = await fetch(`/api/games/available`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: getHeadersForGet()
       });
 
       const data = await response.json();
@@ -175,10 +175,7 @@ export class GamesAvailableList {
     try {
       const response = await fetch(`/api/games/${gameId}/join`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
           // userId is now extracted from JWT token on backend
           name: null,

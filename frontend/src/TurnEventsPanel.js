@@ -1,6 +1,7 @@
 import { BaseDialog } from './BaseDialog.js';
 import { eventBus } from './eventBus.js';
 import { SpaceCombatViewer } from './SpaceCombatViewer.js';
+import { getHeadersForGet } from './utils/apiHeaders.js';
 
 /**
  * TurnEventsPanel - A draggable panel for displaying turn events
@@ -179,7 +180,7 @@ export class TurnEventsPanel extends BaseDialog
   {
     // Extract game and player info from context
     this.currentGame = { id: eventBus.getContext().gameId };
-    this.currentPlayer = { id: eventBus.getContext().user };
+    this.currentPlayer = { id: eventBus.getContext().playerId }; // Use playerId, not user (user is user_id)
     console.log('📝 TurnEventsPanel: Game start - Game:', this.currentGame?.id, 'Player:', this.currentPlayer?.id);
   }
 
@@ -191,7 +192,7 @@ export class TurnEventsPanel extends BaseDialog
     if (eventData.success && eventData.details)
     {
       this.currentGame = { id: eventData.details.gameId };
-      this.currentPlayer = { id: eventBus.getContext().user };
+      this.currentPlayer = { id: eventBus.getContext().playerId }; // Use playerId, not user (user is user_id)
       this.currentTurn = eventData.details.currentTurn;
       console.log('📝 TurnEventsPanel: Game loaded - Game:', this.currentGame?.id, 'Player:', this.currentPlayer?.id, 'Turn:', this.currentTurn?.number);
     }
@@ -250,7 +251,10 @@ export class TurnEventsPanel extends BaseDialog
       }
 
       const response = await fetch(
-        `/api/turn-events/${this.currentGame.id}/${previousTurnId}/player/${eventBus.getContext().user}`
+        `/api/turn-events/${this.currentGame.id}/${previousTurnId}/player/${eventBus.getContext().playerId}`, // Use playerId, not user (user is user_id)
+        {
+          headers: getHeadersForGet()
+        }
       );
 
       if (!response.ok)
@@ -288,7 +292,9 @@ export class TurnEventsPanel extends BaseDialog
   {
     try
     {
-      const response = await fetch(`/api/games/${this.currentGame.id}/turns`);
+      const response = await fetch(`/api/games/${this.currentGame.id}/turns`, {
+        headers: getHeadersForGet()
+      });
       
       if (!response.ok)
       {

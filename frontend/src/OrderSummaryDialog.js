@@ -1,6 +1,7 @@
 import { BaseDialog } from './BaseDialog.js';
 import { getOrderSummaryRows } from './utils/orderSummary.js';
 import { eventBus } from './eventBus.js';
+import { getHeaders, getHeadersForGet } from './utils/apiHeaders.js';
 
 /**
  * OrderSummaryDialog - Displays a sortable summary of orders for the current turn.
@@ -57,7 +58,7 @@ export class OrderSummaryDialog extends BaseDialog
          if (eventData.success && eventData.details)
          {
             this.currentGameId = eventData.details.gameId;
-            this.currentPlayerId = context?.user || eventBus.getContext()?.user;
+            this.currentPlayerId = context?.playerId || eventBus.getContext()?.playerId; // Use playerId, not user (user is user_id)
             if (eventData.details.currentTurn)
             {
                this.currentTurnId = eventData.details.currentTurn.id;
@@ -795,9 +796,7 @@ export class OrderSummaryDialog extends BaseDialog
       {
          const response = await fetch(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`, {
             method: 'DELETE',
-            headers: {
-               'Content-Type': 'application/json'
-            }
+            headers: getHeadersForGet()
          });
 
          if (!response.ok)
@@ -1110,14 +1109,16 @@ export class OrderSummaryDialog extends BaseDialog
       // Get current context
       const context = eventBus.getContext();
       this.currentGameId = context?.gameId || this.currentGameId;
-      this.currentPlayerId = context?.user || this.currentPlayerId;
+      this.currentPlayerId = context?.playerId || this.currentPlayerId; // Use playerId, not user (user is user_id)
 
       // Get current turn if not already set
       if (!this.currentTurnId && this.currentGameId)
       {
          try
          {
-            const response = await fetch(`/api/games/${this.currentGameId}/turn/open`);
+            const response = await fetch(`/api/games/${this.currentGameId}/turn/open`, {
+               headers: getHeadersForGet()
+            });
             if (response.ok)
             {
                const result = await response.json();

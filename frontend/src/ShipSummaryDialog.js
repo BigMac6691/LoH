@@ -2,6 +2,7 @@ import { BaseDialog } from './BaseDialog.js';
 import { getShipSummaryRows } from './utils/shipSummary.js';
 import { getShipDisplayName } from './utils/shipGrouping.js';
 import { eventBus } from './eventBus.js';
+import { getHeaders, getHeadersForGet } from './utils/apiHeaders.js';
 
 /**
  * ShipSummaryDialog - Displays a summary of ships at all stars.
@@ -50,7 +51,7 @@ export class ShipSummaryDialog extends BaseDialog
          if (eventData.success && eventData.details)
          {
             this.currentGameId = eventData.details.gameId;
-            this.currentPlayerId = context?.user || eventBus.getContext()?.user;
+            this.currentPlayerId = context?.playerId || eventBus.getContext()?.playerId; // Use playerId, not user (user is user_id)
             if (eventData.details.currentTurn)
             {
                this.currentTurnId = eventData.details.currentTurn.id;
@@ -726,9 +727,7 @@ export class ShipSummaryDialog extends BaseDialog
       {
          const response = await fetch(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`, {
             method: 'DELETE',
-            headers: {
-               'Content-Type': 'application/json'
-            }
+            headers: getHeadersForGet()
          });
 
          if (!response.ok)
@@ -772,7 +771,9 @@ export class ShipSummaryDialog extends BaseDialog
       try
       {
          // Get current standing orders to preserve industry orders
-         const getResponse = await fetch(`/api/orders/standing/${starId}?gameId=${this.currentGameId}`);
+         const getResponse = await fetch(`/api/orders/standing/${starId}?gameId=${this.currentGameId}`, {
+            headers: getHeadersForGet()
+         });
          if (!getResponse.ok)
          {
             throw new Error('Failed to get standing orders');
@@ -789,9 +790,7 @@ export class ShipSummaryDialog extends BaseDialog
          // Update standing orders - backend will remove null properties
          const updateResponse = await fetch('/api/orders/standing', {
             method: 'POST',
-            headers: {
-               'Content-Type': 'application/json'
-            },
+            headers: getHeaders(),
             body: JSON.stringify({
                gameId: this.currentGameId,
                starId: starId,
@@ -1050,7 +1049,7 @@ export class ShipSummaryDialog extends BaseDialog
       // Get current context
       const context = eventBus.getContext();
       this.currentGameId = context?.gameId || this.currentGameId;
-      this.currentPlayerId = context?.user || this.currentPlayerId;
+      this.currentPlayerId = context?.playerId || this.currentPlayerId; // Use playerId, not user (user is user_id)
 
       console.log('🚢 ShipSummaryDialog: show() called, context:', context);
       console.log('🚢 ShipSummaryDialog: Current IDs before fetch:', {
@@ -1065,7 +1064,9 @@ export class ShipSummaryDialog extends BaseDialog
          try
          {
             console.log('🚢 ShipSummaryDialog: Fetching current turn from:', `/api/games/${this.currentGameId}/turn/open`);
-            const response = await fetch(`/api/games/${this.currentGameId}/turn/open`);
+            const response = await fetch(`/api/games/${this.currentGameId}/turn/open`, {
+               headers: getHeadersForGet()
+            });
             if (response.ok)
             {
                const result = await response.json();

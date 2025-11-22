@@ -1,6 +1,8 @@
 /**
  * GamesPlayingList - List of games the current user is playing
  */
+import { getHeadersForGet } from '../utils/apiHeaders.js';
+
 export class GamesPlayingList {
   constructor() {
     this.container = null;
@@ -45,9 +47,7 @@ export class GamesPlayingList {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
       const response = await fetch(`/api/games/playing`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: getHeadersForGet()
       });
 
       const data = await response.json();

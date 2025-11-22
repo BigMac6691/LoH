@@ -99,13 +99,12 @@ export class AIService {
     console.log(`🤖 AIService: Executing all AI turns for game ${gameId}`);
     
     try {
-      // Find all players with AI assigned
+      // Find all AI players
       const { rows: aiPlayers } = await pool.query(
         `SELECT id, name, meta FROM game_player 
          WHERE game_id = $1 
          AND status = 'active'
-         AND meta->>'main_ai' IS NOT NULL
-         AND meta->>'main_ai' != ''`,
+         AND type = 'ai'`,
         [gameId]
       );
       

@@ -3,6 +3,7 @@
  * Handles game loading, rendering, and other game-specific events
  */
 import { eventBus } from '../eventBus.js';
+import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
 
 export class GameEventHandler {
   constructor() {
@@ -60,14 +61,24 @@ export class GameEventHandler {
 
   /**
    * Handle create game event
+   * Can be used for:
+   * 1. Creating a new game (requires ownerId, seed, mapSize, etc.)
+   * 2. Creating game world for existing game (requires only gameId - generates map and places players)
    * @param {Object} context - Current system context
-   * @param {Object} gameData - Game data to create
+   * @param {Object} gameData - Game data to create or gameId for existing game
    */
   async handleCreateGame(context, gameData) {
     console.log('🎮 GameEventHandler: Creating game:', gameData);
     console.log('🎮 GameEventHandler: Context:', context);
     
     try {
+      // Check if this is for an existing game (just gameId provided) or a new game
+      if (gameData.gameId && !gameData.ownerId) {
+        // This is for an existing game - generate map and place players
+        return await this.createGameWorld(gameData.gameId);
+      }
+      
+      // Otherwise, create a new game record
       // Validate required parameters
       const { ownerId, seed, mapSize, densityMin, densityMax, title, description, status } = gameData;
       
@@ -87,9 +98,7 @@ export class GameEventHandler {
       // Call the backend API to create the game
       const response = await fetch('/api/games', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
           ownerId,
           seed,
@@ -143,6 +152,91 @@ export class GameEventHandler {
   }
 
   /**
+   * Create game world for an existing game (generate map and place players)
+   * @param {string} gameId - Game ID
+   */
+  async createGameWorld(gameId) {
+    console.log('🎮 GameEventHandler: Creating game world for existing game:', gameId);
+    
+    try {
+      if (!gameId) {
+        eventBus.emit('game:gameCreated', { 
+          success: false, 
+          error: 'validation_error',
+          message: 'Game ID is required'
+        });
+        return;
+      }
+
+      // Step 1: Generate map
+      console.log('🎮 GameEventHandler: Step 1 - Generating map...');
+      const mapResponse = await fetch(`/api/games/${gameId}/generate-map`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({})
+      });
+
+      if (!mapResponse.ok) {
+        const errorData = await mapResponse.json();
+        console.error('🎮 GameEventHandler: Map generation failed:', errorData);
+        eventBus.emit('game:gameCreated', { 
+          success: false, 
+          error: 'api_error',
+          message: errorData.error || 'Failed to generate map',
+          details: errorData.details
+        });
+        return;
+      }
+
+      const mapResult = await mapResponse.json();
+      console.log('🎮 GameEventHandler: Map generated successfully:', mapResult);
+
+      // Step 2: Place players
+      console.log('🎮 GameEventHandler: Step 2 - Placing players...');
+      const placeResponse = await fetch(`/api/games/${gameId}/place-players`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({})
+      });
+
+      if (!placeResponse.ok) {
+        const errorData = await placeResponse.json();
+        console.error('🎮 GameEventHandler: Player placement failed:', errorData);
+        eventBus.emit('game:gameCreated', { 
+          success: false, 
+          error: 'api_error',
+          message: errorData.error || 'Failed to place players',
+          details: errorData.details
+        });
+        return;
+      }
+
+      const placeResult = await placeResponse.json();
+      console.log('🎮 GameEventHandler: Players placed successfully:', placeResult);
+
+      // Emit success event
+      eventBus.emit('game:gameCreated', {
+        success: true,
+        details: {
+          eventType: 'game:gameCreated',
+          gameId: gameId,
+          starsCount: mapResult.starsCount,
+          wormholesCount: mapResult.wormholesCount,
+          playersPlaced: placeResult.playersPlaced || 0
+        }
+      });
+
+    } catch (error) {
+      console.error('🎮 GameEventHandler: Unexpected error creating game world:', error);
+      eventBus.emit('game:gameCreated', { 
+        success: false, 
+        error: 'unexpected_error',
+        message: error.message || 'Unexpected error occurred'
+      });
+    }
+  }
+
+  /**
    * Handle add player event
    * @param {Object} context - Current system context
    * @param {Object} playerData - Player data to add
@@ -182,9 +276,7 @@ export class GameEventHandler {
       // Call the backend API to add the player
       const response = await fetch('/api/games/players', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
           gameId,
           userId,
@@ -277,9 +369,7 @@ export class GameEventHandler {
       // Call the backend API to generate the map (only need gameId)
       const response = await fetch(`/api/games/${gameId}/generate-map`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getHeaders(),
         body: JSON.stringify({})
       });
       
@@ -349,9 +439,7 @@ export class GameEventHandler {
       // Call the backend API to place players
       const response = await fetch(`/api/games/${gameId}/place-players`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getHeaders(),
         body: JSON.stringify({})
       });
       
@@ -403,7 +491,9 @@ export class GameEventHandler {
     
     try {
       // First, try to get the open turn
-      const openTurnResponse = await fetch(`/api/games/${gameId}/turn/open`);
+      const openTurnResponse = await fetch(`/api/games/${gameId}/turn/open`, {
+        headers: getHeadersForGet()
+      });
       
       if (openTurnResponse.ok) {
         const openTurnData = await openTurnResponse.json();
@@ -417,9 +507,7 @@ export class GameEventHandler {
       console.log('🎮 GameEventHandler: No open turn found, creating turn 1');
       const createTurnResponse = await fetch(`/api/games/${gameId}/turn`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
           number: 1
         })
@@ -471,9 +559,7 @@ export class GameEventHandler {
       // Load complete game state from backend
       const response = await fetch(`/api/games/${gameId}/state`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers: getHeadersForGet()
       });
       
       if (!response.ok) {
@@ -495,14 +581,14 @@ export class GameEventHandler {
       // Set game ID on event bus
       eventBus.setGameId(gameId);
       
-      // Set user ID to the first player in the list
-      // if (gameData.players && gameData.players.length > 0) {
-      //   const firstPlayer = gameData.players[0];
-      //   eventBus.setUser(firstPlayer.id);
-      //   console.log('🎮 GameEventHandler: Set context - GameId:', gameId, 'UserId:', firstPlayer.id);
-      // } else {
-      //   console.warn('🎮 GameEventHandler: No players found in game data');
-      // }
+      // Set player ID from the game state (this is the player_id for the current user in this game)
+      if (gameData.currentPlayerId) {
+        eventBus.setPlayerId(gameData.currentPlayerId);
+        console.log('🎮 GameEventHandler: Set player ID:', gameData.currentPlayerId);
+      } else {
+        console.warn('🎮 GameEventHandler: No currentPlayerId in game state - user may not be a player in this game');
+        eventBus.setPlayerId(null);
+      }
       
       // Get current turn for the game
       const currentTurn = await this.getCurrentTurn(gameId);

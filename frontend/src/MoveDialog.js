@@ -3,6 +3,7 @@ import { eventBus } from './eventBus.js';
 import { DualSlider } from './DualSlider.js';
 import { BaseDialog } from './BaseDialog.js';
 import { MoveDialogView } from './MoveDialogView.js';
+import { getHeaders, getHeadersForGet } from './utils/apiHeaders.js';
 
 /**
  * MoveDialog - A draggable dialog for managing fleet movement
@@ -506,7 +507,7 @@ export class MoveDialog extends BaseDialog
   async loadStandingOrders(starId) {
     const context = eventBus.getContext();
     const gameId = context.gameId;
-    const playerId = context.user;
+    const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
 
     if (!gameId || !playerId) {
       console.warn('🚀 MoveDialog: Cannot load standing orders - missing gameId or playerId');
@@ -514,7 +515,9 @@ export class MoveDialog extends BaseDialog
     }
 
     try {
-      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}`);
+      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}`, {
+        headers: getHeadersForGet()
+      });
       if (!response.ok) {
         console.warn('🚀 MoveDialog: Failed to load standing orders:', response.statusText);
         return null;
@@ -534,7 +537,7 @@ export class MoveDialog extends BaseDialog
   async saveStandingOrders(starId, standingOrders) {
     const context = eventBus.getContext();
     const gameId = context.gameId;
-    const playerId = context.user;
+    const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
 
     if (!gameId || !playerId) {
       console.error('🚀 MoveDialog: Cannot save standing orders - missing gameId or playerId');
@@ -544,9 +547,7 @@ export class MoveDialog extends BaseDialog
     try {
       const response = await fetch('/api/orders/standing', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
           gameId,
           starId,
@@ -575,7 +576,7 @@ export class MoveDialog extends BaseDialog
   async deleteStandingOrders(starId) {
     const context = eventBus.getContext();
     const gameId = context.gameId;
-    const playerId = context.user;
+    const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
 
     if (!gameId || !playerId) {
       console.error('🚀 MoveDialog: Cannot delete standing orders - missing gameId or playerId');
@@ -584,7 +585,8 @@ export class MoveDialog extends BaseDialog
 
     try {
       const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getHeadersForGet()
       });
 
       if (!response.ok) {

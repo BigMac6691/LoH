@@ -212,9 +212,6 @@ document.addEventListener('DOMContentLoaded', () =>
   // Initialize game event handler
   gameEventHandler = new GameEventHandler();
   
-  // Initialize development event handler
-  devEventHandler = new DevEventHandler();
-  
   // Initialize order event handler
   orderEventHandler = new OrderEventHandler();
   
@@ -224,6 +221,9 @@ document.addEventListener('DOMContentLoaded', () =>
   // Initialize dev panel if in dev mode
   if (DEV_MODE > 0)
   {
+    // Initialize development event handler
+    devEventHandler = new DevEventHandler();
+    
     // Initialize dev panel (includes all dev tools)
     devPanel = new DevPanel(scene, renderer, camera, mapGenerator);
     devPanel.show(); // Show dev panel by default in dev mode
@@ -488,7 +488,7 @@ function createEndTurnButton()
   endTurnButton.addEventListener('click', () => {
     const context = eventBus.getContext();
     const gameId = context?.gameId;
-    const playerId = context?.user;
+    const playerId = context?.playerId; // Use playerId, not user (user is user_id)
     
     if (!gameId || !playerId) {
       console.error('✅ End Turn button clicked but missing gameId or playerId in context');

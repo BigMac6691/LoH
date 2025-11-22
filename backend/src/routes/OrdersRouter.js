@@ -5,6 +5,7 @@ import { getStandingOrders, setStandingOrders, clearStandingOrders, getStarState
 import { deleteOrderById } from '../repos/ordersRepo.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireGamePlayer } from '../middleware/rbac.js';
+import { pool } from '../db/pool.js';
 
 export class OrdersRouter
 {
@@ -63,6 +64,24 @@ export class OrdersRouter
       {
         return res.status(400).json({
           error: 'Missing required parameters: gameId, orderType, payload, playerId'
+        });
+      }
+
+      // Verify the player is not an AI player
+      const { rows: playerRows } = await pool.query(
+        `SELECT type FROM game_player WHERE game_id = $1 AND id = $2`,
+        [gameId, playerId]
+      );
+
+      if (playerRows.length === 0) {
+        return res.status(404).json({
+          error: 'Player not found in this game'
+        });
+      }
+
+      if (playerRows[0].type === 'ai') {
+        return res.status(403).json({
+          error: 'Cannot submit orders for AI players'
         });
       }
 

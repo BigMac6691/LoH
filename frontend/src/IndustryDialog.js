@@ -3,6 +3,7 @@
  */
 import { eventBus } from './eventBus.js';
 import { BaseDialog } from './BaseDialog.js';
+import { getHeaders, getHeadersForGet } from './utils/apiHeaders.js';
 
 export class IndustryDialog extends BaseDialog
 {
@@ -630,7 +631,7 @@ export class IndustryDialog extends BaseDialog
   {
     const context = eventBus.getContext();
     const gameId = context.gameId;
-    const playerId = context.user;
+    const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
 
     if (!gameId || !playerId)
     {
@@ -640,7 +641,9 @@ export class IndustryDialog extends BaseDialog
 
     try
     {
-      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}`);
+      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}`, {
+        headers: getHeadersForGet()
+      });
       if (!response.ok)
       {
         console.warn('🏭 IndustryDialog: Failed to load standing orders:', response.statusText);
@@ -664,7 +667,7 @@ export class IndustryDialog extends BaseDialog
   {
     const context = eventBus.getContext();
     const gameId = context.gameId;
-    const playerId = context.user;
+    const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
 
     if (!gameId || !playerId)
     {
@@ -676,9 +679,7 @@ export class IndustryDialog extends BaseDialog
     {
       const response = await fetch('/api/orders/standing', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
           gameId,
           starId,
@@ -711,7 +712,7 @@ export class IndustryDialog extends BaseDialog
   {
     const context = eventBus.getContext();
     const gameId = context.gameId;
-    const playerId = context.user;
+    const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
 
     if (!gameId || !playerId)
     {
@@ -722,7 +723,8 @@ export class IndustryDialog extends BaseDialog
     try
     {
       const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getHeadersForGet()
       });
 
       if (!response.ok)

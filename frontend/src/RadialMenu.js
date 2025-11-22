@@ -218,14 +218,24 @@ export class RadialMenu {
    * @param {Object} star - Star object for context
    */
   show(position, star) {
-    // Check if current user equals the owner of the passed star
-    const currentUser = eventBus.getContext().user;
+    // Check if current player equals the owner of the passed star
+    const currentPlayerId = eventBus.getContext().playerId;
     const starOwner = star.getOwner();
     
-    if (currentUser && starOwner && currentUser !== starOwner.id) {
-      console.log('🚫 RadialMenu: Current user does not own this star, hiding menu');
+    if (currentPlayerId && starOwner && currentPlayerId !== starOwner.id) {
+      console.log('🚫 RadialMenu: Current player does not own this star, hiding menu');
       this.hide();
       return;
+    }
+
+    // Check if the star owner is an AI player
+    if (starOwner && window.globalPlayers) {
+      const ownerPlayerData = window.globalPlayers.get(starOwner.id);
+      if (ownerPlayerData && ownerPlayerData.type === 'ai') {
+        console.log('🚫 RadialMenu: Star is owned by an AI player, hiding menu');
+        this.hide();
+        return;
+      }
     }
 
     if (this.isVisible && this.currentStar === star) {

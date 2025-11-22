@@ -2,6 +2,7 @@
  * CreateGameView - Create a new game interface
  */
 import { DualSlider } from '../DualSlider.js';
+import { getHeaders } from '../utils/apiHeaders.js';
 
 export class CreateGameView {
   constructor() {
@@ -181,10 +182,7 @@ export class CreateGameView {
     try {
       const response = await fetch('/api/games', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
           title,
           description,

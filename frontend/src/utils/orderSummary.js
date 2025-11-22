@@ -1,6 +1,7 @@
 /**
  * Utility functions for building order summary table data.
  */
+import { getHeadersForGet } from './apiHeaders.js';
 
 /**
  * Get star name from star ID
@@ -177,7 +178,9 @@ export async function getOrderSummaryRows(gameId, turnId, playerId)
    try
    {
       // Fetch orders for the current turn
-      const response = await fetch(`/api/orders/turn/${turnId}?gameId=${gameId}&playerId=${playerId}`);
+      const response = await fetch(`/api/orders/turn/${turnId}?gameId=${gameId}&playerId=${playerId}`, {
+        headers: getHeadersForGet()
+      });
       
       if (!response.ok)
       {

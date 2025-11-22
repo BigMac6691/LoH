@@ -7,6 +7,7 @@ import
    eventBus
 }
 from '../eventBus.js';
+import { getHeaders } from '../utils/apiHeaders.js';
 
 export class TurnEventHandler
 {
@@ -45,7 +46,7 @@ export class TurnEventHandler
             throw new Error('Missing event details');
          }
 
-         const playerId = context.user;
+         const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
          const
          {
             gameId
@@ -60,10 +61,7 @@ export class TurnEventHandler
          const response = await fetch('/api/turns/end-turn',
          {
             method: 'POST',
-            headers:
-            {
-               'Content-Type': 'application/json',
-            },
+            headers: getHeaders(),
             body: JSON.stringify(
             {
                gameId,

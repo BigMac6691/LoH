@@ -1077,7 +1077,7 @@ export class MapViewGenerator
       return;
     }
 
-    const currentPlayerId = eventBus.getContext().user;
+    const currentPlayerId = eventBus.getContext().playerId; // Use playerId, not user (user is user_id)
     if (!currentPlayerId) {
       return;
     }

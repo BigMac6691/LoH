@@ -6,7 +6,8 @@ export class EventBus {
   constructor() {
     this.listeners = new Map();
     this.context = {
-      user: null,
+      user: null,      // user_id (from JWT/auth)
+      playerId: null,  // player_id (game-specific, from game_player.id)
       gameId: null
     };
   }
@@ -122,8 +123,17 @@ export class EventBus {
   }
 
   /**
+   * Set current player ID in context (game-specific)
+   * @param {string} playerId - Player ID (from game_player.id)
+   */
+  setPlayerId(playerId) {
+    this.context.playerId = playerId;
+    console.log('👤 EventBus: Player ID context updated:', playerId);
+  }
+
+  /**
    * Get current context
-   * @returns {Object} Current context with user and gameId
+   * @returns {Object} Current context with user, playerId, and gameId
    */
   getContext() {
     return { ...this.context };

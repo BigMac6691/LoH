@@ -32,10 +32,6 @@ export class SystemEventHandler {
     eventBus.emit('system:userReady', eventBus.getContext());
   }
 
-
-
-
-
   /**
    * Clean up event listeners
    */

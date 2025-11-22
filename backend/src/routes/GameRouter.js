@@ -177,7 +177,7 @@ export class GameRouter
       // Use authenticated user ID from JWT
       const userId = req.user.id;
 
-      // Get games where user is a player, with owner info and latest turn
+      // Get games where user is a player (excluding AI players), with owner info and latest turn
       const { rows } = await pool.query(
         `SELECT 
           g.*,
@@ -194,7 +194,7 @@ export class GameRouter
           ORDER BY number DESC 
           LIMIT 1
         ) gt ON true
-        WHERE gp.user_id = $1
+        WHERE gp.user_id = $1 AND gp.type = 'player'
         ORDER BY g.created_at DESC`,
         [userId]
       );
@@ -226,7 +226,7 @@ export class GameRouter
       // Use authenticated user ID from JWT
       const userId = req.user.id;
 
-      // Get games where user is NOT a player, with player count and owner info
+      // Get games where user is NOT a player, with player count (excluding AI) and owner info
       const { rows } = await pool.query(
         `SELECT 
           g.*,
@@ -237,9 +237,9 @@ export class GameRouter
         LEFT JOIN LATERAL (
           SELECT COUNT(*) as player_count
           FROM game_player
-          WHERE game_id = g.id
+          WHERE game_id = g.id AND type = 'player'
         ) player_counts ON true
-        LEFT JOIN game_player gp ON g.id = gp.game_id AND gp.user_id = $1
+        LEFT JOIN game_player gp ON g.id = gp.game_id AND gp.user_id = $1 AND gp.type = 'player'
         WHERE gp.user_id IS NULL
           AND g.status IN ('lobby', 'running')
           AND COALESCE(player_counts.player_count, 0) < g.max_players
@@ -292,10 +292,10 @@ export class GameRouter
         });
       }
 
-      // Check if game exists and has space
+      // Check if game exists and has space (count only human players for max_players check)
       const { rows: gameRows } = await pool.query(
         `SELECT g.*, 
-         COUNT(gp.id) as player_count
+         COUNT(CASE WHEN gp.type = 'player' THEN gp.id END) as player_count
          FROM game g
          LEFT JOIN game_player gp ON g.id = gp.game_id
          WHERE g.id = $1
@@ -317,9 +317,9 @@ export class GameRouter
         });
       }
 
-      // Check if user is already in the game
+      // Check if user is already in the game (as a human player)
       const { rows: existingPlayer } = await pool.query(
-        `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2`,
+        `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
         [gameId, userId]
       );
 
@@ -519,6 +519,18 @@ export class GameRouter
       
       const gameInfo = games.length > 0 ? games[0] : { map_size: 5, seed: 'default', density_min: 3, density_max: 7 };
       
+      // Get current player_id for the authenticated user (if they're a player in this game)
+      let currentPlayerId = null;
+      if (req.user && req.user.id) {
+        const { rows: currentPlayerRows } = await pool.query(
+          `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
+          [gameId, req.user.id]
+        );
+        if (currentPlayerRows.length > 0) {
+          currentPlayerId = currentPlayerRows[0].id;
+        }
+      }
+      
       // Log the first few stars to inspect resource values
       console.log('🔍 Game State - Sample Stars with Resource Values:');
       stars.slice(0, 5).forEach((star, index) => {
@@ -526,6 +538,7 @@ export class GameRouter
       });
       console.log(`  Total stars: ${stars.length}`);
       console.log(`  Game map size: ${gameInfo.map_size}`);
+      console.log(`  Current player ID: ${currentPlayerId || 'none'}`);
 
       res.json({
         stars,
@@ -534,6 +547,7 @@ export class GameRouter
         ships,
         players,
         gameInfo,
+        currentPlayerId, // The player_id for the authenticated user in this game
         counts: {
           stars: stars.length,
           wormholes: wormholes.length,
@@ -647,7 +661,7 @@ export class GameRouter
   async addAIPlayer(req, res) {
     try {
       const { gameId } = req.params;
-      const { aiName, countryName, aiConfig } = req.body;
+      const { aiName, playerName, countryName, aiConfig } = req.body;
       const userId = req.user.id; // Use the authenticated user (sponsor/admin) as the userId for AI players
       
       if (!gameId) {
@@ -664,6 +678,13 @@ export class GameRouter
         });
       }
 
+      if (!playerName || !playerName.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Player name is required'
+        });
+      }
+
       if (!countryName || !countryName.trim()) {
         return res.status(400).json({
           success: false,
@@ -671,10 +692,10 @@ export class GameRouter
         });
       }
 
-      // Check if game exists and has space
+      // Check if game exists and has space (count only human players for max_players check)
       const { rows: gameRows } = await pool.query(
         `SELECT g.*, 
-         COUNT(gp.id) as player_count
+         COUNT(CASE WHEN gp.type = 'player' THEN gp.id END) as player_count
          FROM game g
          LEFT JOIN game_player gp ON g.id = gp.game_id
          WHERE g.id = $1
@@ -695,6 +716,20 @@ export class GameRouter
         return res.status(400).json({
           success: false,
           error: 'Game is full'
+        });
+      }
+
+      // Validate player name uniqueness
+      const trimmedPlayerName = playerName.trim();
+      const { rows: existingPlayer } = await pool.query(
+        `SELECT id FROM game_player WHERE game_id = $1 AND name = $2`,
+        [gameId, trimmedPlayerName]
+      );
+
+      if (existingPlayer.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Player name is already taken in this game'
         });
       }
 
@@ -745,9 +780,6 @@ export class GameRouter
       const usedColors = existingColors.map(r => r.color_hex);
       const availableColor = colors.find(c => !usedColors.includes(c)) || colors[0];
 
-      // Create player name from AI name and country
-      const playerName = `${aiName} (${trimmedCountryName})`;
-
       // Prepare meta with AI configuration
       const meta = {
         main_ai: aiName,
@@ -759,10 +791,11 @@ export class GameRouter
       const result = await addPlayerToGame({
         gameId,
         userId, // Use the authenticated user's ID (sponsor/admin who added the AI)
-        name: playerName,
+        name: trimmedPlayerName,
         colorHex: availableColor,
         countryName: trimmedCountryName,
-        meta
+        meta,
+        type: 'ai' // Mark as AI player
       });
 
       return res.json({

@@ -2,6 +2,8 @@
  * ManageGamesView - Manage games interface (sponsor/admin/owner only)
  */
 import { AIConfigFormBuilder } from './AIConfigFormBuilder.js';
+import { eventBus } from '../eventBus.js';
+import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
 
 export class ManageGamesView {
   constructor() {
@@ -13,6 +15,9 @@ export class ManageGamesView {
     this.currentPage = 1;
     this.totalPages = 1;
     this.userRole = localStorage.getItem('user_role');
+    
+    // Bind event handlers
+    this.handleGameCreated = this.handleGameCreated.bind(this);
   }
 
   /**
@@ -89,6 +94,7 @@ export class ManageGamesView {
     `;
 
     this.setupEventListeners();
+    this.setupEventBusListeners();
     this.loadGames();
     return this.container;
   }
@@ -121,6 +127,14 @@ export class ManageGamesView {
   }
 
   /**
+   * Setup event bus listeners
+   */
+  setupEventBusListeners() {
+    // Listen for game created event (response to createGame - map generation and player placement)
+    eventBus.on('game:gameCreated', this.handleGameCreated);
+  }
+
+  /**
    * Load games from API
    */
   async loadGames(page = 1) {
@@ -131,9 +145,7 @@ export class ManageGamesView {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
       const response = await fetch(`/api/games/manage?page=${page}&limit=10`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: getHeadersForGet()
       });
 
       const data = await response.json();
@@ -330,9 +342,7 @@ export class ManageGamesView {
       playersContainer.innerHTML = '<div class="players-loading">Loading players...</div>';
 
       const response = await fetch(`/api/games/${gameId}/manage/players`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: getHeadersForGet()
       });
 
       const data = await response.json();
@@ -488,7 +498,64 @@ export class ManageGamesView {
    */
   async startGame() {
     if (!this.selectedGame || this.selectedGame.status !== 'lobby') return;
-    await this.updateGameStatus('running');
+    
+    // Store the gameId we're creating (generating map/placing players) for the response handler
+    this.pendingCreateGameId = this.selectedGame.id;
+    
+    // Disable the start button to prevent multiple clicks
+    const startBtn = this.container.querySelector('#start-game-btn');
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.textContent = 'Creating Game...';
+    }
+    
+    // Emit event to create the game (generate map, place players) via GameEventHandler
+    eventBus.emit('game:createGame', { gameId: this.selectedGame.id });
+  }
+
+  /**
+   * Handle game created event (response from GameEventHandler after map generation and player placement)
+   * @param {Object} context - Event bus context
+   * @param {Object} eventData - Event data with success status and details
+   */
+  handleGameCreated(context, eventData) {
+    // Only handle if this is for the game we're creating
+    if (!this.pendingCreateGameId) return;
+    
+    // Check if this event is for our game (either by gameId in details or if it's a general success)
+    const eventGameId = eventData.details?.gameId;
+    if (eventGameId && eventGameId !== this.pendingCreateGameId) {
+      // This event is for a different game, ignore it
+      return;
+    }
+    
+    if (eventData.success) {
+      // Game created successfully (map generated, players placed), update the UI
+      const gameId = this.pendingCreateGameId;
+      this.pendingCreateGameId = null;
+      
+      // Update game status to 'running' via API
+      this.updateGameStatus('running').then(() => {
+        // UI will be updated by updateGameStatus
+      }).catch(error => {
+        console.error('Error updating game status after creation:', error);
+        alert(`Game created but failed to update status: ${error.message}`);
+      });
+    } else {
+      // Game creation failed
+      this.pendingCreateGameId = null;
+      
+      // Re-enable the start button
+      const startBtn = this.container.querySelector('#start-game-btn');
+      if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.textContent = 'Start Game';
+      }
+      
+      // Show error message
+      const errorMsg = eventData.message || eventData.error || 'Failed to create game';
+      alert(`Error creating game: ${errorMsg}`);
+    }
   }
 
   async pauseUnpauseGame() {
@@ -520,10 +587,7 @@ export class ManageGamesView {
     try {
       const response = await fetch(`/api/games/${this.selectedGame.id}/status`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ status: newStatus })
       });
 
@@ -569,9 +633,7 @@ export class ManageGamesView {
     try {
       const response = await fetch(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/end-turn`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: getHeaders(),
       });
 
       const data = await response.json();
@@ -616,10 +678,7 @@ export class ManageGamesView {
     try {
       const response = await fetch(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/status`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ status: newStatus })
       });
 
@@ -651,11 +710,8 @@ export class ManageGamesView {
     // Fetch available AIs
     let availableAIs = [];
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch('/api/ai/list', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: getHeadersForGet()
       });
       const data = await response.json();
       if (data.success && data.ais) {
@@ -725,6 +781,19 @@ export class ManageGamesView {
           line-height: 1.5;
           display: none;
         "></div>
+        <div class="player-name-group">
+          <label for="player-name-input" style="display: block; margin-bottom: 8px; color: #00ff88;">Player Name:</label>
+          <input type="text" id="player-name-input" class="player-name-input" placeholder="Enter unique player name" style="
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            color: white;
+            font-size: 14px;
+            margin-bottom: 15px;
+          " />
+        </div>
         <div class="country-name-group">
           <label for="country-name-input" style="display: block; margin-bottom: 8px; color: #00ff88;">Country Name:</label>
           <input type="text" id="country-name-input" class="country-name-input" placeholder="Enter unique country name" style="
@@ -787,6 +856,7 @@ export class ManageGamesView {
 
     const aiDescription = dialog.querySelector('#ai-description');
     const aiConfigContainer = dialog.querySelector('#ai-config-container');
+    const playerNameInput = dialog.querySelector('#player-name-input');
     const countryNameInput = dialog.querySelector('#country-name-input');
     const addBtn = dialog.querySelector('.add-ai-player-btn');
     const errorDiv = dialog.querySelector('#ai-dialog-error');
@@ -826,7 +896,12 @@ export class ManageGamesView {
         currentForm = { getData: () => ({}), validate: () => [] };
       }
 
-      // Enable add button if country name is filled
+      // Enable add button if required fields are filled
+      updateAddButtonState();
+    });
+
+    // Player name input handler
+    playerNameInput.addEventListener('input', () => {
       updateAddButtonState();
     });
 
@@ -837,16 +912,24 @@ export class ManageGamesView {
 
     // Update add button state
     function updateAddButtonState() {
+      const hasPlayerName = playerNameInput.value.trim().length > 0;
       const hasCountryName = countryNameInput.value.trim().length > 0;
       const hasAI = selectedAI !== null;
-      addBtn.disabled = !(hasCountryName && hasAI);
+      addBtn.disabled = !(hasPlayerName && hasCountryName && hasAI);
     }
 
     // Add AI player handler
     addBtn.addEventListener('click', async () => {
       if (addBtn.disabled) return;
 
+      const playerName = playerNameInput.value.trim();
       const countryName = countryNameInput.value.trim();
+      
+      if (!playerName) {
+        showError('Player name is required');
+        return;
+      }
+
       if (!countryName) {
         showError('Country name is required');
         return;
@@ -875,15 +958,12 @@ export class ManageGamesView {
       hideError();
 
       try {
-        const token = localStorage.getItem('access_token');
         const response = await fetch(`/api/games/${this.selectedGame.id}/ai-players`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: getHeaders(),
           body: JSON.stringify({
             aiName: selectedAI.name,
+            playerName,
             countryName,
             aiConfig
           })
@@ -968,10 +1048,7 @@ export class ManageGamesView {
     try {
       const response = await fetch(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/meta`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        },
+        headers: getHeaders(),
         body: JSON.stringify({ meta: metaData })
       });
 
@@ -1047,6 +1124,9 @@ export class ManageGamesView {
    * Clean up
    */
   dispose() {
+    // Remove event bus listeners
+    eventBus.off('game:gameCreated', this.handleGameCreated);
+    
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
@@ -1055,5 +1135,6 @@ export class ManageGamesView {
     this.selectedPlayer = null;
     this.games = [];
     this.players = [];
+    this.pendingCreateGameId = null;
   }
 }

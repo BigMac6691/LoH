@@ -3,6 +3,7 @@
  * Manages order submission, loading, and responses
  */
 import { eventBus } from '../eventBus.js';
+import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
 
 export class OrderEventHandler
 {
@@ -52,19 +53,17 @@ export class OrderEventHandler
 
       const { orderType, payload } = eventData.details;
       const gameId = context.gameId;
-      const playerId = context.user;
+      const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
 
       if (!gameId || !playerId || !orderType || !payload)
       {
-        throw new Error('Missing required parameters: gameId, playerId, orderType, payload');
+        throw new Error(`Missing required parameters: gameId${gameId ? '✅' : '❌'}, playerId${playerId ? '✅' : '❌'}, orderType${orderType ? '✅' : '❌'}, payload${payload ? '✅' : '❌'}`);
       }
 
       // Make the backend call
       const response = await fetch('/api/orders', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
           gameId,
           playerId,
@@ -151,7 +150,9 @@ export class OrderEventHandler
       }
 
       // Make the backend call
-      const response = await fetch(`/api/orders/star/${sourceStarId}?${params}`);
+      const response = await fetch(`/api/orders/star/${sourceStarId}?${params}`, {
+        headers: getHeadersForGet()
+      });
       
       if (!response.ok)
       {
@@ -225,7 +226,9 @@ export class OrderEventHandler
       }
 
       // Make the backend call
-      const response = await fetch(`/api/orders/turn/${turnId}?${params}`);
+      const response = await fetch(`/api/orders/turn/${turnId}?${params}`, {
+        headers: getHeadersForGet()
+      });
       
       if (!response.ok)
       {
