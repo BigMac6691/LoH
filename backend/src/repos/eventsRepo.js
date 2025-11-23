@@ -16,7 +16,7 @@ export async function getNextSequenceNumber({ gameId, turnId }, client = null) {
   if (client) {
     // Use provided client (assumes transaction is already started)
     const { rows } = await dbClient.query(
-      `SELECT COALESCE((SELECT MAX(seq) FROM turn_resolution_event WHERE game_id=$1 AND turn_id=$2), 0) + 1 as next_seq`,
+      `SELECT COALESCE((SELECT MAX(seq) FROM turn_event WHERE game_id=$1 AND turn_id=$2), 0) + 1 as next_seq`,
       [gameId, turnId]
     );
     
@@ -29,7 +29,7 @@ export async function getNextSequenceNumber({ gameId, turnId }, client = null) {
       await client.query('BEGIN');
       
       const { rows } = await dbClient.query(
-        `SELECT COALESCE((SELECT MAX(seq) FROM turn_resolution_event WHERE game_id=$1 AND turn_id=$2), 0) + 1 as next_seq`,
+        `SELECT COALESCE((SELECT MAX(seq) FROM turn_event WHERE game_id=$1 AND turn_id=$2), 0) + 1 as next_seq`,
         [gameId, turnId]
       );
       
@@ -66,7 +66,7 @@ export async function logEvent({ gameId, turnId, kind, details }, client = null)
     // Insert event
     const id = randomUUID();
     const { rows } = await dbClient.query(
-      `INSERT INTO turn_resolution_event (id, game_id, turn_id, seq, kind, details)
+      `INSERT INTO turn_event (id, game_id, turn_id, seq, kind, details)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [id, gameId, turnId, seq, kind, details]
     );
@@ -85,7 +85,7 @@ export async function logEvent({ gameId, turnId, kind, details }, client = null)
       // Insert event
       const id = randomUUID();
       const { rows } = await client.query(
-        `INSERT INTO turn_resolution_event (id, game_id, turn_id, seq, kind, details)
+        `INSERT INTO turn_event (id, game_id, turn_id, seq, kind, details)
          VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
         [id, gameId, turnId, seq, kind, details]
       );
@@ -115,7 +115,7 @@ export async function findEvents({ gameId, turnId, jsonFilter }, client = null) 
   const dbClient = client || pool;
   
   const { rows } = await dbClient.query(
-    `SELECT * FROM turn_resolution_event 
+    `SELECT * FROM turn_event 
      WHERE game_id=$1 AND turn_id=$2 AND details @> $3::jsonb
      ORDER BY seq`,
     [gameId, turnId, JSON.stringify(jsonFilter)]
