@@ -3,7 +3,7 @@
  */
 
 import { getShipDisplayName } from './shipGrouping.js';
-import { RB } from './RequestBuilder.js';
+import { RB, ApiError } from './RequestBuilder.js';
 
 /**
  * Get star name from star ID
@@ -160,16 +160,7 @@ export async function getShipSummaryRows(gameId, turnId, playerId)
    {
       // Get move orders for current turn
       console.log('🚢 getShipSummaryRows: Fetching orders from:', `/api/orders/turn/${turnId}?gameId=${gameId}&playerId=${playerId}`);
-      const ordersResponse = await fetch(`/api/orders/turn/${turnId}?gameId=${gameId}&playerId=${playerId}`, {
-        headers: RB.getHeadersForGet()
-      });
-      if (!ordersResponse.ok)
-      {
-         console.error('🚢 getShipSummaryRows: Failed to fetch orders', ordersResponse.statusText);
-         return [];
-      }
-
-      const ordersResult = await ordersResponse.json();
+      const ordersResult = await RB.fetchGet(`/api/orders/turn/${turnId}?gameId=${gameId}&playerId=${playerId}`);
       const orders = ordersResult.orders || [];
       console.log('🚢 getShipSummaryRows: Fetched orders:', orders.length, 'orders');
 

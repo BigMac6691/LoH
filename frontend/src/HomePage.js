@@ -378,11 +378,7 @@ export class HomePage {
     try {
       // Call logout endpoint
       if (refreshToken) {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: RB.getHeaders(),
-          body: JSON.stringify({ refreshToken })
-        });
+        await RB.fetchPost('/api/auth/logout', { refreshToken });
       }
     } catch (error) {
       console.error('Error during logout:', error);

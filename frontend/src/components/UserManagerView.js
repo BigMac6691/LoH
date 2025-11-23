@@ -113,15 +113,7 @@ export class UserManagerView extends MenuView {
         this.users = [];
       }
 
-      const response = await fetch(`/api/admin/users?page=${page}&limit=${this.limit}`, {
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to load users');
-      }
+      const data = await RB.fetchGet(`/api/admin/users?page=${page}&limit=${this.limit}`);
 
       // Append new users or replace
       if (append) {
@@ -268,15 +260,7 @@ export class UserManagerView extends MenuView {
    */
   async selectUser(userId) {
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to load user');
-      }
+      const data = await RB.fetchGet(`/api/admin/users/${userId}`);
 
       this.selectedUser = data.user;
       
@@ -415,23 +399,13 @@ export class UserManagerView extends MenuView {
         saveBtn.textContent = 'Saving...';
       }
 
-      const response = await fetch(`/api/admin/users/${this.selectedUser.id}`, {
-        method: 'PUT',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({
-          email,
-          display_name: displayName,
-          role,
-          status,
-          email_verified: emailVerified
-        })
+      const data = await RB.fetchPut(`/api/admin/users/${this.selectedUser.id}`, {
+        email,
+        display_name: displayName,
+        role,
+        status,
+        email_verified: emailVerified
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to save user');
-      }
 
       // Update selected user
       this.selectedUser = data.user;
@@ -472,16 +446,7 @@ export class UserManagerView extends MenuView {
         resetBtn.textContent = 'Resetting...';
       }
 
-      const response = await fetch(`/api/admin/users/${this.selectedUser.id}/reset-password`, {
-        method: 'POST',
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to reset password');
-      }
+      const data = await RB.fetchPost(`/api/admin/users/${this.selectedUser.id}/reset-password`, null);
 
       let message = 'Password reset token generated successfully!\n\n';
       if (data.recoveryToken) {

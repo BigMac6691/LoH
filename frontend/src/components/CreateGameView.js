@@ -182,27 +182,17 @@ export class CreateGameView extends MenuView {
     this.createBtn.textContent = 'Creating...';
 
     try {
-      const response = await fetch('/api/games', {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({
-          title,
-          description,
-          mapSize,
-          densityMin,
-          densityMax,
-          maxPlayers,
-          seed,
-          status: 'lobby',
-          params: {}
-        })
+      const data = await RB.fetchPost('/api/games', {
+        title,
+        description,
+        mapSize,
+        densityMin,
+        densityMax,
+        maxPlayers,
+        seed,
+        status: 'lobby',
+        params: {}
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create game');
-      }
 
       // Success - show message and reset form
       this.showSuccess(`Game created successfully! Game ID: ${data.gameId}`);

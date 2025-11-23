@@ -7,7 +7,7 @@ import
    eventBus
 }
 from '../eventBus.js';
-import { RB } from '../utils/RequestBuilder.js';
+import { RB, ApiError } from '../utils/RequestBuilder.js';
 
 export class DevEventHandler
 {
@@ -321,14 +321,19 @@ export class DevEventHandler
          if (gameId)
          {
             console.log('🔍 DevEventHandler: Resolving game state by gameId:', gameId);
-            const response = await fetch(`/api/dev/games/${gameId}`, {
-               headers: RB.getHeadersForGet()
-            });
-            if (response.ok)
+            try
             {
-               const data = await response.json();
+               const data = await RB.fetchGet(`/api/dev/games/${gameId}`);
                game = data.game;
                console.log('✅ DevEventHandler: Found game by gameId:', game);
+            }
+            catch (error)
+            {
+               // 404 is acceptable - game doesn't exist yet
+               if (!(error instanceof ApiError && error.status === 404))
+               {
+                  throw error;
+               }
             }
          }
 
@@ -336,16 +341,21 @@ export class DevEventHandler
          if (!game && scenario)
          {
             console.log('🔍 DevEventHandler: Resolving game state by scenario:', scenario);
-            const response = await fetch(`/api/dev/games/by-scenario/${scenario}`, {
-               headers: RB.getHeadersForGet()
-            });
-            if (response.ok)
+            try
             {
-               const data = await response.json();
+               const data = await RB.fetchGet(`/api/dev/games/by-scenario/${scenario}`);
                if (data.games && data.games.length > 0)
                {
                   game = data.games[0]; // Take the first (most recent) game
                   console.log('✅ DevEventHandler: Found game by scenario:', game);
+               }
+            }
+            catch (error)
+            {
+               // 404 is acceptable - no games found for scenario
+               if (!(error instanceof ApiError && error.status === 404))
+               {
+                  throw error;
                }
             }
          }
@@ -779,16 +789,7 @@ export class DevEventHandler
       }
 
       // Get current players from the database
-      const response = await fetch(`/api/dev/games/${encodeURIComponent(gameId)}/players`, {
-         headers: RB.getHeadersForGet()
-      });
-
-      if (!response.ok)
-      {
-         throw new Error(`🧪 DevEventHandler: Error getting game players: HTTP ${response.status} - ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = await RB.fetchGet(`/api/dev/games/${encodeURIComponent(gameId)}/players`);
       const currentPlayers = data.players || [];
 
       // Get required players from scenario data
@@ -816,22 +817,9 @@ export class DevEventHandler
       {
          console.log(`🔄 DevEventHandler: Updating game state for ${gameId}:`, stateUpdate);
 
-         const response = await fetch(`/api/dev/games/${gameId}/state`,
-         {
-            method: 'PUT',
-            headers: RB.getHeaders(),
-            body: JSON.stringify(
-            {
-               state: stateUpdate
-            })
+         const result = await RB.fetchPut(`/api/dev/games/${gameId}/state`, {
+            state: stateUpdate
          });
-
-         if (!response.ok)
-         {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-         }
-
-         const result = await response.json();
          console.log(`✅ DevEventHandler: Game state updated:`, result);
 
          return result;

@@ -1,7 +1,7 @@
 import { BaseDialog } from './BaseDialog.js';
 import { eventBus } from './eventBus.js';
 import { SpaceCombatViewer } from './SpaceCombatViewer.js';
-import { RB } from './utils/RequestBuilder.js';
+import { RB, ApiError } from './utils/RequestBuilder.js';
 
 /**
  * TurnEventsPanel - A draggable panel for displaying turn events
@@ -250,19 +250,9 @@ export class TurnEventsPanel extends BaseDialog
         return;
       }
 
-      const response = await fetch(
-        `/api/turn-events/${this.currentGame.id}/${previousTurnId}/player/${eventBus.getContext().playerId}`, // Use playerId, not user (user is user_id)
-        {
-          headers: RB.getHeadersForGet()
-        }
+      const result = await RB.fetchGet(
+        `/api/turn-events/${this.currentGame.id}/${previousTurnId}/player/${eventBus.getContext().playerId}` // Use playerId, not user (user is user_id)
       );
-
-      if (!response.ok)
-      {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
 
       if (result.success)
       {
@@ -292,16 +282,7 @@ export class TurnEventsPanel extends BaseDialog
   {
     try
     {
-      const response = await fetch(`/api/games/${this.currentGame.id}/turns`, {
-        headers: RB.getHeadersForGet()
-      });
-      
-      if (!response.ok)
-      {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
+      const result = await RB.fetchGet(`/api/games/${this.currentGame.id}/turns`);
       
       if (result.success && result.turns)
       {

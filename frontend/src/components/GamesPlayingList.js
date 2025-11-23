@@ -48,15 +48,7 @@ export class GamesPlayingList extends MenuView {
     try {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
-      const response = await fetch(`/api/games/playing`, {
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load games');
-      }
+      const data = await RB.fetchGet(`/api/games/playing`);
 
       this.games = data.games || [];
       this.renderGames();

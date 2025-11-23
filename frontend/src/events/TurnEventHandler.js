@@ -58,24 +58,10 @@ export class TurnEventHandler
          }
 
          // Make the backend call to end the turn
-         const response = await fetch('/api/turns/end-turn',
-         {
-            method: 'POST',
-            headers: RB.getHeaders(),
-            body: JSON.stringify(
-            {
-               gameId,
-               playerId
-            }),
+         const result = await RB.fetchPost('/api/turns/end-turn', {
+            gameId,
+            playerId
          });
-
-         if (!response.ok)
-         {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to end turn');
-         }
-
-         const result = await response.json();
          console.log('🔄 TurnEventHandler: Turn ended successfully:', result);
 
          // Emit success event

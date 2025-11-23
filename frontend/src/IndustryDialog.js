@@ -3,7 +3,7 @@
  */
 import { eventBus } from './eventBus.js';
 import { BaseDialog } from './BaseDialog.js';
-import { RB } from './utils/RequestBuilder.js';
+import { RB, ApiError } from './utils/RequestBuilder.js';
 
 export class IndustryDialog extends BaseDialog
 {
@@ -641,20 +641,17 @@ export class IndustryDialog extends BaseDialog
 
     try
     {
-      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}`, {
-        headers: RB.getHeadersForGet()
-      });
-      if (!response.ok)
-      {
-        console.warn('🏭 IndustryDialog: Failed to load standing orders:', response.statusText);
-        return null;
-      }
-
-      const result = await response.json();
+      const result = await RB.fetchGet(`/api/orders/standing/${starId}?gameId=${gameId}`);
       return result.standingOrders;
     }
     catch (error)
     {
+      // 404 is acceptable - no standing orders exist yet
+      if (error instanceof ApiError && error.status === 404)
+      {
+        console.warn('🏭 IndustryDialog: No standing orders found');
+        return null;
+      }
       console.error('🏭 IndustryDialog: Error loading standing orders:', error);
       return null;
     }
@@ -677,24 +674,12 @@ export class IndustryDialog extends BaseDialog
 
     try
     {
-      const response = await fetch('/api/orders/standing', {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({
-          gameId,
-          starId,
-          playerId,
-          standingOrders
-        })
+      const result = await RB.fetchPost('/api/orders/standing', {
+        gameId,
+        starId,
+        playerId,
+        standingOrders
       });
-
-      if (!response.ok)
-      {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save standing orders');
-      }
-
-      const result = await response.json();
       console.log('🏭 IndustryDialog: Standing orders saved:', result);
       return result;
     }
@@ -722,18 +707,7 @@ export class IndustryDialog extends BaseDialog
 
     try
     {
-      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`, {
-        method: 'DELETE',
-        headers: RB.getHeadersForGet()
-      });
-
-      if (!response.ok)
-      {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete standing orders');
-      }
-
-      const result = await response.json();
+      const result = await RB.fetchDelete(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`);
       console.log('🏭 IndustryDialog: Standing orders deleted:', result);
       return result;
     }

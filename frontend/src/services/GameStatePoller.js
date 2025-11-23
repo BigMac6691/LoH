@@ -4,7 +4,7 @@
  */
 
 import { eventBus } from '../eventBus.js';
-import { RB } from '../utils/RequestBuilder.js';
+import { RB, ApiError } from '../utils/RequestBuilder.js';
 
 export class GameStatePoller {
   constructor() {
@@ -66,16 +66,7 @@ export class GameStatePoller {
     }
 
     try {
-      const response = await fetch(`/api/games/${this.currentGameId}/turn/open`, {
-        headers: RB.getHeadersForGet()
-      });
-
-      if (!response.ok) {
-        console.warn('🔄 GameStatePoller: Failed to poll game state:', response.statusText);
-        return;
-      }
-
-      const result = await response.json();
+      const result = await RB.fetchGet(`/api/games/${this.currentGameId}/turn/open`);
       
       if (result.success && result.turn) {
         const newTurnNumber = result.turn.number;

@@ -4,6 +4,7 @@
  */
 
 import { assetManager } from './engine/AssetManager.js';
+import { RB, ApiError } from './utils/RequestBuilder.js';
 
 export class SplashScreen {
   constructor() {
@@ -237,8 +238,9 @@ export class SplashScreen {
 
   /**
    * Show login form with animation
+   * @param {boolean} showRegisterLink - Whether to show the registration link (default: true)
    */
-  showLoginForm() {
+  showLoginForm(showRegisterLink = true) {
     // Hide registration form if visible
     const registerForm = document.getElementById('register-form');
     if (registerForm) {
@@ -264,6 +266,12 @@ export class SplashScreen {
       this.loginForm.style.display = 'block';
       this.loginForm.style.opacity = '0';
       this.loginForm.style.transform = 'translateY(20px)';
+      
+      // Show/hide registration link based on parameter
+      const linksDiv = this.loginForm.querySelector('#login-links');
+      if (linksDiv) {
+        linksDiv.style.display = showRegisterLink ? 'block' : 'none';
+      }
       
       // Trigger animation
       setTimeout(() => {
@@ -468,17 +476,9 @@ export class SplashScreen {
     
     try {
       // Attempt login via API
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const data = await RB.fetchPostUnauthenticated('/api/auth/login', { email, password });
       
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
+      if (data.success) {
         // Success - hide splash and proceed
         this.hide();
         
@@ -517,7 +517,12 @@ export class SplashScreen {
       }
     } catch (error) {
       console.error('Login error:', error);
-      this.showError('Connection error. Please try again.', null);
+      // If it's an ApiError, try to extract error data for handling
+      if (error instanceof ApiError && error.body) {
+        this.handleLoginFailure(error.body, email);
+      } else {
+        this.showError('Connection error. Please try again.', null);
+      }
     } finally {
       // Re-enable submit button
       submitBtn.disabled = false;
@@ -737,15 +742,7 @@ export class SplashScreen {
     submitBtn.textContent = 'Sending...';
 
     try {
-      const response = await fetch('/api/auth/recover', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
+      const data = await RB.fetchPostUnauthenticated('/api/auth/recover', { email });
 
       if (data.success) {
         // Show step 2 (token entry)
@@ -761,7 +758,12 @@ export class SplashScreen {
       }
     } catch (error) {
       console.error('Recovery request error:', error);
-      errorDiv.textContent = 'Connection error. Please try again.';
+      // If it's an ApiError, try to extract error message
+      if (error instanceof ApiError && error.body) {
+        errorDiv.textContent = error.body.message || error.message || 'Failed to send recovery token.';
+      } else {
+        errorDiv.textContent = 'Connection error. Please try again.';
+      }
       errorDiv.style.display = 'block';
       successDiv.style.display = 'none';
     } finally {
@@ -813,18 +815,10 @@ export class SplashScreen {
     submitBtn.textContent = 'Resetting...';
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token,
-          newPassword,
-        }),
+      const data = await RB.fetchPostUnauthenticated('/api/auth/reset-password', {
+        token,
+        newPassword
       });
-
-      const data = await response.json();
 
       if (data.success) {
         successDiv.textContent = data.message || 'Password reset successfully! Redirecting to login...';
@@ -854,7 +848,12 @@ export class SplashScreen {
       }
     } catch (error) {
       console.error('Password reset error:', error);
-      errorDiv.textContent = 'Connection error. Please try again.';
+      // If it's an ApiError, try to extract error message
+      if (error instanceof ApiError && error.body) {
+        errorDiv.textContent = error.body.message || error.message || 'Failed to reset password.';
+      } else {
+        errorDiv.textContent = 'Connection error. Please try again.';
+      }
       errorDiv.style.display = 'block';
       successDiv.style.display = 'none';
     } finally {
@@ -1081,30 +1080,27 @@ export class SplashScreen {
 
     try {
       // Attempt registration via API
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          email, 
-          password,
-          displayName 
-        }),
+      const data = await RB.fetchPostUnauthenticated('/api/auth/register', { 
+        email, 
+        password,
+        displayName 
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // Registration successful
-        this.showRegistrationSuccess(data, email);
+      if (data.success) {
+        // Registration successful - attempt auto-login
+        this.showRegistrationSuccess(data, email, password);
       } else {
         // Handle registration errors
         this.handleRegistrationFailure(data);
       }
     } catch (error) {
       console.error('Registration error:', error);
-      this.showRegistrationError('Connection error. Please try again.');
+      // If it's an ApiError, try to extract error data for handling
+      if (error instanceof ApiError && error.body) {
+        this.handleRegistrationFailure(error.body);
+      } else {
+        this.showRegistrationError('Connection error. Please try again.');
+      }
     } finally {
       // Re-enable submit button
       if (submitBtn) {
@@ -1127,19 +1123,18 @@ export class SplashScreen {
   }
 
   /**
-   * Show registration success message
+   * Show registration success message and attempt auto-login
    */
-  showRegistrationSuccess(data, email) {
+  async showRegistrationSuccess(data, email, password) {
     const registerForm = document.getElementById('register-form');
     if (!registerForm) return;
 
     // Show success message with verification info
-    let message = data.message || 'Registration successful! Please check your email to verify your account.';
+    let message = data.message || 'Registration successful! Logging you in...';
     
     // Log verification token to console if provided (for development)
     if (data.verificationToken) {
       console.log('🔐 Verification token (dev mode):', data.verificationToken);
-      message += `\n\n⚠️ Check the browser console for verification details.`;
     }
 
     const successDiv = document.createElement('div');
@@ -1159,21 +1154,60 @@ export class SplashScreen {
 
     registerForm.insertBefore(successDiv, registerForm.firstChild);
 
-    // Show back to login link
-    const backLink = registerForm.querySelector('#back-to-login-link');
-    if (backLink) {
-      backLink.style.display = 'block';
+    // Attempt auto-login immediately
+    try {
+      const loginData = await RB.fetchPostUnauthenticated('/api/auth/login', { email, password });
+      
+      if (loginData.success) {
+        // Auto-login successful - proceed to app
+        registerForm.remove();
+        this.hide();
+        
+        // Store JWT tokens if provided
+        if (loginData.accessToken) {
+          localStorage.setItem('access_token', loginData.accessToken);
+        }
+        if (loginData.refreshToken) {
+          localStorage.setItem('refresh_token', loginData.refreshToken);
+        }
+        
+        // Store user info
+        if (loginData.user) {
+          localStorage.setItem('user_email', loginData.user.email);
+          if (loginData.user.id) {
+            localStorage.setItem('user_id', loginData.user.id);
+          }
+          if (loginData.user.displayName) {
+            localStorage.setItem('user_display_name', loginData.user.displayName);
+          }
+          if (loginData.user.role) {
+            localStorage.setItem('user_role', loginData.user.role);
+          }
+          if (loginData.user.emailVerified !== undefined) {
+            localStorage.setItem('user_email_verified', loginData.user.emailVerified.toString());
+          }
+        }
+        
+        // Emit login success event
+        if (window.eventBus) {
+          window.eventBus.emit('auth:loginSuccess', { user: loginData.user, tokens: { accessToken: loginData.accessToken, refreshToken: loginData.refreshToken } });
+        }
+        return; // Exit early - user is logged in
+      }
+    } catch (error) {
+      console.log('Auto-login after registration failed, showing login form:', error);
+      // Auto-login failed - fall through to show login form
     }
 
-    // After 3 seconds, show login form with email prefilled
+    // Auto-login failed - show login form but hide registration link
     setTimeout(() => {
-      this.showLoginForm();
+      this.showLoginForm(false); // false = hide registration link
       const loginEmailInput = document.getElementById('login-email');
       if (loginEmailInput) {
         loginEmailInput.value = email;
       }
       registerForm.remove();
-    }, 5000);
+    }, 2000);
   }
 
   /**

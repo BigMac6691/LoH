@@ -48,15 +48,7 @@ export class GamesAvailableList extends MenuView {
     try {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
-      const response = await fetch(`/api/games/available`, {
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load games');
-      }
+      const data = await RB.fetchGet(`/api/games/available`);
 
       this.games = data.games || [];
       this.renderGames();
@@ -175,22 +167,12 @@ export class GamesAvailableList extends MenuView {
     }
 
     try {
-      const response = await fetch(`/api/games/${gameId}/join`, {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({
-          // userId is now extracted from JWT token on backend
-          name: null,
-          colorHex: null,
-          countryName: countryName.trim()
-        })
+      const data = await RB.fetchPost(`/api/games/${gameId}/join`, {
+        // userId is now extracted from JWT token on backend
+        name: null,
+        colorHex: null,
+        countryName: countryName.trim()
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to join game');
-      }
 
       // Successfully joined - show success message and refresh the games list
       this.displayStatusMessage(`Successfully joined game! You can now see it in your "Games Playing" list.`, 'success');

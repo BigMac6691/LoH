@@ -1,7 +1,7 @@
 import { BaseDialog } from './BaseDialog.js';
 import { getOrderSummaryRows } from './utils/orderSummary.js';
 import { eventBus } from './eventBus.js';
-import { RB } from './utils/RequestBuilder.js';
+import { RB, ApiError } from './utils/RequestBuilder.js';
 
 /**
  * OrderSummaryDialog - Displays a sortable summary of orders for the current turn.
@@ -794,18 +794,7 @@ export class OrderSummaryDialog extends BaseDialog
 
       try
       {
-         const response = await fetch(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`, {
-            method: 'DELETE',
-            headers: RB.getHeadersForGet()
-         });
-
-         if (!response.ok)
-         {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to cancel order');
-         }
-
-         const result = await response.json();
+         const result = await RB.fetchDelete(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`);
          console.log('📋 OrderSummaryDialog: Order cancelled successfully:', result);
 
          // Refresh data to update the table
@@ -1116,21 +1105,23 @@ export class OrderSummaryDialog extends BaseDialog
       {
          try
          {
-            const response = await fetch(`/api/games/${this.currentGameId}/turn/open`, {
-               headers: RB.getHeadersForGet()
-            });
-            if (response.ok)
+            const result = await RB.fetchGet(`/api/games/${this.currentGameId}/turn/open`);
+            if (result.success && result.turn)
             {
-               const result = await response.json();
-               if (result.success && result.turn)
-               {
-                  this.currentTurnId = result.turn.id;
-               }
+               this.currentTurnId = result.turn.id;
             }
          }
          catch (error)
          {
-            console.error('📋 OrderSummaryDialog: Failed to get current turn', error);
+            // 404 is acceptable - no open turn exists
+            if (error instanceof ApiError && error.status === 404)
+            {
+               console.warn('📋 OrderSummaryDialog: No open turn found');
+            }
+            else
+            {
+               console.error('📋 OrderSummaryDialog: Failed to get current turn', error);
+            }
          }
       }
 

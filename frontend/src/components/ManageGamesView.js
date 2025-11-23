@@ -146,15 +146,7 @@ export class ManageGamesView extends MenuView {
     try {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
-      const response = await fetch(`/api/games/manage?page=${page}&limit=10`, {
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load games');
-      }
+      const data = await RB.fetchGet(`/api/games/manage?page=${page}&limit=10`);
 
       this.games = data.games || [];
       this.currentPage = data.pagination?.page || 1;
@@ -343,15 +335,7 @@ export class ManageGamesView extends MenuView {
     try {
       playersContainer.innerHTML = '<div class="players-loading">Loading players...</div>';
 
-      const response = await fetch(`/api/games/${gameId}/manage/players`, {
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load players');
-      }
+      const data = await RB.fetchGet(`/api/games/${gameId}/manage/players`);
 
       this.players = data.players || [];
       this.renderPlayers();
@@ -586,17 +570,7 @@ export class ManageGamesView extends MenuView {
     if (!this.selectedGame) return;
 
     try {
-      const response = await fetch(`/api/games/${this.selectedGame.id}/status`, {
-        method: 'PUT',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update game status');
-      }
+      const data = await RB.fetchPut(`/api/games/${this.selectedGame.id}/status`, { status: newStatus });
 
       // Update selected game status
       this.selectedGame.status = newStatus;
@@ -632,16 +606,7 @@ export class ManageGamesView extends MenuView {
     if (!this.selectedGame || !this.selectedPlayer) return;
 
     try {
-      const response = await fetch(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/end-turn`, {
-        method: 'POST',
-        headers: RB.getHeaders(),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to end player turn');
-      }
+      const data = await RB.fetchPost(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/end-turn`, null);
 
       this.displayStatusMessage('Player turn ended successfully', 'success');
       await this.loadPlayers(this.selectedGame.id);
@@ -677,17 +642,7 @@ export class ManageGamesView extends MenuView {
     if (!this.selectedGame || !this.selectedPlayer) return;
 
     try {
-      const response = await fetch(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/status`, {
-        method: 'PUT',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update player status');
-      }
+      const data = await RB.fetchPut(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/status`, { status: newStatus });
 
       // Update selected player status
       this.selectedPlayer.status = newStatus;
@@ -711,10 +666,7 @@ export class ManageGamesView extends MenuView {
     // Fetch available AIs
     let availableAIs = [];
     try {
-      const response = await fetch('/api/ai/list', {
-        headers: RB.getHeadersForGet()
-      });
-      const data = await response.json();
+      const data = await RB.fetchGet('/api/ai/list');
       if (data.success && data.ais) {
         availableAIs = data.ais;
       } else {
@@ -959,18 +911,12 @@ export class ManageGamesView extends MenuView {
       hideError();
 
       try {
-        const response = await fetch(`/api/games/${this.selectedGame.id}/ai-players`, {
-          method: 'POST',
-          headers: RB.getHeaders(),
-          body: JSON.stringify({
-            aiName: selectedAI.name,
-            playerName,
-            countryName,
-            aiConfig
-          })
+        const data = await RB.fetchPost(`/api/games/${this.selectedGame.id}/ai-players`, {
+          aiName: selectedAI.name,
+          playerName,
+          countryName,
+          aiConfig
         });
-
-        const data = await response.json();
 
         if (data.success) {
           // Close dialog
@@ -1047,17 +993,7 @@ export class ManageGamesView extends MenuView {
     }
 
     try {
-      const response = await fetch(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/meta`, {
-        method: 'PUT',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({ meta: metaData })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update player meta');
-      }
+      const data = await RB.fetchPut(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/meta`, { meta: metaData });
 
       // Update selected player meta
       this.selectedPlayer.meta = metaData;

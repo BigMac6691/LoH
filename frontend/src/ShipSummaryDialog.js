@@ -2,7 +2,7 @@ import { BaseDialog } from './BaseDialog.js';
 import { getShipSummaryRows } from './utils/shipSummary.js';
 import { getShipDisplayName } from './utils/shipGrouping.js';
 import { eventBus } from './eventBus.js';
-import { RB } from './utils/RequestBuilder.js';
+import { RB, ApiError } from './utils/RequestBuilder.js';
 
 /**
  * ShipSummaryDialog - Displays a summary of ships at all stars.
@@ -725,18 +725,7 @@ export class ShipSummaryDialog extends BaseDialog
 
       try
       {
-         const response = await fetch(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`, {
-            method: 'DELETE',
-            headers: RB.getHeadersForGet()
-         });
-
-         if (!response.ok)
-         {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to cancel order');
-         }
-
-         const result = await response.json();
+         const result = await RB.fetchDelete(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`);
          console.log('🚢 ShipSummaryDialog: Order cancelled successfully:', result);
 
          // Refresh data to update the table
@@ -771,15 +760,7 @@ export class ShipSummaryDialog extends BaseDialog
       try
       {
          // Get current standing orders to preserve industry orders
-         const getResponse = await fetch(`/api/orders/standing/${starId}?gameId=${this.currentGameId}`, {
-            headers: RB.getHeadersForGet()
-         });
-         if (!getResponse.ok)
-         {
-            throw new Error('Failed to get standing orders');
-         }
-
-         const getResult = await getResponse.json();
+         const getResult = await RB.fetchGet(`/api/orders/standing/${starId}?gameId=${this.currentGameId}`);
          const currentStandingOrders = getResult.standingOrders || {};
 
          // Remove move standing order but keep industry orders
@@ -788,24 +769,12 @@ export class ShipSummaryDialog extends BaseDialog
          updatedStandingOrders.move = null; // Set to null to signal deletion
 
          // Update standing orders - backend will remove null properties
-         const updateResponse = await fetch('/api/orders/standing', {
-            method: 'POST',
-            headers: RB.getHeaders(),
-            body: JSON.stringify({
-               gameId: this.currentGameId,
-               starId: starId,
-               playerId: this.currentPlayerId,
-               standingOrders: updatedStandingOrders
-            })
+         const result = await RB.fetchPost('/api/orders/standing', {
+            gameId: this.currentGameId,
+            starId: starId,
+            playerId: this.currentPlayerId,
+            standingOrders: updatedStandingOrders
          });
-
-         if (!updateResponse.ok)
-         {
-            const errorData = await updateResponse.json();
-            throw new Error(errorData.error || 'Failed to cancel standing order');
-         }
-
-         const result = await updateResponse.json();
          console.log('🚢 ShipSummaryDialog: Standing order cancelled successfully:', result);
 
          // Refresh data to update the table
@@ -1064,30 +1033,28 @@ export class ShipSummaryDialog extends BaseDialog
          try
          {
             console.log('🚢 ShipSummaryDialog: Fetching current turn from:', `/api/games/${this.currentGameId}/turn/open`);
-            const response = await fetch(`/api/games/${this.currentGameId}/turn/open`, {
-               headers: RB.getHeadersForGet()
-            });
-            if (response.ok)
+            const result = await RB.fetchGet(`/api/games/${this.currentGameId}/turn/open`);
+            if (result.success && result.turn)
             {
-               const result = await response.json();
-               if (result.success && result.turn)
-               {
-                  this.currentTurnId = result.turn.id;
-                  console.log('🚢 ShipSummaryDialog: Fetched current turn ID:', this.currentTurnId);
-               }
-               else
-               {
-                  console.warn('🚢 ShipSummaryDialog: No turn found in response:', result);
-               }
+               this.currentTurnId = result.turn.id;
+               console.log('🚢 ShipSummaryDialog: Fetched current turn ID:', this.currentTurnId);
             }
             else
             {
-               console.error('🚢 ShipSummaryDialog: Failed to get current turn:', response.statusText);
+               console.warn('🚢 ShipSummaryDialog: No turn found in response:', result);
             }
          }
          catch (error)
          {
-            console.error('🚢 ShipSummaryDialog: Error fetching current turn', error);
+            // 404 is acceptable - no open turn exists
+            if (error instanceof ApiError && error.status === 404)
+            {
+               console.warn('🚢 ShipSummaryDialog: No open turn found');
+            }
+            else
+            {
+               console.error('🚢 ShipSummaryDialog: Failed to get current turn:', error);
+            }
          }
       }
 

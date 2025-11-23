@@ -61,24 +61,12 @@ export class OrderEventHandler
       }
 
       // Make the backend call
-      const response = await fetch('/api/orders', {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({
-          gameId,
-          playerId,
-          orderType,
-          payload
-        }),
+      const result = await RB.fetchPost('/api/orders', {
+        gameId,
+        playerId,
+        orderType,
+        payload
       });
-
-      if (!response.ok)
-      {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit order');
-      }
-
-      const result = await response.json();
       console.log('📋 OrderEventHandler: Order submitted successfully:', result);
 
       // Emit success event with order type specific naming
@@ -150,17 +138,7 @@ export class OrderEventHandler
       }
 
       // Make the backend call
-      const response = await fetch(`/api/orders/star/${sourceStarId}?${params}`, {
-        headers: RB.getHeadersForGet()
-      });
-      
-      if (!response.ok)
-      {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to load orders');
-      }
-
-      const result = await response.json();
+      const result = await RB.fetchGet(`/api/orders/star/${sourceStarId}?${params}`);
       console.log('📋 OrderEventHandler: Orders loaded successfully for star:', sourceStarId, result);
 
       // Emit success event with order type specific naming
@@ -226,17 +204,7 @@ export class OrderEventHandler
       }
 
       // Make the backend call
-      const response = await fetch(`/api/orders/turn/${turnId}?${params}`, {
-        headers: RB.getHeadersForGet()
-      });
-      
-      if (!response.ok)
-      {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to load orders');
-      }
-
-      const result = await response.json();
+      const result = await RB.fetchGet(`/api/orders/turn/${turnId}?${params}`);
       console.log('📋 OrderEventHandler: Orders loaded successfully for turn:', turnId, result);
 
       // Emit success event

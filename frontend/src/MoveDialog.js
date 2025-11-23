@@ -3,7 +3,7 @@ import { eventBus } from './eventBus.js';
 import { DualSlider } from './DualSlider.js';
 import { BaseDialog } from './BaseDialog.js';
 import { MoveDialogView } from './MoveDialogView.js';
-import { RB } from './utils/RequestBuilder.js';
+import { RB, ApiError } from './utils/RequestBuilder.js';
 
 /**
  * MoveDialog - A draggable dialog for managing fleet movement
@@ -515,17 +515,14 @@ export class MoveDialog extends BaseDialog
     }
 
     try {
-      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}`, {
-        headers: RB.getHeadersForGet()
-      });
-      if (!response.ok) {
-        console.warn('🚀 MoveDialog: Failed to load standing orders:', response.statusText);
-        return null;
-      }
-
-      const result = await response.json();
+      const result = await RB.fetchGet(`/api/orders/standing/${starId}?gameId=${gameId}`);
       return result.standingOrders;
     } catch (error) {
+      // 404 is acceptable - no standing orders exist yet
+      if (error instanceof ApiError && error.status === 404) {
+        console.warn('🚀 MoveDialog: No standing orders found');
+        return null;
+      }
       console.error('🚀 MoveDialog: Error loading standing orders:', error);
       return null;
     }
@@ -545,23 +542,12 @@ export class MoveDialog extends BaseDialog
     }
 
     try {
-      const response = await fetch('/api/orders/standing', {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({
-          gameId,
-          starId,
-          playerId,
-          standingOrders
-        })
+      const result = await RB.fetchPost('/api/orders/standing', {
+        gameId,
+        starId,
+        playerId,
+        standingOrders
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save standing orders');
-      }
-
-      const result = await response.json();
       console.log('🚀 MoveDialog: Standing orders saved:', result);
       return result;
     } catch (error) {
@@ -584,17 +570,7 @@ export class MoveDialog extends BaseDialog
     }
 
     try {
-      const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`, {
-        method: 'DELETE',
-        headers: RB.getHeadersForGet()
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete standing orders');
-      }
-
-      const result = await response.json();
+      const result = await RB.fetchDelete(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`);
       console.log('🚀 MoveDialog: Standing orders deleted:', result);
       return result;
     } catch (error) {

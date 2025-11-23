@@ -77,15 +77,7 @@ export class ManageNewsEventsView extends MenuView {
     try {
       listContainer.innerHTML = '<div class="events-loading">Loading events...</div>';
 
-      const response = await fetch(`/api/system-events?page=${page}&limit=5`, {
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to load events');
-      }
+      const data = await RB.fetchGet(`/api/system-events?page=${page}&limit=5`);
 
       this.events = data.events || [];
       this.currentPage = data.pagination?.page || 1;
@@ -185,15 +177,7 @@ export class ManageNewsEventsView extends MenuView {
    */
   async selectEvent(eventId) {
     try {
-      const response = await fetch(`/api/system-events/${eventId}`, {
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to load event');
-      }
+      const data = await RB.fetchGet(`/api/system-events/${eventId}`);
 
       this.selectedEvent = data.event;
       this.isCreating = false;
@@ -373,17 +357,9 @@ export class ManageNewsEventsView extends MenuView {
         saveBtn.textContent = 'Saving...';
       }
 
-      const response = await fetch(url, {
-        method,
-        headers: RB.getHeaders(),
-        body: JSON.stringify({ text })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to save event');
-      }
+      const data = method === 'POST' 
+        ? await RB.fetchPost(url, { text })
+        : await RB.fetchPut(url, { text });
 
       // Reload events list
       await this.loadEvents(this.currentPage);
@@ -423,16 +399,7 @@ export class ManageNewsEventsView extends MenuView {
         deleteBtn.textContent = 'Deleting...';
       }
 
-      const response = await fetch(`/api/system-events/${this.selectedEvent.id}`, {
-        method: 'DELETE',
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to delete event');
-      }
+      const data = await RB.fetchDelete(`/api/system-events/${this.selectedEvent.id}`);
 
       // Clear selection and reload
       this.selectedEvent = null;

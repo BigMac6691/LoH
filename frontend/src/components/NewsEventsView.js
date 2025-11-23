@@ -86,15 +86,7 @@ export class NewsEventsView extends MenuView {
         this.events = [];
       }
 
-      const response = await fetch(`/api/system-events?page=${page}&limit=${this.limit}`, {
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to load events');
-      }
+      const data = await RB.fetchGet(`/api/system-events?page=${page}&limit=${this.limit}`);
 
       // Append new events or replace
       if (append) {

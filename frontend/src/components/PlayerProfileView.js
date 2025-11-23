@@ -31,11 +31,7 @@ export class PlayerProfileView extends MenuView {
    */
   async loadProfile() {
     try {
-      const response = await fetch('/api/auth/profile', {
-        headers: RB.getHeadersForGet()
-      });
-
-      const data = await response.json();
+      const data = await RB.fetchGet('/api/auth/profile');
       if (data.success) {
         this.profileData = data.user;
         // Update localStorage with latest data
@@ -274,18 +270,12 @@ export class PlayerProfileView extends MenuView {
     }
 
     try {
-      const response = await fetch('/api/auth/profile', {
-        method: 'PUT',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({
-          email,
-          displayName,
-          bio,
-          textMessageContact
-        })
+      const data = await RB.fetchPut('/api/auth/profile', {
+        email,
+        displayName,
+        bio,
+        textMessageContact
       });
-
-      const data = await response.json();
 
       if (data.success) {
         this.profileData = data.user;
@@ -432,13 +422,11 @@ export class PlayerProfileView extends MenuView {
       }
 
       try {
-        const response = await fetch('/api/auth/change-password', {
-          method: 'POST',
-          headers: RB.getHeaders(),
-          body: JSON.stringify({oldPassword, newPassword, confirmPassword})
+        const data = await RB.fetchPost('/api/auth/change-password', {
+          oldPassword, 
+          newPassword, 
+          confirmPassword
         });
-
-        const data = await response.json();
 
         if (data.success) {
           successDiv.textContent = data.message || 'Password changed successfully!';
@@ -635,13 +623,7 @@ export class PlayerProfileView extends MenuView {
     this.hideVerifyError(modalContent);
 
     try {
-      const response = await fetch('/api/auth/verify-email', {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({ token })
-      });
-
-      const data = await response.json();
+      const data = await RB.fetchPost('/api/auth/verify-email', { token });
 
       if (data.success) {
         // Success - close modal and reload profile
@@ -715,12 +697,7 @@ export class PlayerProfileView extends MenuView {
     btn.textContent = 'Sending...';
 
     try {
-      const response = await fetch('/api/auth/profile/resend-verification', {
-        method: 'POST',
-        headers: RB.getHeaders()
-      });
-
-      const data = await response.json();
+      const data = await RB.fetchPost('/api/auth/profile/resend-verification', null);
 
       if (data.success) {
         const token = data.verificationToken || 'Check server logs';

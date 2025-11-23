@@ -3,7 +3,7 @@
  * Handles game loading, rendering, and other game-specific events
  */
 import { eventBus } from '../eventBus.js';
-import { RB } from '../utils/RequestBuilder.js';
+import { RB, ApiError } from '../utils/RequestBuilder.js';
 import { webSocketManager } from '../services/WebSocketManager.js';
 import { gameStatePoller } from '../services/GameStatePoller.js';
 
@@ -98,37 +98,17 @@ export class GameEventHandler {
       }
       
       // Call the backend API to create the game
-      const response = await fetch('/api/games', {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({
-          ownerId,
-          seed,
-          mapSize,
-          densityMin,
-          densityMax,
-          title,
-          description,
-          status,
-          params: gameData.params
-        })
+      const result = await RB.fetchPost('/api/games', {
+        ownerId,
+        seed,
+        mapSize,
+        densityMin,
+        densityMax,
+        title,
+        description,
+        status,
+        params: gameData.params
       });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('🎮 GameEventHandler: API error:', errorData);
-        
-        // Emit error event with standardized format
-        eventBus.emit('game:gameCreated', { 
-          success: false, 
-          error: 'api_error',
-          message: errorData.error || 'Failed to create game',
-          details: errorData.details
-        });
-        return;
-      }
-      
-      const result = await response.json();
       console.log('🎮 GameEventHandler: Game created successfully:', result);
       
       // Emit success event with standardized format
@@ -142,13 +122,17 @@ export class GameEventHandler {
       });
       
     } catch (error) {
-      console.error('🎮 GameEventHandler: Unexpected error creating game:', error);
+      console.error('🎮 GameEventHandler: Error creating game:', error);
+      
+      // Extract error data from ApiError if available
+      const errorData = error instanceof ApiError ? (error.body || { error: error.message }) : { error: error.message };
       
       // Emit error event with standardized format
       eventBus.emit('game:gameCreated', { 
         success: false, 
-        error: 'unexpected_error',
-        message: error.message || 'Unexpected error occurred'
+        error: 'api_error',
+        message: errorData.error || error.message || 'Failed to create game',
+        details: errorData.details
       });
     }
   }
@@ -172,48 +156,12 @@ export class GameEventHandler {
 
       // Step 1: Generate map
       console.log('🎮 GameEventHandler: Step 1 - Generating map...');
-      const mapResponse = await fetch(`/api/games/${gameId}/generate-map`, {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({})
-      });
-
-      if (!mapResponse.ok) {
-        const errorData = await mapResponse.json();
-        console.error('🎮 GameEventHandler: Map generation failed:', errorData);
-        eventBus.emit('game:gameCreated', { 
-          success: false, 
-          error: 'api_error',
-          message: errorData.error || 'Failed to generate map',
-          details: errorData.details
-        });
-        return;
-      }
-
-      const mapResult = await mapResponse.json();
+      const mapResult = await RB.fetchPost(`/api/games/${gameId}/generate-map`, {});
       console.log('🎮 GameEventHandler: Map generated successfully:', mapResult);
 
       // Step 2: Place players
       console.log('🎮 GameEventHandler: Step 2 - Placing players...');
-      const placeResponse = await fetch(`/api/games/${gameId}/place-players`, {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({})
-      });
-
-      if (!placeResponse.ok) {
-        const errorData = await placeResponse.json();
-        console.error('🎮 GameEventHandler: Player placement failed:', errorData);
-        eventBus.emit('game:gameCreated', { 
-          success: false, 
-          error: 'api_error',
-          message: errorData.error || 'Failed to place players',
-          details: errorData.details
-        });
-        return;
-      }
-
-      const placeResult = await placeResponse.json();
+      const placeResult = await RB.fetchPost(`/api/games/${gameId}/place-players`, {});
       console.log('🎮 GameEventHandler: Players placed successfully:', placeResult);
 
       // Emit success event
@@ -229,11 +177,13 @@ export class GameEventHandler {
       });
 
     } catch (error) {
-      console.error('🎮 GameEventHandler: Unexpected error creating game world:', error);
+      console.error('🎮 GameEventHandler: Error creating game world:', error);
+      const errorData = error instanceof ApiError ? (error.body || { error: error.message }) : { error: error.message };
       eventBus.emit('game:gameCreated', { 
         success: false, 
-        error: 'unexpected_error',
-        message: error.message || 'Unexpected error occurred'
+        error: 'api_error',
+        message: errorData.error || error.message || 'Failed to create game world',
+        details: errorData.details
       });
     }
   }
@@ -276,34 +226,14 @@ export class GameEventHandler {
       }
       
       // Call the backend API to add the player
-      const response = await fetch('/api/games/players', {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({
-          gameId,
-          userId,
-          name,
-          colorHex: color_hex,
-          countryName: country_name,
-          meta: metaData
-        })
+      const result = await RB.fetchPost('/api/games/players', {
+        gameId,
+        userId,
+        name,
+        colorHex: color_hex,
+        countryName: country_name,
+        meta: metaData
       });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('🎮 GameEventHandler: API error:', errorData);
-        
-        // Emit error event with standardized format
-        eventBus.emit('game:playerAdded', { 
-          success: false, 
-          error: 'api_error',
-          message: errorData.error || 'Failed to add player',
-          details: errorData.error || 'Failed to add player'
-        });
-        return;
-      }
-      
-      const result = await response.json();
       console.log('🎮 GameEventHandler: Player added successfully:', result);
       
       // Emit success event with standardized format
@@ -318,13 +248,15 @@ export class GameEventHandler {
       });
       
     } catch (error) {
-      console.error('🎮 GameEventHandler: Unexpected error adding player:', error);
+      console.error('🎮 GameEventHandler: Error adding player:', error);
+      const errorData = error instanceof ApiError ? (error.body || { error: error.message }) : { error: error.message };
       
       // Emit error event with standardized format
       eventBus.emit('game:playerAdded', { 
         success: false, 
-        error: 'unexpected_error',
-        message: error.message || 'Unexpected error occurred'
+        error: 'api_error',
+        message: errorData.error || error.message || 'Failed to add player',
+        details: errorData.details
       });
     }
   }
@@ -369,27 +301,7 @@ export class GameEventHandler {
       }
       
       // Call the backend API to generate the map (only need gameId)
-      const response = await fetch(`/api/games/${gameId}/generate-map`, {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({})
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('🎮 GameEventHandler: API error:', errorData);
-        
-        // Emit error event with standardized format
-        eventBus.emit('game:mapGenerated', { 
-          success: false, 
-          error: 'api_error',
-          message: errorData.error || 'Failed to generate map',
-          details: errorData.details
-        });
-        return;
-      }
-      
-      const result = await response.json();
+      const result = await RB.fetchPost(`/api/games/${gameId}/generate-map`, {});
       console.log('🎮 GameEventHandler: Map generated successfully:', result);
       
       // Emit success event with standardized format
@@ -404,13 +316,15 @@ export class GameEventHandler {
       });
       
     } catch (error) {
-      console.error('🎮 GameEventHandler: Unexpected error generating map:', error);
+      console.error('🎮 GameEventHandler: Error generating map:', error);
+      const errorData = error instanceof ApiError ? (error.body || { error: error.message }) : { error: error.message };
       
       // Emit error event with standardized format
       eventBus.emit('game:mapGenerated', { 
         success: false, 
-        error: 'unexpected_error',
-        message: error.message || 'Unexpected error occurred'
+        error: 'api_error',
+        message: errorData.error || error.message || 'Failed to generate map',
+        details: errorData.details
       });
     }
   }
@@ -439,26 +353,7 @@ export class GameEventHandler {
       }
       
       // Call the backend API to place players
-      const response = await fetch(`/api/games/${gameId}/place-players`, {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({})
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('🎮 GameEventHandler: API error placing players:', errorData);
-        
-        // Emit error event with standardized format
-        eventBus.emit('game:playersPlaced', { 
-          success: false, 
-          error: 'api_error',
-          message: errorData.error || 'Failed to place players'
-        });
-        return;
-      }
-      
-      const result = await response.json();
+      const result = await RB.fetchPost(`/api/games/${gameId}/place-players`, {});
       console.log('🎮 GameEventHandler: Players placed successfully:', result);
       
       // Emit success event with standardized format
@@ -472,13 +367,15 @@ export class GameEventHandler {
       });
       
     } catch (error) {
-      console.error('🎮 GameEventHandler: Unexpected error placing players:', error);
+      console.error('🎮 GameEventHandler: Error placing players:', error);
+      const errorData = error instanceof ApiError ? (error.body || { error: error.message }) : { error: error.message };
       
       // Emit error event with standardized format
       eventBus.emit('game:playersPlaced', { 
         success: false, 
-        error: 'unexpected_error',
-        message: error.message || 'Unexpected error occurred'
+        error: 'api_error',
+        message: errorData.error || error.message || 'Failed to place players',
+        details: errorData.details
       });
     }
   }
@@ -493,34 +390,27 @@ export class GameEventHandler {
     
     try {
       // First, try to get the open turn
-      const openTurnResponse = await fetch(`/api/games/${gameId}/turn/open`, {
-        headers: RB.getHeadersForGet()
-      });
-      
-      if (openTurnResponse.ok) {
-        const openTurnData = await openTurnResponse.json();
+      try {
+        const openTurnData = await RB.fetchGet(`/api/games/${gameId}/turn/open`);
         if (openTurnData.success && openTurnData.turn) {
           console.log('🎮 GameEventHandler: Found open turn:', openTurnData.turn);
           return openTurnData.turn;
+        }
+      } catch (error) {
+        // 404 is acceptable - no open turn exists yet
+        if (error instanceof ApiError && error.status === 404) {
+          console.log('🎮 GameEventHandler: No open turn found');
+        } else {
+          throw error;
         }
       }
       
       // If no open turn exists, create turn 1
       console.log('🎮 GameEventHandler: No open turn found, creating turn 1');
-      const createTurnResponse = await fetch(`/api/games/${gameId}/turn`, {
-        method: 'POST',
-        headers: RB.getHeaders(),
-        body: JSON.stringify({
-          number: 1
-        })
+      const createTurnData = await RB.fetchPost(`/api/games/${gameId}/turn`, {
+        number: 1
       });
       
-      if (!createTurnResponse.ok) {
-        const errorData = await createTurnResponse.json();
-        throw new Error(errorData.error || 'Failed to create turn 1');
-      }
-      
-      const createTurnData = await createTurnResponse.json();
       if (createTurnData.success && createTurnData.turn) {
         console.log('🎮 GameEventHandler: Created turn 1:', createTurnData.turn);
         return createTurnData.turn;
@@ -559,25 +449,7 @@ export class GameEventHandler {
       }
       
       // Load complete game state from backend
-      const response = await fetch(`/api/games/${gameId}/state`, {
-        method: 'GET',
-        headers: RB.getHeadersForGet()
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('🎮 GameEventHandler: API error loading game state:', errorData);
-        
-        // Emit error event
-        eventBus.emit('game:gameLoaded', { 
-          success: false, 
-          error: 'api_error',
-          message: errorData.error || 'Failed to load game state'
-        });
-        return;
-      }
-      
-      const gameData = await response.json();
+      const gameData = await RB.fetchGet(`/api/games/${gameId}/state`);
       console.log('🎮 GameEventHandler: Game state loaded successfully:', gameData);
       
       // Set game ID on event bus
@@ -623,13 +495,14 @@ export class GameEventHandler {
       });
       
     } catch (error) {
-      console.error('🎮 GameEventHandler: Unexpected error starting game:', error);
+      console.error('🎮 GameEventHandler: Error starting game:', error);
+      const errorData = error instanceof ApiError ? (error.body || { error: error.message }) : { error: error.message };
       
       // Emit error event
       eventBus.emit('game:gameLoaded', { 
         success: false, 
-        error: 'unexpected_error',
-        message: error.message || 'Unexpected error occurred'
+        error: 'api_error',
+        message: errorData.error || error.message || 'Failed to load game state'
       });
     }
   }
