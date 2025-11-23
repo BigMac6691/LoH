@@ -42,6 +42,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false, // Allow self-signed certificates
         ws: true // Enable WebSocket proxy if needed
+      },
+      '/socket.io': {
+        target: 'https://localhost:3000',
+        changeOrigin: true,
+        secure: false, // Allow self-signed certificates
+        ws: true // Enable WebSocket proxy for Socket.IO
       }
     }
   },

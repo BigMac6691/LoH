@@ -1247,6 +1247,21 @@ export class TurnService
          // Step 5: Reset players for new turn (outside transaction for safety)
          await this.resetPlayersForNewTurn(gameId);
 
+         // Step 6: Notify WebSocket clients about turn completion
+         try {
+            const { webSocketService } = await import('./WebSocketService.js');
+            webSocketService.notifyGameUpdate(gameId, {
+               newTurnId: newTurn[0].id,
+               newTurnNumber: nextTurnNumber,
+               previousTurnId: turnId,
+               previousTurnNumber: currentTurnNumber
+            });
+            console.log(`🔌 TurnService: Notified WebSocket clients about turn completion for game ${gameId}`);
+         } catch (error) {
+            console.error('🔌 TurnService: Error notifying WebSocket clients:', error);
+            // Don't throw - WebSocket notification failure shouldn't block turn progression
+         }
+
          return {
             success: true,
             closedTurn: closedTurn[0],

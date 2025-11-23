@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
+import { Server } from 'socket.io';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,6 +22,7 @@ import { AdminRouter } from './src/routes/AdminRouter.js';
 import { SystemEventRouter } from './src/routes/SystemEventRouter.js';
 import { AIRouter } from './src/routes/AIRouter.js';
 import turnEventRouter from './src/routes/TurnEventRouter.js';
+import { webSocketService } from './src/services/WebSocketService.js';
 
 const app = express();
 app.use(cors());
@@ -94,6 +96,8 @@ if (process.env.NODE_ENV !== 'production') {
 // HTTPS Configuration (development only)
 const useHTTPS = process.env.USE_HTTPS === 'true' || (process.env.NODE_ENV === 'development' && process.env.USE_HTTPS !== 'false');
 
+let server;
+
 if (useHTTPS) {
   // Path to certificates (in project root, one level up from backend/)
   const certPath = path.resolve(__dirname, '..');
@@ -108,7 +112,8 @@ if (useHTTPS) {
         cert: fs.readFileSync(certFile)
       };
 
-      https.createServer(options, app).listen(port, () => {
+      server = https.createServer(options, app);
+      server.listen(port, () => {
         console.log(`🔒 HTTPS server listening on port ${port}`);
         console.log(`🌐 Access your API at: https://localhost:${port}`);
         console.log(`📝 Health check: https://localhost:${port}/api/health`);
@@ -116,7 +121,8 @@ if (useHTTPS) {
     } catch (error) {
       console.error('❌ Error setting up HTTPS:', error.message);
       console.log('⚠️  Falling back to HTTP...');
-      http.createServer(app).listen(port, () => {
+      server = http.createServer(app);
+      server.listen(port, () => {
         console.log(`🔓 HTTP server listening on port ${port} (HTTPS failed)`);
         console.log(`🌐 Access your API at: http://localhost:${port}`);
       });
@@ -127,16 +133,44 @@ if (useHTTPS) {
     console.warn(`   - ${certFile}`);
     console.warn('⚠️  Falling back to HTTP...');
     console.warn('💡 To use HTTPS: run "mkcert localhost 127.0.0.1" in project root');
-    http.createServer(app).listen(port, () => {
+    server = http.createServer(app);
+    server.listen(port, () => {
       console.log(`🔓 HTTP server listening on port ${port}`);
       console.log(`🌐 Access your API at: http://localhost:${port}`);
     });
   }
 } else {
   // Use HTTP (production or explicitly disabled)
-  http.createServer(app).listen(port, () => {
+  server = http.createServer(app);
+  server.listen(port, () => {
     const protocol = process.env.NODE_ENV === 'production' ? '🔒 HTTPS' : '🔓 HTTP';
     console.log(`${protocol} server listening on port ${port}`);
     console.log(`🌐 Access your API at: http${process.env.NODE_ENV === 'production' ? 's' : ''}://localhost:${port}`);
   });
 }
+
+// Initialize Socket.IO with CORS configuration
+// Allow both HTTP and HTTPS for localhost in development
+const allowedOrigins = process.env.FRONTEND_URL 
+  ? [process.env.FRONTEND_URL]
+  : ['http://localhost:5173', 'https://localhost:5173', 'http://localhost:3000', 'https://localhost:3000'];
+
+const io = new Server(server, {
+  cors: {
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Initialize WebSocket service
+webSocketService.initialize(io);
+console.log('🔌 WebSocket service initialized');

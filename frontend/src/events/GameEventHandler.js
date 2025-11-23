@@ -4,6 +4,8 @@
  */
 import { eventBus } from '../eventBus.js';
 import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+import { webSocketManager } from '../services/WebSocketManager.js';
+import { gameStatePoller } from '../services/GameStatePoller.js';
 
 export class GameEventHandler {
   constructor() {
@@ -592,6 +594,21 @@ export class GameEventHandler {
       
       // Get current turn for the game
       const currentTurn = await this.getCurrentTurn(gameId);
+      
+      // Join WebSocket game room if WebSocket is connected
+      if (webSocketManager.isWebSocketConnected() && gameData.currentPlayerId) {
+        webSocketManager.joinGame(gameId, gameData.currentPlayerId);
+      } else {
+        // If WebSocket not connected, start polling as fallback
+        if (currentTurn) {
+          gameStatePoller.startPolling(gameId, currentTurn.number);
+        }
+      }
+      
+      // Update poller with current turn number if polling is active
+      if (currentTurn && gameStatePoller.isPolling) {
+        gameStatePoller.updateTurnNumber(currentTurn.number);
+      }
       
       // Emit success event with complete game data including current turn
       console.log(eventBus.listeners)

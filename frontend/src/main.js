@@ -17,6 +17,8 @@ import { TurnEventsPanel } from './TurnEventsPanel.js';
 import { SummaryDialog } from './SummaryDialog.js';
 import { OrderSummaryDialog } from './OrderSummaryDialog.js';
 import { ShipSummaryDialog } from './ShipSummaryDialog.js';
+import { webSocketManager } from './services/WebSocketManager.js';
+import { gameStatePoller } from './services/GameStatePoller.js';
 
 // Global MapModel instance
 window.globalMapModel = null;
@@ -164,6 +166,9 @@ document.addEventListener('DOMContentLoaded', () =>
       // Make homePage accessible globally for profile updates
       window.homePage = homePage;
       // Don't show UIController automatically - user can choose from menu
+      
+      // Connect WebSocket after login
+      webSocketManager.connect();
     });
 
     // Listen for game:load event from home page (PLAY/JOIN buttons)
@@ -190,7 +195,8 @@ document.addEventListener('DOMContentLoaded', () =>
   createButtonContainer();
   
   // Create buttons in reverse order (row-reverse means first added = rightmost)
-  // Desired order (right to left): End Turn, Ships, Orders, Summary, Events, Refresh
+  // Desired order (right to left): Home, End Turn, Ships, Orders, Summary, Events, Refresh
+  createHomeButton();
   createEndTurnButton();
   createShipSummaryButton();
   createOrderButton();
@@ -296,6 +302,82 @@ function createButtonContainer()
   buttonContainer.id = 'top-right-buttons';
   buttonContainer.className = 'top-right-buttons-container';
   document.body.appendChild(buttonContainer);
+}
+
+// Create home button
+function createHomeButton()
+{
+  const homeButton = document.createElement('button');
+  homeButton.id = 'home-button';
+  homeButton.className = 'top-right-button top-right-button-home';
+  homeButton.innerHTML = '🏠 Home';
+  
+  // Hover effects
+  homeButton.addEventListener('mouseenter', () => {
+    homeButton.style.background = 'rgba(255, 100, 100, 0.3)';
+    homeButton.style.transform = 'scale(1.05)';
+    homeButton.style.boxShadow = '0 0 15px rgba(255, 100, 100, 0.5)';
+  });
+  
+  homeButton.addEventListener('mouseleave', () => {
+    homeButton.style.background = 'rgba(255, 100, 100, 0.2)';
+    homeButton.style.transform = 'scale(1)';
+    homeButton.style.boxShadow = 'none';
+  });
+  
+  // Click handler
+  homeButton.addEventListener('click', () => {
+    console.log('🏠 Home button clicked - returning to home page');
+    
+    // Leave WebSocket game room
+    webSocketManager.leaveGame();
+    
+    // Stop polling
+    gameStatePoller.stopPolling();
+    
+    // Clear game context
+    eventBus.setGameId(null);
+    eventBus.setPlayerId(null);
+    
+    // Hide any open dialogs
+    if (summaryDialog && summaryDialog.isOpen()) {
+      summaryDialog.hide();
+    }
+    if (orderSummaryDialog && orderSummaryDialog.isOpen()) {
+      orderSummaryDialog.hide();
+    }
+    if (shipSummaryDialog && shipSummaryDialog.isOpen()) {
+      shipSummaryDialog.hide();
+    }
+    if (turnEventsPanel) {
+      turnEventsPanel.hide();
+    }
+    
+    // Clear the map if mapGenerator exists
+    if (mapGenerator) {
+      mapGenerator.clearMap();
+    }
+    
+    // Show home page if it exists, otherwise create it
+    if (!homePage) {
+      homePage = new HomePage();
+      homePage.init();
+      window.homePage = homePage;
+    } else {
+      homePage.show();
+    }
+    
+    // Show the Games Playing view
+    homePage.showView('games-playing');
+    
+    console.log('🏠 Returned to home page and showing Games Playing view');
+  });
+  
+  // Add to container
+  const container = document.getElementById('top-right-buttons');
+  if (container) {
+    container.appendChild(homeButton);
+  }
 }
 
 // Create refresh button
@@ -560,6 +642,20 @@ function createEndTurnButton()
         button.style.cursor = 'pointer';
         console.log('✅ End Turn button: Reset after game refresh');
       }
+      
+      // Update poller with new turn number if polling is active
+      if (eventData.details?.currentTurn && gameStatePoller.isPolling) {
+        gameStatePoller.updateTurnNumber(eventData.details.currentTurn.number);
+      }
+    }
+  });
+  
+  // Listen for WebSocket connection failure to start polling
+  eventBus.on('websocket:connectionFailed', () => {
+    const context = eventBus.getContext();
+    if (context.gameId) {
+      console.log('🔄 WebSocket connection failed, starting polling fallback');
+      // Poller will be started when game loads, but we can also start it here if needed
     }
   });
   
