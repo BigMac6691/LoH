@@ -1179,9 +1179,6 @@ export class AuthRouter {
         updates.push(`email_verified = false`);
       }
 
-      // Add updated_at
-      updates.push(`updated_at = now()`);
-
       if (updates.length === 0) {
         return res.status(400).json({
           success: false,
@@ -1189,6 +1186,9 @@ export class AuthRouter {
           message: 'No fields to update'
         });
       }
+
+      // Add updated_at
+      updates.push(`updated_at = now()`);
 
       // Build and execute update query
       values.push(userId);
@@ -1286,11 +1286,12 @@ export class AuthRouter {
       }
 
       // Validate new password complexity
-      if (!validatePassword(newPassword)) {
+      const passwordValidation = validatePassword(newPassword);
+      if (!passwordValidation.valid) {
         return res.status(400).json({
           success: false,
-          error: 'INVALID_PASSWORD',
-          message: 'Password must be at least 8 characters and contain uppercase, lowercase, number, and symbol'
+          error: 'PASSWORD_INVALID',
+          message: passwordValidation.errors.join('. ')
         });
       }
 

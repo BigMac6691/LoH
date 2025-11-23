@@ -28,7 +28,7 @@ export async function getNextSequenceNumber({ gameId, turnId }, client = null) {
     try {
       await client.query('BEGIN');
       
-      const { rows } = await dbClient.query(
+      const { rows } = await client.query(
         `SELECT COALESCE((SELECT MAX(seq) FROM turn_event WHERE game_id=$1 AND turn_id=$2), 0) + 1 as next_seq`,
         [gameId, turnId]
       );
