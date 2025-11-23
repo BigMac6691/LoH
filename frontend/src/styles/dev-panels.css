@@ -1,0 +1,199 @@
+/* Development Panel Styles */
+
+/* Backend Test Panel */
+#backend-test-panel {
+  top: 10px;
+  right: 10px;
+  min-width: 300px;
+  max-width: 400px;
+  display: none;
+}
+
+.backend-test-panel-header {
+  margin-bottom: var(--spacing-xl);
+  font-weight: bold;
+  color: var(--color-primary);
+  font-size: var(--font-size-lg);
+}
+
+/* Game form specific styles */
+.game-form {
+  /* Form container styles */
+}
+
+.game-form .form-group {
+  margin-bottom: var(--spacing-lg);
+}
+
+.game-form .form-label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  color: var(--text-secondary);
+}
+
+.game-form .form-input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  background: var(--bg-medium);
+  color: var(--text-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+.game-form .form-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* Player input group styles */
+.player-input-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.player-input-group .form-label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  color: var(--text-secondary);
+}
+
+.player-input-group .player-name-input {
+  width: 60%;
+  padding: var(--spacing-sm);
+  background: var(--bg-medium);
+  color: var(--text-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  margin-right: var(--spacing-sm);
+}
+
+.player-input-group .player-color-input {
+  width: 35%;
+  height: 25px;
+  background: var(--bg-medium);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+}
+
+/* Start game button */
+.start-game-btn {
+  width: 100%;
+  background: var(--color-success);
+  color: var(--text-primary);
+  border: none;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-md);
+  font-weight: bold;
+  transition: background-color 0.2s ease;
+}
+
+.start-game-btn:hover {
+  background: #008800;
+}
+
+/* Status display */
+.status-display {
+  margin-top: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background: var(--bg-darker);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  min-height: 20px;
+}
+
+/* Dev tools section */
+.dev-tools-section {
+  margin-top: var(--spacing-xl);
+  border-top: 1px solid var(--border-secondary);
+  padding-top: var(--spacing-xl);
+}
+
+.dev-tools-header {
+  margin-bottom: var(--spacing-lg);
+  font-weight: bold;
+  color: var(--color-secondary);
+  font-size: var(--font-size-md);
+}
+
+.dev-tools-btn {
+  background: var(--bg-light);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  width: 100%;
+  margin-bottom: var(--spacing-sm);
+  transition: all 0.2s ease;
+}
+
+.dev-tools-btn:hover {
+  background: var(--bg-lighter);
+  border-color: var(--border-lighter);
+}
+
+/* Toggle panel button */
+.toggle-panel-btn {
+  background: var(--bg-lighter);
+  color: var(--text-primary);
+  border: 1px solid var(--border-lighter);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: all 0.2s ease;
+}
+
+.toggle-panel-btn:hover {
+  background: #777;
+}
+
+/* Help text */
+.help-text {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-top: var(--spacing-lg);
+}
+
+/* Dev Panel (simpler version) */
+#dev-panel {
+  top: 10px;
+  left: 10px;
+  min-width: 200px;
+  max-width: 250px;
+  display: none;
+}
+
+.dev-panel-header {
+  margin-bottom: var(--spacing-lg);
+  font-weight: bold;
+  color: var(--color-primary);
+}
+
+.dev-panel-btn {
+  background: var(--bg-light);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: all 0.2s ease;
+}
+
+.dev-panel-btn:hover {
+  background: var(--bg-lighter);
+  border-color: var(--border-lighter);
+}
+
+.dev-panel-help {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}

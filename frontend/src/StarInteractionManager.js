@@ -58,15 +58,19 @@ export class StarInteractionManager {
     // Update raycaster
     this.raycaster.setFromCamera(this.mouse, this.camera);
     
-    // Check for intersections with stars
-    const starMeshes = this.stars.map(star => star.mesh).filter(mesh => mesh);
-    const intersects = this.raycaster.intersectObjects(starMeshes, true);
+    // Check for intersections with stars (now using groups)
+    const starGroups = this.stars.map(star => star.group).filter(group => group);
+    const intersects = this.raycaster.intersectObjects(starGroups, true);
     
+    // Debug logging
     if (intersects.length > 0) {
-      const intersectedMesh = intersects[0].object;
-      const star = this.stars.find(s => s.mesh === intersectedMesh);
+      console.log('🎯 StarInteractionManager: Found intersection with', intersects.length, 'objects');
+      const intersectedObject = intersects[0].object;
+      // Find the star by checking if the intersected object is part of a star's group
+      const star = this.stars.find(s => s.group && s.group.children.includes(intersectedObject));
       
       if (star && star !== this.hoveredStar) {
+        console.log('🎯 StarInteractionManager: Found star', star);
         this.onStarHover(star);
       }
     } else {
@@ -93,12 +97,12 @@ export class StarInteractionManager {
    * @returns {boolean} True if mouse is in hover area
    */
   isMouseInHoverArea(event) {
-    if (!this.hoveredStar || !this.hoveredStar.mesh) {
+    if (!this.hoveredStar || !this.hoveredStar.group) {
       return false;
     }
 
-    // Get star's screen position
-    const starPosition = this.hoveredStar.mesh.position.clone();
+    // Get star's screen position (using group position)
+    const starPosition = this.hoveredStar.group.position.clone();
     starPosition.project(this.camera);
     
     // Convert to screen coordinates
@@ -122,14 +126,12 @@ export class StarInteractionManager {
   onStarHover(star) {
     // Only emit event for owned stars
     if (star.isOwned && star.isOwned()) {
-      const starName = star.getName ? star.getName() : `Star ${star.id}`;
-      console.log(`Hovering over owned star: ${starName}`);
+      console.log(`Hovering over owned star:`, star);
       
       // Emit star hover event
       eventBus.emit(STAR_EVENTS.HOVER, {
         star: star,
-        position: star.mesh.position,
-        screenPosition: this.getStarScreenPosition(star)
+        position: star.group.position
       });
     }
     
@@ -153,24 +155,7 @@ export class StarInteractionManager {
     this.hoveredStar = null;
   }
 
-  /**
-   * Get star's screen position
-   * @param {Object} star - Star object
-   * @returns {Object} Screen coordinates {x, y}
-   */
-  getStarScreenPosition(star) {
-    if (!star || !star.mesh) {
-      return { x: 0, y: 0 };
-    }
 
-    const position = star.mesh.position.clone();
-    position.project(this.camera);
-    
-    return {
-      x: (position.x + 1) * window.innerWidth / 2,
-      y: (-position.y + 1) * window.innerHeight / 2
-    };
-  }
 
   /**
    * Update star list

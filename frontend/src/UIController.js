@@ -43,11 +43,12 @@ export class UIController {
       border-radius: 15px;
       padding: 30px;
       color: white;
-      z-index: 1000;
+      z-index: 10001;
       min-width: 400px;
       max-width: 500px;
       backdrop-filter: blur(10px);
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: block;
     `;
 
     // Create header
@@ -144,6 +145,29 @@ export class UIController {
     `;
 
     if (inputType === 'range') {
+      // Special case for star density slider - needs a container for DualSlider
+      if (inputId === 'starDensitySlider') {
+        const container = document.createElement('div');
+        container.id = 'starDensitySliderContainer';
+        container.style.cssText = `
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          margin-top: 10px;
+        `;
+
+        group.appendChild(label);
+        group.appendChild(container);
+
+        return {
+          element: group,
+          input: null,
+          value: null,
+          container: container
+        };
+      }
+
+      // Regular range input
       const input = document.createElement('input');
       input.type = 'range';
       input.id = inputId;
@@ -388,7 +412,12 @@ export class UIController {
       this.createPanel();
     }
     
-    this.panel.style.display = 'block';
+    if (this.panel) {
+      this.panel.style.display = 'block';
+      console.log('UIController panel shown');
+    } else {
+      console.error('UIController panel not created');
+    }
   }
 
   /**
@@ -396,15 +425,9 @@ export class UIController {
    * @param {Object} config - Configuration object
    */
   callGenerateMap(config) {
-    // This function will be called by the main application
-    // The actual implementation will be provided by the main.js
-    if (window.generateMap && typeof window.generateMap === 'function') {
-      window.generateMap(config);
-    } else {
-      console.log('Map generation config:', config);
-      // Fallback: show the config in console for now
-      alert(`Map generation called with:\nMap Size: ${config.mapSize}\nStar Density: ${config.starDensity}\nSeed: ${config.seed}`);
-    }
+    // Map generation is now handled by backend only
+    console.log('Map generation config:', config);
+    alert(`Map generation moved to backend.\nUse the DevPanel to create games.\n\nConfig would have been:\nMap Size: ${config.mapSize}\nStar Density: ${config.starDensity}\nSeed: ${config.seed}`);
   }
 
   /**

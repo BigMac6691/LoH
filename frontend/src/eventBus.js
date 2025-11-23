@@ -5,6 +5,11 @@
 export class EventBus {
   constructor() {
     this.listeners = new Map();
+    this.context = {
+      user: null,      // user_id (from JWT/auth)
+      playerId: null,  // player_id (game-specific, from game_player.id)
+      gameId: null
+    };
   }
 
   /**
@@ -62,7 +67,7 @@ export class EventBus {
     
     listeners.forEach((listener, index) => {
       try {
-        listener.callback(data);
+        listener.callback(this.context, data);
         
         if (listener.once) {
           toRemove.push(index);
@@ -97,6 +102,41 @@ export class EventBus {
    */
   listenerCount(event) {
     return this.listeners.has(event) ? this.listeners.get(event).length : 0;
+  }
+
+  /**
+   * Set current user in context
+   * @param {Object} user - User data
+   */
+  setUser(user) {
+    this.context.user = user;
+    console.log('👤 EventBus: User context updated:', user);
+  }
+
+  /**
+   * Set current game ID in context
+   * @param {string} gameId - Game ID
+   */
+  setGameId(gameId) {
+    this.context.gameId = gameId;
+    console.log('🎯 EventBus: Game context updated:', gameId);
+  }
+
+  /**
+   * Set current player ID in context (game-specific)
+   * @param {string} playerId - Player ID (from game_player.id)
+   */
+  setPlayerId(playerId) {
+    this.context.playerId = playerId;
+    console.log('👤 EventBus: Player ID context updated:', playerId);
+  }
+
+  /**
+   * Get current context
+   * @returns {Object} Current context with user, playerId, and gameId
+   */
+  getContext() {
+    return { ...this.context };
   }
 }
 

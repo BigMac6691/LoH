@@ -1,29 +1,23 @@
 {
-  "name": "loh-backend",
-  "version": "1.0.0",
-  "description": "Backend server for LoH game",
-  "main": "backend/server.js",
+  "name": "loh-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "frontend"
+  ],
   "scripts": {
-    "start": "node backend/server.js",
-    "dev": "nodemon backend/server.js",
-    "backend": "nodemon backend/server.js",
-    "frontend": "cd frontend && npm run dev"
-  },
-  "dependencies": {
-    "express": "^4.21.2",
-    "morgan": "^1.10.1",
-    "three": "^0.178.0",
-    "winston": "^3.17.0"
+    "postinstall": "npm -w @loh/shared run build || true",
+    "dev:api": "npm -w loh-backend run dev",
+    "start:api": "npm -w loh-backend start",
+    "migrate": "npm -w loh-backend run migrate",
+    "dev:web": "npm -w loh-frontend run dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "nodemon": "^3.0.2",
-    "vite": "^7.0.6"
-  },
-  "keywords": [
-    "game",
-    "backend",
-    "express"
-  ],
-  "author": "",
-  "license": "MIT"
+    "prettier": "^3.0.0",
+    "prettier-plugin-brace-style": "^0.8.1"
+  }
 }

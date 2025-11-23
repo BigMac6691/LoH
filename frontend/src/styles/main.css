@@ -1,0 +1,167 @@
+/* Main CSS file for LoH Frontend */
+
+/* Import base styles first */
+@import './base.css';
+
+/* Import component-specific styles */
+@import './splash-screen.css';
+@import './home-page.css';
+@import './dev-panels.css';
+@import './ui-components.css';
+@import './dialogs.css';
+@import './test-pages.css';
+
+/* Global overrides and additional styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  background: #000;
+  color: #fff;
+  overflow-x: hidden;
+}
+
+/* Ensure panels are above other content */
+.panel {
+  z-index: var(--z-panel);
+}
+
+/* Ensure modals are above panels */
+.player-setup-ui,
+.move-dialog {
+  z-index: var(--z-modal);
+}
+
+/* Top-right buttons container */
+.top-right-buttons-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: row-reverse; /* Reverse order so buttons appear right-to-left */
+  align-items: center;
+  gap: 10px; /* Space between buttons */
+}
+
+/* Base styles for top-right buttons */
+.top-right-button {
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  border: 2px solid;
+  white-space: nowrap;
+}
+
+/* Button-specific colors */
+.top-right-button-refresh {
+  background: rgba(0, 255, 136, 0.2);
+  border-color: #00ff88;
+  color: #00ff88;
+}
+
+.top-right-button-events {
+  background: rgba(0, 150, 255, 0.2);
+  border-color: #0096ff;
+  color: #0096ff;
+}
+
+.top-right-button-summary {
+  background: rgba(255, 215, 0, 0.18);
+  border-color: #ffd700;
+  color: #ffd700;
+}
+
+.top-right-button-order {
+  background: rgba(135, 206, 250, 0.18);
+  border-color: #87cefa;
+  color: #87cefa;
+}
+
+.top-right-button-ship {
+  background: rgba(70, 130, 180, 0.18);
+  border-color: #4682b4;
+  color: #4682b4;
+}
+
+.top-right-button-end-turn {
+  background: rgba(255, 165, 0, 0.2);
+  border-color: #ffa500;
+  color: #ffa500;
+}
+
+/* Hide elements by default */
+.hidden {
+  display: none !important;
+}
+
+/* Loading states */
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid var(--color-primary);
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Focus management */
+.focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --color-primary: #00ff00;
+    --color-secondary: #00ffff;
+    --color-accent: #ff0000;
+    --text-primary: #ffffff;
+    --text-secondary: #ffffff;
+    --border-primary: #ffffff;
+    --border-secondary: #ffffff;
+  }
+}
+
+/* Print styles */
+@media print {
+  .panel,
+  .player-setup-ui,
+  .move-dialog {
+    display: none !important;
+  }
+}

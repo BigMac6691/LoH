@@ -1,10 +1,12 @@
-import { DEV_MODE } from './devScenarios.js';
+import {DEV_MODE} from './devScenarios.js';
 
 /**
  * PlayerSetupUI - Handles the player setup interface
  */
-export class PlayerSetupUI {
-  constructor(playerManager, mapModel, onGameStart) {
+export class PlayerSetupUI
+{
+  constructor(playerManager, mapModel, onGameStart)
+  {
     this.playerManager = playerManager;
     this.mapModel = mapModel;
     this.onGameStart = onGameStart;
@@ -14,14 +16,15 @@ export class PlayerSetupUI {
     this.colorSelect = null;
     this.addButton = null;
     this.startButton = null;
-    
+
     this.init();
   }
 
   /**
    * Initialize the player setup UI
    */
-  init() {
+  init()
+  {
     this.createElements();
     this.setupEventListeners();
     this.updateDisplay();
@@ -30,7 +33,8 @@ export class PlayerSetupUI {
   /**
    * Create the DOM elements for the player setup UI
    */
-  createElements() {
+  createElements()
+  {
     // Create main container
     this.element = document.createElement('div');
     this.element.className = 'player-setup-panel';
@@ -163,7 +167,7 @@ export class PlayerSetupUI {
     // Create info text
     const infoText = document.createElement('div');
     infoText.innerHTML = `
-      <p style="margin: 15px 0; color: #ccc; font-size: 14px; text-align: center;">
+      <p class="info-text">
         Add at least 2 players to start the game.<br>
         Each player will be assigned to a random sector with stars.
       </p>
@@ -196,21 +200,26 @@ export class PlayerSetupUI {
   /**
    * Setup event listeners
    */
-  setupEventListeners() {
+  setupEventListeners()
+  {
     // Add player button
-    this.addButton.addEventListener('click', () => {
+    this.addButton.addEventListener('click', () =>
+    {
       this.addPlayer();
     });
 
     // Enter key on name input
-    this.nameInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
+    this.nameInput.addEventListener('keypress', e =>
+    {
+      if (e.key === 'Enter')
+      {
         this.addPlayer();
       }
     });
 
     // Start game button
-    this.startButton.addEventListener('click', () => {
+    this.startButton.addEventListener('click', () =>
+    {
       this.startGame();
     });
 
@@ -221,22 +230,27 @@ export class PlayerSetupUI {
   /**
    * Add a new player
    */
-  addPlayer() {
+  addPlayer()
+  {
     const name = this.nameInput.value.trim();
     const color = this.colorSelect.value;
 
-    if (!name) {
+    if (!name)
+    {
       this.showError('Please enter a player name');
       return;
     }
 
-    const result = this.playerManager.addPlayer(name, color, this.mapModel);
-    
-    if (result.success) {
+    const result = this.playerManager.addPlayer(name, color);
+
+    if (result.success)
+    {
       this.nameInput.value = '';
       this.updateDisplay();
       this.nameInput.focus();
-    } else {
+    }
+    else
+    {
       this.showError(result.error);
     }
   }
@@ -244,14 +258,17 @@ export class PlayerSetupUI {
   /**
    * Start the game
    */
-  startGame() {
-    if (!this.playerManager.canStartGame(2)) {
+  startGame()
+  {
+    if (!this.playerManager.canStartGame(2))
+    {
       this.showError('Need at least 2 players to start the game');
       return;
     }
 
     this.hide();
-    if (this.onGameStart) {
+    if (this.onGameStart)
+    {
       this.onGameStart(this.playerManager.getPlayers());
     }
   }
@@ -259,7 +276,8 @@ export class PlayerSetupUI {
   /**
    * Update the display
    */
-  updateDisplay() {
+  updateDisplay()
+  {
     this.updatePlayerList();
     this.updateColorSelect();
     this.updateStartButton();
@@ -268,12 +286,14 @@ export class PlayerSetupUI {
   /**
    * Update the player list display
    */
-  updatePlayerList() {
+  updatePlayerList()
+  {
     this.playerListElement.innerHTML = '';
-    
+
     const players = this.playerManager.getPlayers();
-    
-    if (players.length === 0) {
+
+    if (players.length === 0)
+    {
       const emptyText = document.createElement('div');
       emptyText.textContent = 'No players added yet';
       emptyText.style.cssText = `
@@ -286,7 +306,8 @@ export class PlayerSetupUI {
       return;
     }
 
-    players.forEach(player => {
+    players.forEach(player =>
+    {
       const playerItem = document.createElement('div');
       playerItem.className = 'player-item';
       playerItem.style.cssText = `
@@ -348,7 +369,8 @@ export class PlayerSetupUI {
         transition: background 0.3s ease;
       `;
 
-      removeButton.addEventListener('click', () => {
+      removeButton.addEventListener('click', () =>
+      {
         this.playerManager.removePlayer(player.id);
         this.updateDisplay();
       });
@@ -356,10 +378,10 @@ export class PlayerSetupUI {
       playerInfo.appendChild(colorDot);
       playerInfo.appendChild(playerName);
       playerInfo.appendChild(sectorInfo);
-      
+
       playerItem.appendChild(playerInfo);
       playerItem.appendChild(removeButton);
-      
+
       this.playerListElement.appendChild(playerItem);
     });
   }
@@ -367,12 +389,14 @@ export class PlayerSetupUI {
   /**
    * Update the color select dropdown
    */
-  updateColorSelect() {
+  updateColorSelect()
+  {
     this.colorSelect.innerHTML = '';
-    
+
     const availableColors = this.playerManager.getAvailableColors();
-    
-    if (availableColors.length === 0) {
+
+    if (availableColors.length === 0)
+    {
       const option = document.createElement('option');
       option.textContent = 'No colors available';
       option.disabled = true;
@@ -380,7 +404,8 @@ export class PlayerSetupUI {
       return;
     }
 
-    availableColors.forEach(color => {
+    availableColors.forEach(color =>
+    {
       const option = document.createElement('option');
       option.value = color;
       option.textContent = this.getColorName(color);
@@ -395,7 +420,8 @@ export class PlayerSetupUI {
   /**
    * Update the start button state
    */
-  updateStartButton() {
+  updateStartButton()
+  {
     const canStart = this.playerManager.canStartGame(2);
     this.startButton.disabled = !canStart;
     this.startButton.style.opacity = canStart ? '1' : '0.5';
@@ -407,7 +433,8 @@ export class PlayerSetupUI {
    * @param {string} color - Hex color
    * @returns {string} Color name
    */
-  getColorName(color) {
+  getColorName(color)
+  {
     const colorNames = {
       '#FF6B6B': 'Red',
       '#4ECDC4': 'Teal',
@@ -422,9 +449,9 @@ export class PlayerSetupUI {
       '#85C1E9': 'Sky Blue',
       '#F8C471': 'Peach',
       '#82E0AA': 'Light Green',
-      '#F1948A': 'Light Red'
+      '#F1948A': 'Light Red',
     };
-    
+
     return colorNames[color] || color;
   }
 
@@ -433,10 +460,11 @@ export class PlayerSetupUI {
    * @param {string} color - Hex color
    * @returns {boolean} True if light color
    */
-  isLightColor(color) {
+  isLightColor(color)
+  {
     const rgb = this.playerManager.hexToRgb(color);
     if (!rgb) return false;
-    
+
     // Calculate luminance
     const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
     return luminance > 0.5;
@@ -446,7 +474,8 @@ export class PlayerSetupUI {
    * Show an error message
    * @param {string} message - Error message
    */
-  showError(message) {
+  showError(message)
+  {
     // Create temporary error message
     const errorDiv = document.createElement('div');
     errorDiv.style.cssText = `
@@ -464,7 +493,7 @@ export class PlayerSetupUI {
       animation: fadeInOut 3s ease-in-out;
     `;
     errorDiv.textContent = message;
-    
+
     // Add CSS animation
     const style = document.createElement('style');
     style.textContent = `
@@ -476,15 +505,18 @@ export class PlayerSetupUI {
       }
     `;
     document.head.appendChild(style);
-    
+
     document.body.appendChild(errorDiv);
-    
+
     // Remove after animation
-    setTimeout(() => {
-      if (errorDiv.parentNode) {
+    setTimeout(() =>
+    {
+      if (errorDiv.parentNode)
+      {
         errorDiv.parentNode.removeChild(errorDiv);
       }
-      if (style.parentNode) {
+      if (style.parentNode)
+      {
         style.parentNode.removeChild(style);
       }
     }, 3000);
@@ -493,13 +525,15 @@ export class PlayerSetupUI {
   /**
    * Show the player setup UI
    */
-  show() {
+  show()
+  {
     // Suppress UI in dev mode
-    if (DEV_MODE) {
+    if (DEV_MODE)
+    {
       console.log('🔧 DEV MODE: Suppressing player setup UI');
       return;
     }
-    
+
     this.element.style.display = 'block';
     this.updateDisplay();
     this.nameInput.focus();
@@ -508,16 +542,19 @@ export class PlayerSetupUI {
   /**
    * Hide the player setup UI
    */
-  hide() {
+  hide()
+  {
     this.element.style.display = 'none';
   }
 
   /**
    * Destroy the UI and clean up
    */
-  destroy() {
-    if (this.element && this.element.parentNode) {
+  destroy()
+  {
+    if (this.element && this.element.parentNode)
+    {
       this.element.parentNode.removeChild(this.element);
     }
   }
-} 
+}

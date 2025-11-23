@@ -1,0 +1,215 @@
+/* Base CSS for LoH Frontend */
+
+:root {
+  /* Color Palette */
+  --color-primary: #00ff00;
+  --color-secondary: #00ffff;
+  --color-accent: #ff4444;
+  --color-success: #00aa00;
+  --color-warning: #ffff00;
+  --color-error: #ff0000;
+  
+  /* Background Colors */
+  --bg-dark: rgba(0, 0, 0, 0.9);
+  --bg-darker: #222;
+  --bg-medium: #333;
+  --bg-light: #444;
+  --bg-lighter: #666;
+  
+  /* Text Colors */
+  --text-primary: white;
+  --text-secondary: #ccc;
+  --text-muted: #666;
+  
+  /* Border Colors */
+  --border-primary: #00ff00;
+  --border-secondary: #555;
+  --border-light: #666;
+  --border-lighter: #888;
+  
+  /* Spacing */
+  --spacing-xs: 3px;
+  --spacing-sm: 5px;
+  --spacing-md: 8px;
+  --spacing-lg: 10px;
+  --spacing-xl: 15px;
+  --spacing-xxl: 20px;
+  
+  /* Border Radius */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 5px;
+  --radius-xl: 8px;
+  
+  /* Typography */
+  --font-family-mono: monospace;
+  --font-family-default: Arial, sans-serif;
+  --font-size-xs: 10px;
+  --font-size-sm: 11px;
+  --font-size-md: 12px;
+  --font-size-lg: 14px;
+  
+  /* Z-index layers */
+  --z-panel: 1000;
+  --z-modal: 2000;
+  --z-tooltip: 3000;
+}
+
+/* Common utility classes */
+.text-center {
+  text-align: center;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.mb-sm {
+  margin-bottom: var(--spacing-sm);
+}
+
+.mb-md {
+  margin-bottom: var(--spacing-md);
+}
+
+.mb-lg {
+  margin-bottom: var(--spacing-lg);
+}
+
+.mb-xl {
+  margin-bottom: var(--spacing-xl);
+}
+
+.mt-lg {
+  margin-top: var(--spacing-xl);
+}
+
+.mt-xl {
+  margin-top: var(--spacing-xxl);
+}
+
+/* Common form styles */
+.form-input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  background: var(--bg-medium);
+  color: var(--text-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.form-label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  color: var(--text-secondary);
+}
+
+.form-group {
+  margin-bottom: var(--spacing-lg);
+}
+
+/* Common button styles */
+.btn {
+  background: var(--bg-light);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family-mono);
+  transition: all 0.2s ease;
+}
+
+.btn:hover {
+  background: var(--bg-lighter);
+  border-color: var(--border-lighter);
+}
+
+.btn-primary {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  font-weight: bold;
+}
+
+.btn-primary:hover {
+  background: #008800;
+}
+
+.btn-secondary {
+  background: var(--bg-lighter);
+  border-color: var(--border-lighter);
+}
+
+.btn-secondary:hover {
+  background: #777;
+}
+
+/* Status message styles */
+.status-message {
+  padding: var(--spacing-lg);
+  background: var(--bg-darker);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  min-height: 20px;
+}
+
+.status-loading {
+  color: var(--color-warning);
+}
+
+.status-success {
+  color: var(--color-success);
+}
+
+.status-error {
+  color: var(--color-error);
+}
+
+/* Panel base styles */
+.panel {
+  position: fixed;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  padding: var(--spacing-xxl);
+  border-radius: var(--radius-xl);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-md);
+  z-index: var(--z-panel);
+  border: 2px solid var(--border-primary);
+  cursor: move;
+  user-select: none;
+}
+
+.panel-header {
+  margin-bottom: var(--spacing-xl);
+  font-weight: bold;
+  color: var(--color-primary);
+  font-size: var(--font-size-lg);
+}
+
+.panel-section {
+  margin-top: var(--spacing-xl);
+  border-top: 1px solid var(--border-secondary);
+  padding-top: var(--spacing-xl);
+}
+
+.panel-section-header {
+  margin-bottom: var(--spacing-lg);
+  font-weight: bold;
+  color: var(--color-secondary);
+  font-size: var(--font-size-md);
+}
+
+.panel-help {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-top: var(--spacing-lg);
+}

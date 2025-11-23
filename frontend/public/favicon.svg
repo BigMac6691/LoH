@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Dark background -->
+  <rect width="100" height="100" fill="#0a0a0a"/>
+  
+  <!-- Outer ring with glow -->
+  <circle cx="50" cy="50" r="45" fill="none" stroke="#00ff88" stroke-width="2" opacity="0.8"/>
+  <circle cx="50" cy="50" r="42" fill="none" stroke="#00ff88" stroke-width="1" opacity="0.5"/>
+  
+  <!-- Central "H" design - Hyperspace -->
+  <path d="M 35 30 L 35 70 M 50 30 L 50 70 M 65 30 L 65 70 M 35 50 L 50 35 L 50 50 M 50 50 L 65 50" 
+        fill="none" 
+        stroke="#00ff88" 
+        stroke-width="3.5" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+  
+  <!-- Connecting lines for hyperspace effect -->
+  <line x1="35" y1="50" x2="50" y2="35" stroke="#00ff88" stroke-width="2" opacity="0.6"/>
+  <line x1="50" y1="50" x2="65" y2="50" stroke="#00ff88" stroke-width="2" opacity="0.6"/>
+  
+  <!-- Small stars around the icon -->
+  <circle cx="22" cy="22" r="1.5" fill="#00ff88"/>
+  <circle cx="78" cy="22" r="1.5" fill="#00ff88"/>
+  <circle cx="22" cy="78" r="1.5" fill="#00ff88"/>
+  <circle cx="78" cy="78" r="1.5" fill="#00ff88"/>
+  <circle cx="50" cy="15" r="1" fill="#00ff88" opacity="0.8"/>
+  <circle cx="50" cy="85" r="1" fill="#00ff88" opacity="0.8"/>
+  <circle cx="15" cy="50" r="1" fill="#00ff88" opacity="0.8"/>
+  <circle cx="85" cy="50" r="1" fill="#00ff88" opacity="0.8"/>
+  
+  <!-- Glow effect on center -->
+  <circle cx="50" cy="50" r="3" fill="#00ff88" opacity="0.4"/>
+</svg>
+

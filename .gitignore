@@ -137,3 +137,11 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# SSL/TLS certificates and private keys (mkcert generated)
+*.pem
+*.key
+*.crt
+*.cert
+localhost+*.pem
+*-key.pem

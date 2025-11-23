@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MoveDialog Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #1a1a2e;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    
+    .test-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .test-button {
+      background: #00ff88;
+      color: #000;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 10px;
+    }
+    
+    .test-button:hover {
+      background: #00cc6a;
+    }
+    
+    .test-info {
+      background: #333;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1>MoveDialog Test</h1>
+    
+    <div class="test-info">
+      <h3>Test Instructions:</h3>
+      <ol>
+        <li>Click "Open MoveDialog" to test the dialog</li>
+        <li>Select a destination star from the left panel</li>
+        <li>Browse the ship tree in the right panel</li>
+        <li>Select ships by clicking on them</li>
+        <li>Click "Move Fleet" to create a MoveOrder</li>
+        <li>Check the console for MoveOrder details</li>
+      </ol>
+    </div>
+    
+    <button class="test-button" onclick="openMoveDialog()">Open MoveDialog</button>
+    <button class="test-button" onclick="showMoveOrders()">Show Move Orders</button>
+    <button class="test-button" onclick="clearMoveOrders()">Clear Move Orders</button>
+  </div>
+
+  <script type="module">
+    import { MoveDialog } from './frontend/src/MoveDialog.js';
+    import { Ship } from './shared/Ship.js';
+    import { Star } from './shared/Star.js';
+    import { moveOrderStore } from './shared/MoveOrderStore.js';
+
+    // Create test data
+    const testStar = new Star({
+      id: 'test-star-1',
+      x: 0, y: 0, z: 0,
+      sector: { id: 'test-sector' },
+      resourceValue: 50,
+      name: 'Test Star Alpha'
+    });
+
+    const destStar1 = new Star({
+      id: 'test-star-2',
+      x: 100, y: 0, z: 0,
+      sector: { id: 'test-sector' },
+      resourceValue: 30,
+      name: 'Test Star Beta'
+    });
+
+    const destStar2 = new Star({
+      id: 'test-star-3',
+      x: 0, y: 100, z: 0,
+      sector: { id: 'test-sector' },
+      resourceValue: 40,
+      name: 'Test Star Gamma'
+    });
+
+    // Connect stars
+    testStar.addConnectedStar(destStar1);
+    testStar.addConnectedStar(destStar2);
+    destStar1.addConnectedStar(testStar);
+    destStar2.addConnectedStar(testStar);
+
+    // Create test ships
+    const ships = [
+      new Ship({ id: 'ship-1', power: 100, damage: 0 }),
+      new Ship({ id: 'ship-2', power: 100, damage: 20 }),
+      new Ship({ id: 'ship-3', power: 100, damage: 60 }),
+      new Ship({ id: 'ship-4', power: 50, damage: 0 }),
+      new Ship({ id: 'ship-5', power: 50, damage: 15 }),
+      new Ship({ id: 'ship-6', power: 50, damage: 30 }),
+      new Ship({ id: 'ship-7', power: 25, damage: 0 }),
+      new Ship({ id: 'ship-8', power: 25, damage: 10 }),
+      new Ship({ id: 'ship-9', power: 25, damage: 20 }),
+    ];
+
+    // Add ships to test star
+    ships.forEach(ship => {
+      testStar.addShip(ship);
+    });
+
+    // Create test player
+    const testPlayer = {
+      id: 'test-player-1',
+      name: 'Test Player',
+      color: '#FF6B6B'
+    };
+
+    // Create MoveDialog instance
+    const moveDialog = new MoveDialog();
+
+    // Global functions for testing
+    window.openMoveDialog = function() {
+      moveDialog.show(testStar, testPlayer);
+    };
+
+    window.showMoveOrders = function() {
+      console.log('📋 Move Orders:', moveOrderStore.getDebugInfo());
+      alert('Check console for move orders');
+    };
+
+    window.clearMoveOrders = function() {
+      moveOrderStore.clearAll();
+      console.log('🗑️ Cleared all move orders');
+      alert('All move orders cleared');
+    };
+
+    console.log('🧪 MoveDialog test ready');
+    console.log('Test star:', testStar.getSummary());
+    console.log('Test ships:', ships.length);
+  </script>
+</body>
+</html>

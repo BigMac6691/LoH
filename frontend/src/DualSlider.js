@@ -35,7 +35,10 @@ export class DualSlider {
   init() {
     this.createElements();
     this.setupEventListeners();
-    this.updateDisplay();
+    // Delay updateDisplay to ensure the element has been laid out and has dimensions
+    requestAnimationFrame(() => {
+      this.updateDisplay();
+    });
   }
 
   /**
@@ -270,25 +273,37 @@ export class DualSlider {
    */
   updateDisplay() {
     const trackWidth = this.track.offsetWidth;
+    
+    // If track hasn't been laid out yet, try again on next frame
+    if (trackWidth === 0) {
+      requestAnimationFrame(() => {
+        this.updateDisplay();
+      });
+      return;
+    }
+    
     const range = this.options.max - this.options.min;
     
-    // Calculate positions
+    // Track has left: 10px offset, so we need to account for that
+    const trackLeft = 10;
+    
+    // Calculate positions relative to track
     const minPosition = ((this.options.minValue - this.options.min) / range) * trackWidth;
     const maxPosition = ((this.options.maxValue - this.options.min) / range) * trackWidth;
     
-    // Update handle positions
-    this.minHandle.style.left = `${minPosition}px`;
-    this.maxHandle.style.left = `${maxPosition}px`;
+    // Update handle positions (relative to element, so add track left offset)
+    this.minHandle.style.left = `${trackLeft + minPosition}px`;
+    this.maxHandle.style.left = `${trackLeft + maxPosition}px`;
     
-    // Update fill
+    // Update fill (fill is inside track, so no offset needed)
     this.fill.style.left = `${minPosition}px`;
     this.fill.style.width = `${maxPosition - minPosition}px`;
     
-    // Update labels
+    // Update labels (relative to element, so add track left offset)
     this.minLabel.textContent = this.options.minValue;
     this.maxLabel.textContent = this.options.maxValue;
-    this.minLabel.style.left = `${minPosition}px`;
-    this.maxLabel.style.left = `${maxPosition}px`;
+    this.minLabel.style.left = `${trackLeft + minPosition}px`;
+    this.maxLabel.style.left = `${trackLeft + maxPosition}px`;
   }
 
   /**
