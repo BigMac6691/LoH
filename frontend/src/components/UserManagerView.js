@@ -3,10 +3,11 @@
  * Displays list of users with pagination and lazy loading, allows editing user fields
  */
 import { MenuView } from './MenuView.js';
+import { RB } from '../utils/RequestBuilder.js';
 
 export class UserManagerView extends MenuView {
-  constructor(homePage) {
-    super(homePage);
+  constructor(statusComponent) {
+    super(statusComponent);
     this.container = null;
     this.users = [];
     this.currentPage = 1;
@@ -113,9 +114,7 @@ export class UserManagerView extends MenuView {
       }
 
       const response = await fetch(`/api/admin/users?page=${page}&limit=${this.limit}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();
@@ -270,9 +269,7 @@ export class UserManagerView extends MenuView {
   async selectUser(userId) {
     try {
       const response = await fetch(`/api/admin/users/${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();
@@ -420,10 +417,7 @@ export class UserManagerView extends MenuView {
 
       const response = await fetch(`/api/admin/users/${this.selectedUser.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        },
+        headers: RB.getHeaders(),
         body: JSON.stringify({
           email,
           display_name: displayName,
@@ -480,9 +474,7 @@ export class UserManagerView extends MenuView {
 
       const response = await fetch(`/api/admin/users/${this.selectedUser.id}/reset-password`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();

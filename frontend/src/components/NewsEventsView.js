@@ -3,10 +3,11 @@
  * Displays system events/news with pagination and lazy loading
  */
 import { MenuView } from './MenuView.js';
+import { RB } from '../utils/RequestBuilder.js';
 
 export class NewsEventsView extends MenuView {
-  constructor(homePage) {
-    super(homePage);
+  constructor(statusComponent) {
+    super(statusComponent);
     this.container = null;
     this.events = [];
     this.currentPage = 1;
@@ -86,9 +87,7 @@ export class NewsEventsView extends MenuView {
       }
 
       const response = await fetch(`/api/system-events?page=${page}&limit=${this.limit}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();

@@ -3,12 +3,12 @@
  */
 import { AIConfigFormBuilder } from './AIConfigFormBuilder.js';
 import { eventBus } from '../eventBus.js';
-import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+import { RB } from '../utils/RequestBuilder.js';
 import { MenuView } from './MenuView.js';
 
 export class ManageGamesView extends MenuView {
-  constructor(homePage) {
-    super(homePage);
+  constructor(statusComponent) {
+    super(statusComponent);
     this.container = null;
     this.selectedGame = null;
     this.selectedPlayer = null;
@@ -147,7 +147,7 @@ export class ManageGamesView extends MenuView {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
       const response = await fetch(`/api/games/manage?page=${page}&limit=10`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();
@@ -344,7 +344,7 @@ export class ManageGamesView extends MenuView {
       playersContainer.innerHTML = '<div class="players-loading">Loading players...</div>';
 
       const response = await fetch(`/api/games/${gameId}/manage/players`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();
@@ -588,7 +588,7 @@ export class ManageGamesView extends MenuView {
     try {
       const response = await fetch(`/api/games/${this.selectedGame.id}/status`, {
         method: 'PUT',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({ status: newStatus })
       });
 
@@ -634,7 +634,7 @@ export class ManageGamesView extends MenuView {
     try {
       const response = await fetch(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/end-turn`, {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
       });
 
       const data = await response.json();
@@ -679,7 +679,7 @@ export class ManageGamesView extends MenuView {
     try {
       const response = await fetch(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/status`, {
         method: 'PUT',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({ status: newStatus })
       });
 
@@ -712,7 +712,7 @@ export class ManageGamesView extends MenuView {
     let availableAIs = [];
     try {
       const response = await fetch('/api/ai/list', {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
       const data = await response.json();
       if (data.success && data.ais) {
@@ -961,7 +961,7 @@ export class ManageGamesView extends MenuView {
       try {
         const response = await fetch(`/api/games/${this.selectedGame.id}/ai-players`, {
           method: 'POST',
-          headers: getHeaders(),
+          headers: RB.getHeaders(),
           body: JSON.stringify({
             aiName: selectedAI.name,
             playerName,
@@ -1049,7 +1049,7 @@ export class ManageGamesView extends MenuView {
     try {
       const response = await fetch(`/api/games/${this.selectedGame.id}/players/${this.selectedPlayer.id}/meta`, {
         method: 'PUT',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({ meta: metaData })
       });
 

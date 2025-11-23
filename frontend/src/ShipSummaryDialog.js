@@ -2,7 +2,7 @@ import { BaseDialog } from './BaseDialog.js';
 import { getShipSummaryRows } from './utils/shipSummary.js';
 import { getShipDisplayName } from './utils/shipGrouping.js';
 import { eventBus } from './eventBus.js';
-import { getHeaders, getHeadersForGet } from './utils/apiHeaders.js';
+import { RB } from './utils/RequestBuilder.js';
 
 /**
  * ShipSummaryDialog - Displays a summary of ships at all stars.
@@ -727,7 +727,7 @@ export class ShipSummaryDialog extends BaseDialog
       {
          const response = await fetch(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`, {
             method: 'DELETE',
-            headers: getHeadersForGet()
+            headers: RB.getHeadersForGet()
          });
 
          if (!response.ok)
@@ -772,7 +772,7 @@ export class ShipSummaryDialog extends BaseDialog
       {
          // Get current standing orders to preserve industry orders
          const getResponse = await fetch(`/api/orders/standing/${starId}?gameId=${this.currentGameId}`, {
-            headers: getHeadersForGet()
+            headers: RB.getHeadersForGet()
          });
          if (!getResponse.ok)
          {
@@ -790,7 +790,7 @@ export class ShipSummaryDialog extends BaseDialog
          // Update standing orders - backend will remove null properties
          const updateResponse = await fetch('/api/orders/standing', {
             method: 'POST',
-            headers: getHeaders(),
+            headers: RB.getHeaders(),
             body: JSON.stringify({
                gameId: this.currentGameId,
                starId: starId,
@@ -1065,7 +1065,7 @@ export class ShipSummaryDialog extends BaseDialog
          {
             console.log('🚢 ShipSummaryDialog: Fetching current turn from:', `/api/games/${this.currentGameId}/turn/open`);
             const response = await fetch(`/api/games/${this.currentGameId}/turn/open`, {
-               headers: getHeadersForGet()
+               headers: RB.getHeadersForGet()
             });
             if (response.ok)
             {

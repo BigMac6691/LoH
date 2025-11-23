@@ -7,7 +7,7 @@ import
    eventBus
 }
 from '../eventBus.js';
-import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+import { RB } from '../utils/RequestBuilder.js';
 
 export class DevEventHandler
 {
@@ -322,7 +322,7 @@ export class DevEventHandler
          {
             console.log('🔍 DevEventHandler: Resolving game state by gameId:', gameId);
             const response = await fetch(`/api/dev/games/${gameId}`, {
-               headers: getHeadersForGet()
+               headers: RB.getHeadersForGet()
             });
             if (response.ok)
             {
@@ -337,7 +337,7 @@ export class DevEventHandler
          {
             console.log('🔍 DevEventHandler: Resolving game state by scenario:', scenario);
             const response = await fetch(`/api/dev/games/by-scenario/${scenario}`, {
-               headers: getHeadersForGet()
+               headers: RB.getHeadersForGet()
             });
             if (response.ok)
             {
@@ -780,7 +780,7 @@ export class DevEventHandler
 
       // Get current players from the database
       const response = await fetch(`/api/dev/games/${encodeURIComponent(gameId)}/players`, {
-         headers: getHeadersForGet()
+         headers: RB.getHeadersForGet()
       });
 
       if (!response.ok)
@@ -819,7 +819,7 @@ export class DevEventHandler
          const response = await fetch(`/api/dev/games/${gameId}/state`,
          {
             method: 'PUT',
-            headers: getHeaders(),
+            headers: RB.getHeaders(),
             body: JSON.stringify(
             {
                state: stateUpdate

@@ -1,7 +1,7 @@
 import { BaseDialog } from './BaseDialog.js';
 import { eventBus } from './eventBus.js';
 import { SpaceCombatViewer } from './SpaceCombatViewer.js';
-import { getHeadersForGet } from './utils/apiHeaders.js';
+import { RB } from './utils/RequestBuilder.js';
 
 /**
  * TurnEventsPanel - A draggable panel for displaying turn events
@@ -253,7 +253,7 @@ export class TurnEventsPanel extends BaseDialog
       const response = await fetch(
         `/api/turn-events/${this.currentGame.id}/${previousTurnId}/player/${eventBus.getContext().playerId}`, // Use playerId, not user (user is user_id)
         {
-          headers: getHeadersForGet()
+          headers: RB.getHeadersForGet()
         }
       );
 
@@ -293,7 +293,7 @@ export class TurnEventsPanel extends BaseDialog
     try
     {
       const response = await fetch(`/api/games/${this.currentGame.id}/turns`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
       
       if (!response.ok)

@@ -7,7 +7,7 @@ import
    eventBus
 }
 from '../eventBus.js';
-import { getHeaders } from '../utils/apiHeaders.js';
+import { RB } from '../utils/RequestBuilder.js';
 
 export class TurnEventHandler
 {
@@ -61,7 +61,7 @@ export class TurnEventHandler
          const response = await fetch('/api/turns/end-turn',
          {
             method: 'POST',
-            headers: getHeaders(),
+            headers: RB.getHeaders(),
             body: JSON.stringify(
             {
                gameId,

@@ -2,12 +2,12 @@
  * CreateGameView - Create a new game interface
  */
 import { DualSlider } from '../DualSlider.js';
-import { getHeaders } from '../utils/apiHeaders.js';
+import { RB } from '../utils/RequestBuilder.js';
 import { MenuView } from './MenuView.js';
 
 export class CreateGameView extends MenuView {
-  constructor(homePage) {
-    super(homePage);
+  constructor(statusComponent) {
+    super(statusComponent);
     this.container = null;
     this.titleInput = null;
     this.descriptionInput = null;
@@ -184,7 +184,7 @@ export class CreateGameView extends MenuView {
     try {
       const response = await fetch('/api/games', {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({
           title,
           description,

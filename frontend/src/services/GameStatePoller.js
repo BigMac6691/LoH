@@ -4,7 +4,7 @@
  */
 
 import { eventBus } from '../eventBus.js';
-import { getHeadersForGet } from '../utils/apiHeaders.js';
+import { RB } from '../utils/RequestBuilder.js';
 
 export class GameStatePoller {
   constructor() {
@@ -67,7 +67,7 @@ export class GameStatePoller {
 
     try {
       const response = await fetch(`/api/games/${this.currentGameId}/turn/open`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
 
       if (!response.ok) {

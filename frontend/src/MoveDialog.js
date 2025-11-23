@@ -3,7 +3,7 @@ import { eventBus } from './eventBus.js';
 import { DualSlider } from './DualSlider.js';
 import { BaseDialog } from './BaseDialog.js';
 import { MoveDialogView } from './MoveDialogView.js';
-import { getHeaders, getHeadersForGet } from './utils/apiHeaders.js';
+import { RB } from './utils/RequestBuilder.js';
 
 /**
  * MoveDialog - A draggable dialog for managing fleet movement
@@ -516,7 +516,7 @@ export class MoveDialog extends BaseDialog
 
     try {
       const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
       if (!response.ok) {
         console.warn('🚀 MoveDialog: Failed to load standing orders:', response.statusText);
@@ -547,7 +547,7 @@ export class MoveDialog extends BaseDialog
     try {
       const response = await fetch('/api/orders/standing', {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({
           gameId,
           starId,
@@ -586,7 +586,7 @@ export class MoveDialog extends BaseDialog
     try {
       const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`, {
         method: 'DELETE',
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
 
       if (!response.ok) {

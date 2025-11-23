@@ -1,7 +1,7 @@
 import { BaseDialog } from './BaseDialog.js';
 import { getOrderSummaryRows } from './utils/orderSummary.js';
 import { eventBus } from './eventBus.js';
-import { getHeaders, getHeadersForGet } from './utils/apiHeaders.js';
+import { RB } from './utils/RequestBuilder.js';
 
 /**
  * OrderSummaryDialog - Displays a sortable summary of orders for the current turn.
@@ -796,7 +796,7 @@ export class OrderSummaryDialog extends BaseDialog
       {
          const response = await fetch(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`, {
             method: 'DELETE',
-            headers: getHeadersForGet()
+            headers: RB.getHeadersForGet()
          });
 
          if (!response.ok)
@@ -1117,7 +1117,7 @@ export class OrderSummaryDialog extends BaseDialog
          try
          {
             const response = await fetch(`/api/games/${this.currentGameId}/turn/open`, {
-               headers: getHeadersForGet()
+               headers: RB.getHeadersForGet()
             });
             if (response.ok)
             {

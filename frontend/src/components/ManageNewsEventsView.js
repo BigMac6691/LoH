@@ -2,10 +2,11 @@
  * ManageNewsEventsView - Manage News and Events component (admin/owner only)
  */
 import { MenuView } from './MenuView.js';
+import { RB } from '../utils/RequestBuilder.js';
 
 export class ManageNewsEventsView extends MenuView {
-  constructor(homePage) {
-    super(homePage);
+  constructor(statusComponent) {
+    super(statusComponent);
     this.container = null;
     this.events = [];
     this.currentPage = 1;
@@ -77,9 +78,7 @@ export class ManageNewsEventsView extends MenuView {
       listContainer.innerHTML = '<div class="events-loading">Loading events...</div>';
 
       const response = await fetch(`/api/system-events?page=${page}&limit=5`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();
@@ -187,9 +186,7 @@ export class ManageNewsEventsView extends MenuView {
   async selectEvent(eventId) {
     try {
       const response = await fetch(`/api/system-events/${eventId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();
@@ -378,10 +375,7 @@ export class ManageNewsEventsView extends MenuView {
 
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        },
+        headers: RB.getHeaders(),
         body: JSON.stringify({ text })
       });
 
@@ -431,9 +425,7 @@ export class ManageNewsEventsView extends MenuView {
 
       const response = await fetch(`/api/system-events/${this.selectedEvent.id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-        }
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();

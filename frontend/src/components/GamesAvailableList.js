@@ -1,12 +1,12 @@
 /**
  * GamesAvailableList - List of games available for the current user to join
  */
-import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+import { RB } from '../utils/RequestBuilder.js';
 import { MenuView } from './MenuView.js';
 
 export class GamesAvailableList extends MenuView {
-  constructor(homePage) {
-    super(homePage);
+  constructor(statusComponent) {
+    super(statusComponent);
     this.container = null;
     this.games = [];
     this.userId = localStorage.getItem('user_id');
@@ -49,7 +49,7 @@ export class GamesAvailableList extends MenuView {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
       const response = await fetch(`/api/games/available`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();
@@ -177,7 +177,7 @@ export class GamesAvailableList extends MenuView {
     try {
       const response = await fetch(`/api/games/${gameId}/join`, {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({
           // userId is now extracted from JWT token on backend
           name: null,

@@ -3,7 +3,7 @@
  * Handles game loading, rendering, and other game-specific events
  */
 import { eventBus } from '../eventBus.js';
-import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+import { RB } from '../utils/RequestBuilder.js';
 import { webSocketManager } from '../services/WebSocketManager.js';
 import { gameStatePoller } from '../services/GameStatePoller.js';
 
@@ -100,7 +100,7 @@ export class GameEventHandler {
       // Call the backend API to create the game
       const response = await fetch('/api/games', {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({
           ownerId,
           seed,
@@ -174,7 +174,7 @@ export class GameEventHandler {
       console.log('🎮 GameEventHandler: Step 1 - Generating map...');
       const mapResponse = await fetch(`/api/games/${gameId}/generate-map`, {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({})
       });
 
@@ -197,7 +197,7 @@ export class GameEventHandler {
       console.log('🎮 GameEventHandler: Step 2 - Placing players...');
       const placeResponse = await fetch(`/api/games/${gameId}/place-players`, {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({})
       });
 
@@ -278,7 +278,7 @@ export class GameEventHandler {
       // Call the backend API to add the player
       const response = await fetch('/api/games/players', {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({
           gameId,
           userId,
@@ -371,7 +371,7 @@ export class GameEventHandler {
       // Call the backend API to generate the map (only need gameId)
       const response = await fetch(`/api/games/${gameId}/generate-map`, {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({})
       });
       
@@ -441,7 +441,7 @@ export class GameEventHandler {
       // Call the backend API to place players
       const response = await fetch(`/api/games/${gameId}/place-players`, {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({})
       });
       
@@ -494,7 +494,7 @@ export class GameEventHandler {
     try {
       // First, try to get the open turn
       const openTurnResponse = await fetch(`/api/games/${gameId}/turn/open`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
       
       if (openTurnResponse.ok) {
@@ -509,7 +509,7 @@ export class GameEventHandler {
       console.log('🎮 GameEventHandler: No open turn found, creating turn 1');
       const createTurnResponse = await fetch(`/api/games/${gameId}/turn`, {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({
           number: 1
         })
@@ -561,7 +561,7 @@ export class GameEventHandler {
       // Load complete game state from backend
       const response = await fetch(`/api/games/${gameId}/state`, {
         method: 'GET',
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
       
       if (!response.ok) {

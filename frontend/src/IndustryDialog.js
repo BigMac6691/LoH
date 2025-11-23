@@ -3,7 +3,7 @@
  */
 import { eventBus } from './eventBus.js';
 import { BaseDialog } from './BaseDialog.js';
-import { getHeaders, getHeadersForGet } from './utils/apiHeaders.js';
+import { RB } from './utils/RequestBuilder.js';
 
 export class IndustryDialog extends BaseDialog
 {
@@ -642,7 +642,7 @@ export class IndustryDialog extends BaseDialog
     try
     {
       const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
       if (!response.ok)
       {
@@ -679,7 +679,7 @@ export class IndustryDialog extends BaseDialog
     {
       const response = await fetch('/api/orders/standing', {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({
           gameId,
           starId,
@@ -724,7 +724,7 @@ export class IndustryDialog extends BaseDialog
     {
       const response = await fetch(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`, {
         method: 'DELETE',
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
 
       if (!response.ok)

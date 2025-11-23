@@ -1,12 +1,12 @@
 /**
  * GamesPlayingList - List of games the current user is playing
  */
-import { getHeadersForGet } from '../utils/apiHeaders.js';
+import { RB } from '../utils/RequestBuilder.js';
 import { MenuView } from './MenuView.js';
 
 export class GamesPlayingList extends MenuView {
-  constructor(homePage) {
-    super(homePage);
+  constructor(statusComponent) {
+    super(statusComponent);
     this.container = null;
     this.games = [];
     this.userId = localStorage.getItem('user_id');
@@ -49,7 +49,7 @@ export class GamesPlayingList extends MenuView {
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
       const response = await fetch(`/api/games/playing`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();

@@ -51,7 +51,7 @@ export class AuthRouter {
     this.router.post('/login', loginRateLimiter, this.login.bind(this));
     this.router.post('/register', registerRateLimiter, this.register.bind(this));
     this.router.post('/recover', recoverRateLimiter, this.recover.bind(this));
-    this.router.post('/verify-email', this.verifyEmail.bind(this));
+    this.router.post('/verify-email', authenticate, this.verifyEmail.bind(this));
     this.router.post('/resend-verification', this.resendVerification.bind(this));
     this.router.post('/verify-recovery-token', this.verifyRecoveryToken.bind(this));
     this.router.post('/reset-password', this.resetPassword.bind(this));
@@ -429,7 +429,7 @@ export class AuthRouter {
 
   /**
    * POST /api/auth/verify-email
-   * Verify email address with token
+   * Verify email address with token (requires authentication)
    */
   async verifyEmail(req, res) {
     try {
@@ -440,6 +440,15 @@ export class AuthRouter {
           success: false,
           error: 'TOKEN_REQUIRED',
           message: 'Verification token is required'
+        });
+      }
+
+      // Verify that user is authenticated
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          error: 'UNAUTHORIZED',
+          message: 'Authentication required to verify email'
         });
       }
 
@@ -461,6 +470,15 @@ export class AuthRouter {
       }
 
       const verification = tokenResult.rows[0];
+
+      // Verify that the authenticated user matches the user associated with the token
+      if (verification.user_id !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          error: 'FORBIDDEN',
+          message: 'You can only verify your own email address'
+        });
+      }
 
       // Check if expired
       if (new Date(verification.expires_at) < new Date()) {

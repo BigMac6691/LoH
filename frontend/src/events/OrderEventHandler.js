@@ -3,7 +3,7 @@
  * Manages order submission, loading, and responses
  */
 import { eventBus } from '../eventBus.js';
-import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+import { RB } from '../utils/RequestBuilder.js';
 
 export class OrderEventHandler
 {
@@ -63,7 +63,7 @@ export class OrderEventHandler
       // Make the backend call
       const response = await fetch('/api/orders', {
         method: 'POST',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({
           gameId,
           playerId,
@@ -151,7 +151,7 @@ export class OrderEventHandler
 
       // Make the backend call
       const response = await fetch(`/api/orders/star/${sourceStarId}?${params}`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
       
       if (!response.ok)
@@ -227,7 +227,7 @@ export class OrderEventHandler
 
       // Make the backend call
       const response = await fetch(`/api/orders/turn/${turnId}?${params}`, {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
       
       if (!response.ok)

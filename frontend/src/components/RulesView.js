@@ -4,8 +4,8 @@
 import { MenuView } from './MenuView.js';
 
 export class RulesView extends MenuView {
-  constructor(homePage) {
-    super(homePage);
+  constructor(statusComponent) {
+    super(statusComponent);
     this.container = null;
   }
 

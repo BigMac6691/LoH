@@ -2,11 +2,11 @@
  * PlayerProfileView - Player Profile component with edit functionality
  */
 import { MenuView } from './MenuView.js';
-import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+import { RB } from '../utils/RequestBuilder.js';
 
 export class PlayerProfileView extends MenuView {
-  constructor(homePage) {
-    super(homePage);
+  constructor(statusComponent) {
+    super(statusComponent);
     this.container = null;
     this.profileData = null;
     this.isEditing = false;
@@ -32,7 +32,7 @@ export class PlayerProfileView extends MenuView {
   async loadProfile() {
     try {
       const response = await fetch('/api/auth/profile', {
-        headers: getHeadersForGet()
+        headers: RB.getHeadersForGet()
       });
 
       const data = await response.json();
@@ -267,13 +267,16 @@ export class PlayerProfileView extends MenuView {
     if (textMessageContact && textMessageContact.length !== 10) {
       errorDiv.textContent = 'Phone number must be exactly 10 digits.';
       errorDiv.style.display = 'block';
+
+      this.displayStatusMessage('Phone number must be exactly 10 digits.', 'error');
+
       return;
     }
 
     try {
       const response = await fetch('/api/auth/profile', {
         method: 'PUT',
-        headers: getHeaders(),
+        headers: RB.getHeaders(),
         body: JSON.stringify({
           email,
           displayName,
@@ -431,12 +434,8 @@ export class PlayerProfileView extends MenuView {
       try {
         const response = await fetch('/api/auth/change-password', {
           method: 'POST',
-          headers: getHeaders(),
-          body: JSON.stringify({
-            oldPassword,
-            newPassword,
-            confirmPassword
-          })
+          headers: RB.getHeaders(),
+          body: JSON.stringify({oldPassword, newPassword, confirmPassword})
         });
 
         const data = await response.json();
@@ -638,9 +637,7 @@ export class PlayerProfileView extends MenuView {
     try {
       const response = await fetch('/api/auth/verify-email', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: RB.getHeaders(),
         body: JSON.stringify({ token })
       });
 
@@ -666,6 +663,8 @@ export class PlayerProfileView extends MenuView {
 
         // Refresh HomePage menu and header to reflect new role/verification status
         // Access homePage from window if available, or use eventBus to notify
+        // Note: We can't access homePage directly anymore, so we'll need to reload
+        // or use eventBus to notify HomePage to refresh
         if (window.homePage && typeof window.homePage.refreshSidebar === 'function') {
           window.homePage.refreshSidebar();
           window.homePage.refreshHeader();
@@ -718,7 +717,7 @@ export class PlayerProfileView extends MenuView {
     try {
       const response = await fetch('/api/auth/profile/resend-verification', {
         method: 'POST',
-        headers: getHeaders()
+        headers: RB.getHeaders()
       });
 
       const data = await response.json();

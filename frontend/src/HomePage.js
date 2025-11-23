@@ -2,6 +2,7 @@
  * HomePage - Main home page after login with sidebar menu and main content area
  */
 import { UTClock } from './components/UTClock.js';
+import { StatusComponent } from './components/StatusComponent.js';
 import { PlayerProfileView } from './components/PlayerProfileView.js';
 import { NewsEventsView } from './components/NewsEventsView.js';
 import { GamesPlayingList } from './components/GamesPlayingList.js';
@@ -12,6 +13,7 @@ import { UserManagerView } from './components/UserManagerView.js';
 import { ManageNewsEventsView } from './components/ManageNewsEventsView.js';
 import { CreateGameView } from './components/CreateGameView.js';
 import { UIController } from './UIController.js';
+import { RB } from './utils/RequestBuilder.js';
 
 export class HomePage {
   constructor() {
@@ -19,7 +21,7 @@ export class HomePage {
     this.header = null;
     this.sidebar = null;
     this.mainContent = null;
-    this.statusComponent = null;
+    this.statusComponent = new StatusComponent();
     this.utcClock = null;
     this.currentView = null;
     this.currentViewInstance = null;
@@ -130,9 +132,8 @@ export class HomePage {
     this.mainContent = document.createElement('div');
     this.mainContent.className = 'home-main-content';
     
-    // Create status component at the bottom
-    this.createStatusComponent();
-    this.mainContent.appendChild(this.statusComponent);
+    // Add status component at the bottom
+    this.mainContent.appendChild(this.statusComponent.getContainer());
     
     body.appendChild(this.mainContent);
     
@@ -223,48 +224,6 @@ export class HomePage {
     });
   }
 
-  /**
-   * Create status component at the bottom of main content
-   */
-  createStatusComponent() {
-    this.statusComponent = document.createElement('div');
-    this.statusComponent.className = 'home-status-component';
-    this.statusComponent.innerHTML = '<div class="status-messages"></div>';
-  }
-
-  /**
-   * Post a message to the status component
-   * @param {string} message - Message to display
-   * @param {string} type - Message type: 'info', 'success', 'error', 'warning' (default: 'info')
-   */
-  postStatusMessage(message, type = 'info') {
-    if (!this.statusComponent) return;
-    
-    const messagesContainer = this.statusComponent.querySelector('.status-messages');
-    if (!messagesContainer) return;
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `status-message status-${type}`;
-    
-    // Format timestamp
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    
-    messageDiv.innerHTML = `<span class="status-time">[${timeStr}]</span> <span class="status-text">${this.escapeHtml(message)}</span>`;
-    
-    messagesContainer.appendChild(messageDiv);
-    
-    // Auto-scroll to bottom
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    
-    // Auto-remove old messages after 30 seconds (keep last 10 messages)
-    setTimeout(() => {
-      const messages = messagesContainer.querySelectorAll('.status-message');
-      if (messages.length > 10) {
-        messages[0].remove();
-      }
-    }, 30000);
-  }
 
   /**
    * Set the active menu item
@@ -302,13 +261,14 @@ export class HomePage {
     this.currentView = viewId;
 
     // Find or create view container (preserve status component)
+    const statusContainer = this.statusComponent.getContainer();
     let viewContainer = this.mainContent.querySelector('.view-container');
     if (!viewContainer) {
       viewContainer = document.createElement('div');
       viewContainer.className = 'view-container';
       // Insert before status component
-      if (this.statusComponent && this.statusComponent.parentNode) {
-        this.mainContent.insertBefore(viewContainer, this.statusComponent);
+      if (statusContainer && statusContainer.parentNode) {
+        this.mainContent.insertBefore(viewContainer, statusContainer);
       } else {
         this.mainContent.appendChild(viewContainer);
       }
@@ -319,48 +279,48 @@ export class HomePage {
 
     switch (viewId) {
       case 'player-profile':
-        this.currentViewInstance = new PlayerProfileView(this);
+        this.currentViewInstance = new PlayerProfileView(this.statusComponent);
         viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'news-events':
-        this.currentViewInstance = new NewsEventsView(this);
+        this.currentViewInstance = new NewsEventsView(this.statusComponent);
         viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'games-playing':
-        this.currentViewInstance = new GamesPlayingList(this);
+        this.currentViewInstance = new GamesPlayingList(this.statusComponent);
         viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'games-available':
-        this.currentViewInstance = new GamesAvailableList(this);
+        this.currentViewInstance = new GamesAvailableList(this.statusComponent);
         viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'rules':
-        this.currentViewInstance = new RulesView(this);
+        this.currentViewInstance = new RulesView(this.statusComponent);
         viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'create-game':
         // Show CreateGameView for game creation
-        this.currentViewInstance = new CreateGameView(this);
+        this.currentViewInstance = new CreateGameView(this.statusComponent);
         viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'manage-games':
-        this.currentViewInstance = new ManageGamesView(this);
+        this.currentViewInstance = new ManageGamesView(this.statusComponent);
         viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'user-manager':
-        this.currentViewInstance = new UserManagerView(this);
+        this.currentViewInstance = new UserManagerView(this.statusComponent);
         viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'manage-news-events':
-        this.currentViewInstance = new ManageNewsEventsView(this);
+        this.currentViewInstance = new ManageNewsEventsView(this.statusComponent);
         viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
@@ -420,10 +380,7 @@ export class HomePage {
       if (refreshToken) {
         await fetch('/api/auth/logout', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-          },
+          headers: RB.getHeaders(),
           body: JSON.stringify({ refreshToken })
         });
       }
@@ -494,6 +451,9 @@ export class HomePage {
     this.header = null;
     this.sidebar = null;
     this.mainContent = null;
+    if (this.statusComponent) {
+      this.statusComponent.dispose();
+    }
     this.statusComponent = null;
     this.utcClock = null;
     this.currentView = null;
