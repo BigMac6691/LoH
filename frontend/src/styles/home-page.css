@@ -185,6 +185,88 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  min-height: 0; /* Allow flex child to shrink */
+}
+
+/* View Container */
+.view-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Status Component */
+.home-status-component {
+  flex-shrink: 0;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 2px solid rgba(0, 255, 136, 0.3);
+  min-height: 60px; /* Big enough for 2 lines of text */
+  max-height: 120px; /* Limit height, make scrollable */
+  display: flex;
+  flex-direction: column;
+}
+
+.status-messages {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  line-height: 1.6;
+  padding: 5px 0;
+}
+
+.status-message {
+  padding: 4px 0;
+  margin-bottom: 2px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.status-message.status-info {
+  color: var(--color-secondary, #00ffff);
+}
+
+.status-message.status-success {
+  color: var(--color-primary, #00ff88);
+}
+
+.status-message.status-error {
+  color: #ff4444;
+}
+
+.status-message.status-warning {
+  color: #ffa500;
+}
+
+.status-time {
+  color: rgba(255, 255, 255, 0.6);
+  margin-right: 8px;
+}
+
+.status-text {
+  color: inherit;
+}
+
+/* Status component scrollbar */
+.status-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.status-messages::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.status-messages::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.3);
+  border-radius: 3px;
+}
+
+.status-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 136, 0.5);
 }
 
 /* View Styles */
@@ -203,6 +285,8 @@
 
 .view-content {
   flex: 1;
+  min-height: 0; /* Allow flex child to shrink */
+  overflow-y: auto;
 }
 
 .placeholder-text {

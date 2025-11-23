@@ -19,6 +19,7 @@ export class HomePage {
     this.header = null;
     this.sidebar = null;
     this.mainContent = null;
+    this.statusComponent = null;
     this.utcClock = null;
     this.currentView = null;
     this.currentViewInstance = null;
@@ -128,6 +129,11 @@ export class HomePage {
     // Create main content area
     this.mainContent = document.createElement('div');
     this.mainContent.className = 'home-main-content';
+    
+    // Create status component at the bottom
+    this.createStatusComponent();
+    this.mainContent.appendChild(this.statusComponent);
+    
     body.appendChild(this.mainContent);
     
     this.container.appendChild(body);
@@ -218,6 +224,49 @@ export class HomePage {
   }
 
   /**
+   * Create status component at the bottom of main content
+   */
+  createStatusComponent() {
+    this.statusComponent = document.createElement('div');
+    this.statusComponent.className = 'home-status-component';
+    this.statusComponent.innerHTML = '<div class="status-messages"></div>';
+  }
+
+  /**
+   * Post a message to the status component
+   * @param {string} message - Message to display
+   * @param {string} type - Message type: 'info', 'success', 'error', 'warning' (default: 'info')
+   */
+  postStatusMessage(message, type = 'info') {
+    if (!this.statusComponent) return;
+    
+    const messagesContainer = this.statusComponent.querySelector('.status-messages');
+    if (!messagesContainer) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `status-message status-${type}`;
+    
+    // Format timestamp
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    messageDiv.innerHTML = `<span class="status-time">[${timeStr}]</span> <span class="status-text">${this.escapeHtml(message)}</span>`;
+    
+    messagesContainer.appendChild(messageDiv);
+    
+    // Auto-scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Auto-remove old messages after 30 seconds (keep last 10 messages)
+    setTimeout(() => {
+      const messages = messagesContainer.querySelectorAll('.status-message');
+      if (messages.length > 10) {
+        messages[0].remove();
+      }
+    }, 30000);
+  }
+
+  /**
    * Set the active menu item
    */
   setActiveMenuItem(viewId) {
@@ -252,60 +301,67 @@ export class HomePage {
 
     this.currentView = viewId;
 
+    // Find or create view container (preserve status component)
+    let viewContainer = this.mainContent.querySelector('.view-container');
+    if (!viewContainer) {
+      viewContainer = document.createElement('div');
+      viewContainer.className = 'view-container';
+      // Insert before status component
+      if (this.statusComponent && this.statusComponent.parentNode) {
+        this.mainContent.insertBefore(viewContainer, this.statusComponent);
+      } else {
+        this.mainContent.appendChild(viewContainer);
+      }
+    } else {
+      // Clear existing view content
+      viewContainer.innerHTML = '';
+    }
+
     switch (viewId) {
       case 'player-profile':
-        this.currentViewInstance = new PlayerProfileView();
-        this.mainContent.innerHTML = '';
-        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        this.currentViewInstance = new PlayerProfileView(this);
+        viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'news-events':
-        this.currentViewInstance = new NewsEventsView();
-        this.mainContent.innerHTML = '';
-        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        this.currentViewInstance = new NewsEventsView(this);
+        viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'games-playing':
-        this.currentViewInstance = new GamesPlayingList();
-        this.mainContent.innerHTML = '';
-        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        this.currentViewInstance = new GamesPlayingList(this);
+        viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'games-available':
-        this.currentViewInstance = new GamesAvailableList();
-        this.mainContent.innerHTML = '';
-        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        this.currentViewInstance = new GamesAvailableList(this);
+        viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'rules':
-        this.currentViewInstance = new RulesView();
-        this.mainContent.innerHTML = '';
-        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        this.currentViewInstance = new RulesView(this);
+        viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'create-game':
         // Show CreateGameView for game creation
-        this.currentViewInstance = new CreateGameView();
-        this.mainContent.innerHTML = '';
-        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        this.currentViewInstance = new CreateGameView(this);
+        viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'manage-games':
-        this.currentViewInstance = new ManageGamesView();
-        this.mainContent.innerHTML = '';
-        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        this.currentViewInstance = new ManageGamesView(this);
+        viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'user-manager':
-        this.currentViewInstance = new UserManagerView();
-        this.mainContent.innerHTML = '';
-        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        this.currentViewInstance = new UserManagerView(this);
+        viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       case 'manage-news-events':
-        this.currentViewInstance = new ManageNewsEventsView();
-        this.mainContent.innerHTML = '';
-        this.mainContent.appendChild(this.currentViewInstance.getContainer());
+        this.currentViewInstance = new ManageNewsEventsView(this);
+        viewContainer.appendChild(this.currentViewInstance.getContainer());
         break;
 
       default:
@@ -438,6 +494,7 @@ export class HomePage {
     this.header = null;
     this.sidebar = null;
     this.mainContent = null;
+    this.statusComponent = null;
     this.utcClock = null;
     this.currentView = null;
     this.currentViewInstance = null;

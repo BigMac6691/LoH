@@ -2,8 +2,11 @@
  * UserManagerView - User Manager component (admin/owner only)
  * Displays list of users with pagination and lazy loading, allows editing user fields
  */
-export class UserManagerView {
-  constructor() {
+import { MenuView } from './MenuView.js';
+
+export class UserManagerView extends MenuView {
+  constructor(homePage) {
+    super(homePage);
     this.container = null;
     this.users = [];
     this.currentPage = 1;
@@ -287,7 +290,7 @@ export class UserManagerView {
       this.showEditor();
     } catch (error) {
       console.error('Error loading user:', error);
-      alert(`Failed to load user: ${error.message}`);
+      this.displayStatusMessage(`Failed to load user: ${error.message}`, 'error');
     }
   }
 
@@ -404,7 +407,7 @@ export class UserManagerView {
 
     // Validate
     if (!email || !displayName) {
-      alert('Email and Display Name are required');
+      this.displayStatusMessage('Email and Display Name are required', 'warning');
       return;
     }
 
@@ -445,10 +448,10 @@ export class UserManagerView {
       // Re-select the user
       this.selectUser(this.selectedUser.id);
 
-      alert('User updated successfully!');
+      this.displayStatusMessage('User updated successfully!', 'success');
     } catch (error) {
       console.error('Error saving user:', error);
-      alert(`Failed to save user: ${error.message}`);
+      this.displayStatusMessage(`Failed to save user: ${error.message}`, 'error');
       
       const saveBtn = this.container?.querySelector('#btn-save-user');
       if (saveBtn) {
@@ -498,10 +501,10 @@ export class UserManagerView {
         message += 'A recovery email has been sent to the user.';
       }
 
-      alert(message);
+      this.displayStatusMessage(message.replace(/\n/g, ' '), 'success');
     } catch (error) {
       console.error('Error resetting password:', error);
-      alert(`Failed to reset password: ${error.message}`);
+      this.displayStatusMessage(`Failed to reset password: ${error.message}`, 'error');
     } finally {
       const resetBtn = this.container?.querySelector('#btn-reset-password');
       if (resetBtn) {

@@ -2,9 +2,11 @@
  * GamesAvailableList - List of games available for the current user to join
  */
 import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+import { MenuView } from './MenuView.js';
 
-export class GamesAvailableList {
-  constructor() {
+export class GamesAvailableList extends MenuView {
+  constructor(homePage) {
+    super(homePage);
     this.container = null;
     this.games = [];
     this.userId = localStorage.getItem('user_id');
@@ -124,7 +126,7 @@ export class GamesAvailableList {
         const countryName = countryInput ? countryInput.value.trim() : '';
         
         if (!countryName) {
-          alert('Please enter a country name');
+          this.displayStatusMessage('Please enter a country name', 'warning');
           if (countryInput) countryInput.focus();
           return;
         }
@@ -141,7 +143,7 @@ export class GamesAvailableList {
           const countryName = input.value.trim();
           
           if (!countryName) {
-            alert('Please enter a country name');
+            this.displayStatusMessage('Please enter a country name', 'warning');
             return;
           }
           
@@ -157,7 +159,7 @@ export class GamesAvailableList {
   async joinGame(gameId, countryName) {
     if (!gameId || !this.userId) return;
     if (!countryName || !countryName.trim()) {
-      alert('Please enter a country name');
+      this.displayStatusMessage('Please enter a country name', 'warning');
       return;
     }
 
@@ -191,7 +193,7 @@ export class GamesAvailableList {
       }
 
       // Successfully joined - show success message and refresh the games list
-      alert(`Successfully joined game! You can now see it in your "Games Playing" list.`);
+      this.displayStatusMessage(`Successfully joined game! You can now see it in your "Games Playing" list.`, 'success');
       
       // Refresh the available games list (this game should no longer appear)
       this.loadGames();
@@ -201,7 +203,7 @@ export class GamesAvailableList {
 
     } catch (error) {
       console.error('Error joining game:', error);
-      alert(`Failed to join game: ${error.message}`);
+      this.displayStatusMessage(`Failed to join game: ${error.message}`, 'error');
       
       if (btn) {
         btn.disabled = false;

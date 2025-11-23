@@ -4,9 +4,11 @@
 import { AIConfigFormBuilder } from './AIConfigFormBuilder.js';
 import { eventBus } from '../eventBus.js';
 import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+import { MenuView } from './MenuView.js';
 
-export class ManageGamesView {
-  constructor() {
+export class ManageGamesView extends MenuView {
+  constructor(homePage) {
+    super(homePage);
     this.container = null;
     this.selectedGame = null;
     this.selectedPlayer = null;
@@ -48,10 +50,10 @@ export class ManageGamesView {
         <div class="manage-games-section">
           <h3>Game Controls</h3>
           <div class="game-controls">
-            <button class="control-btn" id="start-game-btn" disabled>Start Game</button>
+            <button class="control-btn" id="start-game-btn" disabled>Start</button>
             <button class="control-btn" id="pause-unpause-btn" disabled>Pause</button>
             <button class="control-btn" id="freeze-unfreeze-btn" disabled>Freeze</button>
-            <button class="control-btn" id="finish-game-btn" disabled>Finish Game</button>
+            <button class="control-btn" id="finish-game-btn" disabled>Finish</button>
             <button class="control-btn" id="add-ai-player-btn" disabled>Add AI Player</button>
           </div>
         </div>
@@ -265,13 +267,13 @@ export class ManageGamesView {
     if (!this.selectedGame) {
       // No game selected - show default text and disable all buttons
       startBtn.disabled = true;
-      startBtn.textContent = 'Start Game';
+      startBtn.textContent = 'Start';
       pauseBtn.disabled = true;
       pauseBtn.textContent = 'Pause';
       freezeBtn.disabled = true;
       freezeBtn.textContent = 'Freeze';
       finishBtn.disabled = true;
-      finishBtn.textContent = 'Finish Game';
+      finishBtn.textContent = 'Finish';
       addAIBtn.disabled = true;
       addAIBtn.textContent = 'Add AI Player';
       return;
@@ -282,11 +284,11 @@ export class ManageGamesView {
     const maxPlayers = this.selectedGame.max_players || 6;
     const allPlayersAdded = playerCount >= maxPlayers;
 
-    // If status is 'lobby', disable all buttons except Start Game and Add AI Player
+    // If status is 'lobby', disable all buttons except Start and Add AI Player
     if (status === 'lobby') {
-      // Start Game: only enabled when all players have been added
+      // Start: only enabled when all players have been added
       startBtn.disabled = !allPlayersAdded;
-      startBtn.textContent = 'Start Game';
+      startBtn.textContent = 'Start';
       
       // All other buttons disabled in lobby
       pauseBtn.disabled = true;
@@ -294,7 +296,7 @@ export class ManageGamesView {
       freezeBtn.disabled = true;
       freezeBtn.textContent = 'Freeze';
       finishBtn.disabled = true;
-      finishBtn.textContent = 'Finish Game';
+      finishBtn.textContent = 'Finish';
       
       // Add AI Player: enabled in lobby if not at max players
       addAIBtn.disabled = allPlayersAdded;
@@ -303,9 +305,9 @@ export class ManageGamesView {
     }
 
     // For non-lobby statuses, normal behavior
-    // Start Game: disabled (only available in lobby)
+    // Start: disabled (only available in lobby)
     startBtn.disabled = true;
-    startBtn.textContent = 'Start Game';
+    startBtn.textContent = 'Start';
 
     // Pause/Unpause: only if status is 'running' or 'paused'
     pauseBtn.disabled = status !== 'running' && status !== 'paused';
@@ -315,9 +317,9 @@ export class ManageGamesView {
     freezeBtn.disabled = status === 'finished';
     freezeBtn.textContent = status === 'frozen' ? 'Unfreeze' : 'Freeze';
 
-    // Finish Game: can change from any status except 'finished'
+    // Finish: can change from any status except 'finished'
     finishBtn.disabled = status === 'finished';
-    finishBtn.textContent = 'Finish Game';
+    finishBtn.textContent = 'Finish';
     
     // Add AI Player: disabled when not in lobby
     addAIBtn.disabled = true;
@@ -539,7 +541,7 @@ export class ManageGamesView {
         // UI will be updated by updateGameStatus
       }).catch(error => {
         console.error('Error updating game status after creation:', error);
-        alert(`Game created but failed to update status: ${error.message}`);
+        this.displayStatusMessage(`Game created but failed to update status: ${error.message}`, 'error');
       });
     } else {
       // Game creation failed
@@ -549,12 +551,11 @@ export class ManageGamesView {
       const startBtn = this.container.querySelector('#start-game-btn');
       if (startBtn) {
         startBtn.disabled = false;
-        startBtn.textContent = 'Start Game';
+        startBtn.textContent = 'Start';
       }
       
       // Show error message
-      const errorMsg = eventData.message || eventData.error || 'Failed to create game';
-      alert(`Error creating game: ${errorMsg}`);
+      this.displayStatusMessage(`Error creating game: ${eventData.message || eventData.error || 'Failed to create game'}`, 'error');
     }
   }
 
@@ -616,11 +617,11 @@ export class ManageGamesView {
         this.updatePlayerControlButtons();
       }
 
-      alert(`Game status updated to ${newStatus}`);
+      this.displayStatusMessage(`Game status updated to ${newStatus}`, 'success');
 
     } catch (error) {
       console.error('Error updating game status:', error);
-      alert(`Error: ${error.message}`);
+      this.displayStatusMessage(`Error: ${error.message}`, 'error');
     }
   }
 
@@ -642,12 +643,12 @@ export class ManageGamesView {
         throw new Error(data.error || 'Failed to end player turn');
       }
 
-      alert('Player turn ended successfully');
+      this.displayStatusMessage('Player turn ended successfully', 'success');
       await this.loadPlayers(this.selectedGame.id);
 
     } catch (error) {
       console.error('Error ending player turn:', error);
-      alert(`Error: ${error.message}`);
+      this.displayStatusMessage(`Error: ${error.message}`, 'error');
     }
   }
 
@@ -693,11 +694,11 @@ export class ManageGamesView {
       this.updatePlayerControlButtons();
       this.renderPlayers(); // Re-render to update status badge
 
-      alert(`Player status updated to ${newStatus}`);
+      this.displayStatusMessage(`Player status updated to ${newStatus}`, 'success');
 
     } catch (error) {
       console.error('Error updating player status:', error);
-      alert(`Error: ${error.message}`);
+      this.displayStatusMessage(`Error: ${error.message}`, 'error');
     }
   }
 
@@ -717,17 +718,17 @@ export class ManageGamesView {
       if (data.success && data.ais) {
         availableAIs = data.ais;
       } else {
-        alert('Failed to load available AIs: ' + (data.error || 'Unknown error'));
+        this.displayStatusMessage('Failed to load available AIs: ' + (data.error || 'Unknown error'), 'error');
         return;
       }
     } catch (error) {
       console.error('Error fetching AIs:', error);
-      alert('Failed to load available AIs: ' + error.message);
+      this.displayStatusMessage('Failed to load available AIs: ' + error.message, 'error');
       return;
     }
 
     if (availableAIs.length === 0) {
-      alert('No AI implementations are available.');
+      this.displayStatusMessage('No AI implementations are available.', 'warning');
       return;
     }
 
@@ -1041,7 +1042,7 @@ export class ManageGamesView {
     try {
       metaData = JSON.parse(metaStr);
     } catch (e) {
-      alert('Error: Meta must be valid JSON');
+      this.displayStatusMessage('Error: Meta must be valid JSON', 'error');
       return;
     }
 
@@ -1062,11 +1063,11 @@ export class ManageGamesView {
       this.selectedPlayer.meta = metaData;
       this.renderPlayers(); // Re-render to update meta preview
 
-      alert('Player meta updated successfully');
+      this.displayStatusMessage('Player meta updated successfully', 'success');
 
     } catch (error) {
       console.error('Error updating player meta:', error);
-      alert(`Error: ${error.message}`);
+      this.displayStatusMessage(`Error: ${error.message}`, 'error');
     }
   }
 

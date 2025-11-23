@@ -2,8 +2,11 @@
  * NewsEventsView - News and Events display component
  * Displays system events/news with pagination and lazy loading
  */
-export class NewsEventsView {
-  constructor() {
+import { MenuView } from './MenuView.js';
+
+export class NewsEventsView extends MenuView {
+  constructor(homePage) {
+    super(homePage);
     this.container = null;
     this.events = [];
     this.currentPage = 1;

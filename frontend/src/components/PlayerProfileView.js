@@ -1,8 +1,12 @@
 /**
  * PlayerProfileView - Player Profile component with edit functionality
  */
-export class PlayerProfileView {
-  constructor() {
+import { MenuView } from './MenuView.js';
+import { getHeaders, getHeadersForGet } from '../utils/apiHeaders.js';
+
+export class PlayerProfileView extends MenuView {
+  constructor(homePage) {
+    super(homePage);
     this.container = null;
     this.profileData = null;
     this.isEditing = false;
@@ -27,11 +31,8 @@ export class PlayerProfileView {
    */
   async loadProfile() {
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch('/api/auth/profile', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: getHeadersForGet()
       });
 
       const data = await response.json();
@@ -270,13 +271,9 @@ export class PlayerProfileView {
     }
 
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch('/api/auth/profile', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
           email,
           displayName,
@@ -432,13 +429,9 @@ export class PlayerProfileView {
       }
 
       try {
-        const token = localStorage.getItem('access_token');
         const response = await fetch('/api/auth/change-password', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
+          headers: getHeaders(),
           body: JSON.stringify({
             oldPassword,
             newPassword,
@@ -668,7 +661,8 @@ export class PlayerProfileView {
         this.render();
 
         // Show success message
-        alert('Email verified successfully!' + (data.roleUpdated ? `\n\nYour role has been updated to: ${data.newRole}` : ''));
+        const successMsg = 'Email verified successfully!' + (data.roleUpdated ? ` Your role has been updated to: ${data.newRole}` : '');
+        this.displayStatusMessage(successMsg, 'success');
 
         // Refresh HomePage menu and header to reflect new role/verification status
         // Access homePage from window if available, or use eventBus to notify
@@ -722,29 +716,27 @@ export class PlayerProfileView {
     btn.textContent = 'Sending...';
 
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch('/api/auth/profile/resend-verification', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
+        headers: getHeaders()
       });
 
       const data = await response.json();
 
       if (data.success) {
         const token = data.verificationToken || 'Check server logs';
-        alert(`Verification token sent!\n\nToken: ${token}\n\nClick "Verify Email" to enter this token and verify your email address.`);
+        const message = `Verification token sent! Token: ${token}. Click "Verify Email" to enter this token and verify your email address.`;
+        this.displayStatusMessage(message, 'success');
         // Reload profile to update verification status
         await this.loadProfile();
         this.render();
       } else {
-        alert('Failed to send verification token: ' + (data.message || 'Unknown error'));
+        const errorMsg = 'Failed to send verification token: ' + (data.message || 'Unknown error');
+        this.displayStatusMessage(errorMsg, 'error');
       }
     } catch (error) {
       console.error('Error resending verification:', error);
-      alert('An error occurred while sending verification token.');
+      this.displayStatusMessage('An error occurred while sending verification token.', 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = originalText;

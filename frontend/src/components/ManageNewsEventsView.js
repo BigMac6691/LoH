@@ -1,8 +1,11 @@
 /**
  * ManageNewsEventsView - Manage News and Events component (admin/owner only)
  */
-export class ManageNewsEventsView {
-  constructor() {
+import { MenuView } from './MenuView.js';
+
+export class ManageNewsEventsView extends MenuView {
+  constructor(homePage) {
+    super(homePage);
     this.container = null;
     this.events = [];
     this.currentPage = 1;
@@ -205,7 +208,7 @@ export class ManageNewsEventsView {
       this.showEditor();
     } catch (error) {
       console.error('Error loading event:', error);
-      alert(`Failed to load event: ${error.message}`);
+      this.displayStatusMessage(`Failed to load event: ${error.message}`, 'error');
     }
   }
 
@@ -351,12 +354,12 @@ export class ManageNewsEventsView {
     const text = textarea.value.trim();
 
     if (!text) {
-      alert('Event text cannot be empty');
+      this.displayStatusMessage('Event text cannot be empty', 'warning');
       return;
     }
 
     if (text.length > 1024) {
-      alert('Event text cannot exceed 1024 characters');
+      this.displayStatusMessage('Event text cannot exceed 1024 characters', 'warning');
       return;
     }
 
@@ -396,10 +399,10 @@ export class ManageNewsEventsView {
         this.selectEvent(data.event.id);
       }
 
-      alert('Event saved successfully!');
+      this.displayStatusMessage('Event saved successfully!', 'success');
     } catch (error) {
       console.error('Error saving event:', error);
-      alert(`Failed to save event: ${error.message}`);
+      this.displayStatusMessage(`Failed to save event: ${error.message}`, 'error');
       
       const saveBtn = this.container?.querySelector(isCreating ? '#btn-save-create' : '#btn-save-edit');
       if (saveBtn) {
@@ -452,10 +455,10 @@ export class ManageNewsEventsView {
         editorContent.innerHTML = '<p class="editor-placeholder">Select an event from the list to view or edit it.</p>';
       }
 
-      alert('Event deleted successfully!');
+      this.displayStatusMessage('Event deleted successfully!', 'success');
     } catch (error) {
       console.error('Error deleting event:', error);
-      alert(`Failed to delete event: ${error.message}`);
+      this.displayStatusMessage(`Failed to delete event: ${error.message}`, 'error');
       
       const deleteBtn = this.container?.querySelector('#btn-delete-edit');
       if (deleteBtn) {

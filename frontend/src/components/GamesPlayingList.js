@@ -2,9 +2,11 @@
  * GamesPlayingList - List of games the current user is playing
  */
 import { getHeadersForGet } from '../utils/apiHeaders.js';
+import { MenuView } from './MenuView.js';
 
-export class GamesPlayingList {
-  constructor() {
+export class GamesPlayingList extends MenuView {
+  constructor(homePage) {
+    super(homePage);
     this.container = null;
     this.games = [];
     this.userId = localStorage.getItem('user_id');

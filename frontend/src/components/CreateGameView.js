@@ -3,9 +3,11 @@
  */
 import { DualSlider } from '../DualSlider.js';
 import { getHeaders } from '../utils/apiHeaders.js';
+import { MenuView } from './MenuView.js';
 
-export class CreateGameView {
-  constructor() {
+export class CreateGameView extends MenuView {
+  constructor(homePage) {
+    super(homePage);
     this.container = null;
     this.titleInput = null;
     this.descriptionInput = null;

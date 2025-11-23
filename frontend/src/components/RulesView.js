@@ -1,8 +1,11 @@
 /**
  * RulesView - Rules and Instructions placeholder component
  */
-export class RulesView {
-  constructor() {
+import { MenuView } from './MenuView.js';
+
+export class RulesView extends MenuView {
+  constructor(homePage) {
+    super(homePage);
     this.container = null;
   }
 
