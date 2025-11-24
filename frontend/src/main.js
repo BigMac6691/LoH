@@ -1,24 +1,10 @@
-import * as THREE from 'three';
-import { UIController } from './UIController.js';
-import { MapViewGenerator } from './MapViewGenerator.js';
-import { PlayerManager } from './PlayerManager.js';
-import { PlayerSetupUI } from './PlayerSetupUI.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { DEV_MODE, autoStartDevMode, logDevModeStatus, setupDevModeEventListeners } from './devScenarios.js';
+import { DEV_MODE, autoStartDevMode, logDevModeStatus } from './devScenarios.js';
 import { eventBus } from './eventBus.js';
 import { assetManager } from './engine/AssetManager.js';
-import { SystemEventHandler, GameEventHandler, DevEventHandler, OrderEventHandler, TurnEventHandler } from './events/index.js';
-import { MapModel } from '@loh/shared';
 import { SplashScreen } from './SplashScreen.js';
 import { HomePage } from './HomePage.js';
-
-import { DevPanel } from './dev/DevPanel.js';
-import { TurnEventsPanel } from './TurnEventsPanel.js';
-import { SummaryDialog } from './SummaryDialog.js';
-import { OrderSummaryDialog } from './OrderSummaryDialog.js';
-import { ShipSummaryDialog } from './ShipSummaryDialog.js';
+import { GameView } from './GameView.js';
 import { webSocketManager } from './services/WebSocketManager.js';
-import { gameStatePoller } from './services/GameStatePoller.js';
 
 // Global MapModel instance
 window.globalMapModel = null;
@@ -27,92 +13,9 @@ window.globalMapModel = null;
 window.globalPlayers = null;
 
 // Global instances
-let turnEventsPanel = new TurnEventsPanel();
-let summaryDialog = null;
-let orderSummaryDialog = null;
-let shipSummaryDialog = null;
-
-// Scene setup
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a2e);
-
-// Camera setup
-const camera = new THREE.PerspectiveCamera(
-  75, 
-  window.innerWidth / window.innerHeight, 
-  0.1, 
-  1000
-);
-camera.position.z = 500;
-
-// Renderer setup
-const renderer = new THREE.WebGLRenderer({ 
-  canvas: document.getElementById('gameCanvas'),
-  antialias: true 
-});
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
-
-// Add lighting
-const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x999999, 0.3);
-scene.add(hemisphereLight);
-
-const directionalLight = new THREE.DirectionalLight(0xffffff, 3.0);
-directionalLight.position.copy(camera.position);
-scene.add(directionalLight);
-
-// Initialize OrbitControls
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
-
-// Animation loop
-function animate()
-{
-  requestAnimationFrame(animate);
-  
-  // Update OrbitControls
-  controls.update();
-
-  renderer.render(scene, camera);
-  
-  // Render star labels if map generator exists
-  if (mapGenerator)
-  {
-    // Update star interaction manager
-    mapGenerator.updateStarInteraction(0.016); // Approximate delta time
-  }
-}
-
-// Handle window resize
-window.addEventListener('resize', () =>
-{
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  
-  // Update label renderer size
-  if (mapGenerator)
-  {
-    mapGenerator.onWindowResize();
-    mapGenerator.onStarInteractionResize();
-  }
-});
-
-// Initialize UI Controller and Map Generator
-let uiController;
-let mapGenerator;
-let playerManager;
-let playerSetupUI;
-let systemEventHandler;
-let gameEventHandler;
-let devEventHandler;
-let orderEventHandler;
-let turnEventHandler;
-
-let devPanel;
 let splashScreen;
 let homePage;
+let gameView;
 
 // Start loading assets immediately (before DOM ready)
 console.log('🎨 Starting asset loading...');
@@ -154,6 +57,15 @@ document.addEventListener('DOMContentLoaded', () =>
     loadingElement.style.display = 'none';
   }
   
+  // Initialize GameView (but don't show it yet)
+  gameView = new GameView();
+  gameView.init();
+  
+  // Make mapGenerator accessible globally for development scenarios
+  if (gameView) {
+    window.mapGenerator = gameView.getMapGenerator();
+  }
+  
   // Listen for login success to hide splash screen and show home page
   if (eventBus) {
     eventBus.on('auth:loginSuccess', (context, data) => {
@@ -165,7 +77,6 @@ document.addEventListener('DOMContentLoaded', () =>
       homePage.init();
       // Make homePage accessible globally for profile updates
       window.homePage = homePage;
-      // Don't show UIController automatically - user can choose from menu
       
       // Connect WebSocket after login
       webSocketManager.connect();
@@ -184,62 +95,37 @@ document.addEventListener('DOMContentLoaded', () =>
         homePage.hide();
       }
 
+      // Show game view
+      if (gameView) {
+        gameView.show();
+      }
+
       // Load the game by emitting game:startGame event
       // This will be handled by GameEventHandler
       // GameEventHandler expects gameId directly in the data object
       eventBus.emit('game:startGame', { gameId });
     });
+
+    // Listen for return to home event
+    eventBus.on('game:returnToHome', () => {
+      // Show home page if it exists, otherwise create it
+      if (!homePage) {
+        homePage = new HomePage();
+        homePage.init();
+        window.homePage = homePage;
+      } else {
+        homePage.show();
+      }
+      
+      // Show the Games Playing view
+      homePage.showView('games-playing');
+      
+      console.log('🏠 Returned to home page and showing Games Playing view');
+    });
   }
-  
-  // Create button container for top-right buttons
-  createButtonContainer();
-  
-  // Create buttons in reverse order (row-reverse means first added = rightmost)
-  // Desired order (right to left): Home, End Turn, Ships, Orders, Summary, Events, Refresh
-  createHomeButton();
-  createEndTurnButton();
-  createShipSummaryButton();
-  createOrderButton();
-  createSummaryButton();
-  createEventsButton();
-  createRefreshButton();
   
   // Log development mode status
   logDevModeStatus();
-  
-  // Initialize UI Controller and Map Generator
-  uiController = new UIController();
-  mapGenerator = new MapViewGenerator(scene, camera);
-  playerManager = new PlayerManager();
-  
-  // Initialize system event handler
-  systemEventHandler = new SystemEventHandler();
-  
-  // Initialize game event handler
-  gameEventHandler = new GameEventHandler();
-  
-  // Initialize order event handler
-  orderEventHandler = new OrderEventHandler();
-  
-  // Initialize turn event handler
-  turnEventHandler = new TurnEventHandler();
-  
-  // Initialize dev panel if in dev mode
-  if (DEV_MODE > 0)
-  {
-    // Initialize development event handler
-    devEventHandler = new DevEventHandler();
-    
-    // Initialize dev panel (includes all dev tools)
-    devPanel = new DevPanel(scene, renderer, camera, mapGenerator);
-    devPanel.show(); // Show dev panel by default in dev mode
-  }
-  
-  // Start animation
-  animate();
-  
-  // Set up event listeners for game flow
-  setupGameEventListeners();
   
   // Don't auto-start in normal mode - wait for login
   // In dev mode, we can skip the splash screen
@@ -250,8 +136,10 @@ document.addEventListener('DOMContentLoaded', () =>
       splashScreen.hide();
     }
     
-    // Set up dev mode event listeners
-    setupDevModeEventListeners(playerManager);
+    // Show game view in dev mode
+    if (gameView) {
+      gameView.show();
+    }
     
     // Start the development scenario immediately
     // Font loading will be handled by AssetManager events automatically
@@ -260,454 +148,5 @@ document.addEventListener('DOMContentLoaded', () =>
   // Normal flow - splash screen will show login, game starts after successful login
 });
 
-/**
- * Initialize game after successful login
- * Note: Game is not auto-loaded - user must select from home page
- */
-function initializeGameAfterLogin() {
-  console.log('🎮 Ready for game selection after login...');
-  
-  // Game will be loaded when user clicks PLAY or JOIN from home page
-  // This function can be used for any post-login initialization that doesn't require a game
-}
-
-// Set up event listeners for game flow
-function setupGameEventListeners()
-{
-  // Listen for game start event
-  eventBus.on('game:start', (context, players) =>
-  {
-    console.log('🎮 Game started with players:', players);
-    console.log('🎮 Game context:', context);
-    onGameStart(players);
-  });
-}
-
-// Game start function
-function onGameStart(players)
-{
-  console.log('Game started with players:', players);
-  
-  // Update star colors to reflect player ownership
-  mapGenerator.updateStarColors(players);
-  
-  // Fleet icons are now handled automatically in updateStarGroups()
-  // No need to manually create them here
-}
-
-// Create button container for top-right buttons
-function createButtonContainer()
-{
-  const buttonContainer = document.createElement('div');
-  buttonContainer.id = 'top-right-buttons';
-  buttonContainer.className = 'top-right-buttons-container';
-  document.body.appendChild(buttonContainer);
-}
-
-// Create home button
-function createHomeButton()
-{
-  const homeButton = document.createElement('button');
-  homeButton.id = 'home-button';
-  homeButton.className = 'top-right-button top-right-button-home';
-  homeButton.innerHTML = '🏠 Home';
-  
-  // Hover effects
-  homeButton.addEventListener('mouseenter', () => {
-    homeButton.style.background = 'rgba(255, 100, 100, 0.3)';
-    homeButton.style.transform = 'scale(1.05)';
-    homeButton.style.boxShadow = '0 0 15px rgba(255, 100, 100, 0.5)';
-  });
-  
-  homeButton.addEventListener('mouseleave', () => {
-    homeButton.style.background = 'rgba(255, 100, 100, 0.2)';
-    homeButton.style.transform = 'scale(1)';
-    homeButton.style.boxShadow = 'none';
-  });
-  
-  // Click handler
-  homeButton.addEventListener('click', () => {
-    console.log('🏠 Home button clicked - returning to home page');
-    
-    // Leave WebSocket game room
-    webSocketManager.leaveGame();
-    
-    // Stop polling
-    gameStatePoller.stopPolling();
-    
-    // Clear game context
-    eventBus.setGameId(null);
-    eventBus.setPlayerId(null);
-    
-    // Hide any open dialogs
-    if (summaryDialog && summaryDialog.isOpen()) {
-      summaryDialog.hide();
-    }
-    if (orderSummaryDialog && orderSummaryDialog.isOpen()) {
-      orderSummaryDialog.hide();
-    }
-    if (shipSummaryDialog && shipSummaryDialog.isOpen()) {
-      shipSummaryDialog.hide();
-    }
-    if (turnEventsPanel) {
-      turnEventsPanel.hide();
-    }
-    
-    // Clear the map if mapGenerator exists
-    if (mapGenerator) {
-      mapGenerator.clearMap();
-    }
-    
-    // Show home page if it exists, otherwise create it
-    if (!homePage) {
-      homePage = new HomePage();
-      homePage.init();
-      window.homePage = homePage;
-    } else {
-      homePage.show();
-    }
-    
-    // Show the Games Playing view
-    homePage.showView('games-playing');
-    
-    console.log('🏠 Returned to home page and showing Games Playing view');
-  });
-  
-  // Add to container
-  const container = document.getElementById('top-right-buttons');
-  if (container) {
-    container.appendChild(homeButton);
-  }
-}
-
-// Create refresh button
-function createRefreshButton()
-{
-  const refreshButton = document.createElement('button');
-  refreshButton.id = 'refresh-button';
-  refreshButton.className = 'top-right-button top-right-button-refresh';
-  refreshButton.innerHTML = '🔄 Refresh';
-  
-  // Hover effects
-  refreshButton.addEventListener('mouseenter', () => {
-    refreshButton.style.background = 'rgba(0, 255, 136, 0.3)';
-    refreshButton.style.transform = 'scale(1.05)';
-    refreshButton.style.boxShadow = '0 0 15px rgba(0, 255, 136, 0.5)';
-  });
-  
-  refreshButton.addEventListener('mouseleave', () => {
-    refreshButton.style.background = 'rgba(0, 255, 136, 0.2)';
-    refreshButton.style.transform = 'scale(1)';
-    refreshButton.style.boxShadow = 'none';
-  });
-  
-  // Click handler
-  refreshButton.addEventListener('click', () => {
-    const gameId = eventBus.getContext().gameId;
-    
-    if (!gameId) {
-      console.error('🔄 Refresh button clicked but no game ID found in context');
-      alert('Error: No game loaded. Please start a game first.');
-      return;
-    }
-    
-    console.log('🔄 Refresh button clicked - emitting game:startGame event for game', gameId);
-    eventBus.emit('game:startGame', {
-      gameId
-    });
-  });
-  
-  // Add to container
-  const container = document.getElementById('top-right-buttons');
-  if (container) {
-    container.appendChild(refreshButton);
-  }
-}
-
-// Create events button
-function createEventsButton()
-{
-  const eventsButton = document.createElement('button');
-  eventsButton.id = 'events-button';
-  eventsButton.className = 'top-right-button top-right-button-events';
-  eventsButton.innerHTML = '📝 Events';
-  
-  // Hover effects
-  eventsButton.addEventListener('mouseenter', () => {
-    eventsButton.style.background = 'rgba(0, 150, 255, 0.3)';
-    eventsButton.style.transform = 'scale(1.05)';
-    eventsButton.style.boxShadow = '0 0 15px rgba(0, 150, 255, 0.5)';
-  });
-  
-  eventsButton.addEventListener('mouseleave', () => {
-    eventsButton.style.background = 'rgba(0, 150, 255, 0.2)';
-    eventsButton.style.transform = 'scale(1)';
-    eventsButton.style.boxShadow = 'none';
-  });
-  
-  // Click handler
-  eventsButton.addEventListener('click', () => {
-    console.log('📝 Events button clicked');
-    
-    // Initialize turn events panel if not already created
-    if (!turnEventsPanel) {
-      turnEventsPanel = new TurnEventsPanel();
-    }
-    
-    // Show the panel
-    turnEventsPanel.show();
-  });
-  
-  // Add to container
-  const container = document.getElementById('top-right-buttons');
-  if (container) {
-    container.appendChild(eventsButton);
-  }
-}
-
-// Create summary button
-function createSummaryButton()
-{
-  const summaryButton = document.createElement('button');
-  summaryButton.id = 'summary-button';
-  summaryButton.className = 'top-right-button top-right-button-summary';
-  summaryButton.innerHTML = '📊 Summary';
-
-  summaryButton.addEventListener('mouseenter', () => {
-    summaryButton.style.background = 'rgba(255, 215, 0, 0.28)';
-    summaryButton.style.transform = 'scale(1.05)';
-    summaryButton.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.5)';
-  });
-
-  summaryButton.addEventListener('mouseleave', () => {
-    summaryButton.style.background = 'rgba(255, 215, 0, 0.18)';
-    summaryButton.style.transform = 'scale(1)';
-    summaryButton.style.boxShadow = 'none';
-  });
-
-  summaryButton.addEventListener('click', () => {
-    if (!summaryDialog) {
-      summaryDialog = new SummaryDialog();
-      window.summaryDialog = summaryDialog;
-    }
-
-    if (summaryDialog.isOpen()) {
-      summaryDialog.hide();
-    } else {
-      summaryDialog.show();
-    }
-  });
-
-  // Add to container
-  const container = document.getElementById('top-right-buttons');
-  if (container) {
-    container.appendChild(summaryButton);
-  }
-}
-
-// Create order button
-function createOrderButton()
-{
-  const orderButton = document.createElement('button');
-  orderButton.id = 'order-button';
-  orderButton.className = 'top-right-button top-right-button-order';
-  orderButton.innerHTML = '📋 Orders';
-
-  orderButton.addEventListener('mouseenter', () => {
-    orderButton.style.background = 'rgba(135, 206, 250, 0.28)';
-    orderButton.style.transform = 'scale(1.05)';
-    orderButton.style.boxShadow = '0 0 15px rgba(135, 206, 250, 0.5)';
-  });
-
-  orderButton.addEventListener('mouseleave', () => {
-    orderButton.style.background = 'rgba(135, 206, 250, 0.18)';
-    orderButton.style.transform = 'scale(1)';
-    orderButton.style.boxShadow = 'none';
-  });
-
-  orderButton.addEventListener('click', () => {
-    if (!orderSummaryDialog) {
-      orderSummaryDialog = new OrderSummaryDialog();
-      window.orderSummaryDialog = orderSummaryDialog;
-    }
-
-    if (orderSummaryDialog.isOpen()) {
-      orderSummaryDialog.hide();
-    } else {
-      orderSummaryDialog.show();
-    }
-  });
-
-  // Add to container
-  const container = document.getElementById('top-right-buttons');
-  if (container) {
-    container.appendChild(orderButton);
-  }
-}
-
-// Create end turn button
-function createEndTurnButton()
-{
-  const endTurnButton = document.createElement('button');
-  endTurnButton.id = 'end-turn-button';
-  endTurnButton.className = 'top-right-button top-right-button-end-turn';
-  endTurnButton.innerHTML = '✅ End Turn';
-  
-  // Hover effects
-  endTurnButton.addEventListener('mouseenter', () => {
-    endTurnButton.style.background = 'rgba(255, 165, 0, 0.3)';
-    endTurnButton.style.transform = 'scale(1.05)';
-    endTurnButton.style.boxShadow = '0 0 15px rgba(255, 165, 0, 0.5)';
-  });
-  
-  endTurnButton.addEventListener('mouseleave', () => {
-    endTurnButton.style.background = 'rgba(255, 165, 0, 0.2)';
-    endTurnButton.style.transform = 'scale(1)';
-    endTurnButton.style.boxShadow = 'none';
-  });
-  
-  // Click handler
-  endTurnButton.addEventListener('click', () => {
-    const context = eventBus.getContext();
-    const gameId = context?.gameId;
-    const playerId = context?.playerId; // Use playerId, not user (user is user_id)
-    
-    if (!gameId || !playerId) {
-      console.error('✅ End Turn button clicked but missing gameId or playerId in context');
-      alert('Error: No game loaded or player not set. Please start a game first.');
-      return;
-    }
-    
-    console.log(`✅ End Turn button clicked - ending turn for player ${playerId} in game ${gameId}`);
-    
-    // Emit end turn event (same format as DevPanel)
-    eventBus.emit('turn:endTurn', {
-      success: true,
-      details: {
-        eventType: 'turn:endTurn',
-        playerId: playerId
-      }
-    });
-    
-    // Disable button to prevent multiple clicks
-    endTurnButton.disabled = true;
-    endTurnButton.textContent = '✅ Turn Ended';
-    endTurnButton.style.opacity = '0.6';
-    endTurnButton.style.cursor = 'not-allowed';
-    
-    // Re-enable button after a short delay (in case of errors)
-    setTimeout(() => {
-      // Only re-enable if still disabled (if turn ended successfully, leave it disabled)
-      if (endTurnButton.disabled) {
-        // The TurnEventHandler will emit 'turn:endTurnSuccess' if successful
-        // Listen for that event to keep button disabled on success
-      }
-    }, 1000);
-  });
-  
-  // Listen for turn end success to keep button disabled
-  eventBus.on('turn:endTurnSuccess', () => {
-    const button = document.getElementById('end-turn-button');
-    if (button) {
-      button.disabled = true;
-      button.textContent = '✅ Turn Ended';
-      button.style.opacity = '0.6';
-      button.style.cursor = 'not-allowed';
-    }
-  });
-  
-  // Listen for turn end error to re-enable button
-  eventBus.on('turn:endTurnError', (context, eventData) => {
-    const button = document.getElementById('end-turn-button');
-    if (button) {
-      button.disabled = false;
-      button.textContent = '✅ End Turn';
-      button.style.opacity = '1';
-      button.style.cursor = 'pointer';
-      const errorMessage = eventData?.details?.error || 'Failed to end turn';
-      console.error('✅ End Turn button: Error ending turn:', errorMessage);
-      alert(`Error ending turn: ${errorMessage}`);
-    }
-  });
-  
-  // Listen for game loaded event to reset button when map is refreshed
-  eventBus.on('game:gameLoaded', (context, eventData) => {
-    // Only reset if the game was successfully loaded
-    if (eventData?.success !== false) {
-      const button = document.getElementById('end-turn-button');
-      if (button) {
-        button.disabled = false;
-        button.textContent = '✅ End Turn';
-        button.style.opacity = '1';
-        button.style.cursor = 'pointer';
-        console.log('✅ End Turn button: Reset after game refresh');
-      }
-      
-      // Update poller with new turn number if polling is active
-      if (eventData.details?.currentTurn && gameStatePoller.isPolling) {
-        gameStatePoller.updateTurnNumber(eventData.details.currentTurn.number);
-      }
-    }
-  });
-  
-  // Listen for WebSocket connection failure to start polling
-  eventBus.on('websocket:connectionFailed', () => {
-    const context = eventBus.getContext();
-    if (context.gameId) {
-      console.log('🔄 WebSocket connection failed, starting polling fallback');
-      // Poller will be started when game loads, but we can also start it here if needed
-    }
-  });
-  
-  // Add to container
-  const container = document.getElementById('top-right-buttons');
-  if (container) {
-    container.appendChild(endTurnButton);
-  }
-}
-
-// Create ship summary button
-function createShipSummaryButton()
-{
-  const shipSummaryButton = document.createElement('button');
-  shipSummaryButton.id = 'ship-summary-button';
-  shipSummaryButton.className = 'top-right-button top-right-button-ship';
-  shipSummaryButton.innerHTML = '🚢 Ships';
-
-  shipSummaryButton.addEventListener('mouseenter', () => {
-    shipSummaryButton.style.background = 'rgba(135, 206, 250, 0.3)';
-    shipSummaryButton.style.transform = 'scale(1.05)';
-    shipSummaryButton.style.boxShadow = '0 0 15px rgba(135, 206, 250, 0.5)';
-  });
-
-  shipSummaryButton.addEventListener('mouseleave', () => {
-    shipSummaryButton.style.background = 'rgba(135, 206, 250, 0.2)';
-    shipSummaryButton.style.transform = 'scale(1)';
-    shipSummaryButton.style.boxShadow = 'none';
-  });
-
-  shipSummaryButton.addEventListener('click', () => {
-    if (!shipSummaryDialog) {
-      shipSummaryDialog = new ShipSummaryDialog();
-      window.shipSummaryDialog = shipSummaryDialog;
-    }
-
-    if (shipSummaryDialog.isOpen()) {
-      shipSummaryDialog.hide();
-    } else {
-      shipSummaryDialog.show();
-    }
-  });
-
-  // Add to container
-  const container = document.getElementById('top-right-buttons');
-  if (container) {
-    container.appendChild(shipSummaryButton);
-  }
-}
-
-// Make mapGenerator available globally for development scenarios
-window.mapGenerator = mapGenerator;
-
-// Export for potential use in other modules
-export { scene, camera, renderer }; 
+// Export GameView for potential use in other modules
+export { gameView }; 

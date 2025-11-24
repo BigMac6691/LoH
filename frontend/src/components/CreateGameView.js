@@ -163,17 +163,17 @@ export class CreateGameView extends MenuView {
 
     // Validate inputs
     if (!title) {
-      this.showError('Title is required');
+      this.displayStatusMessage('Title is required', 'error');
       return;
     }
 
     if (!description) {
-      this.showError('Description is required');
+      this.displayStatusMessage('Description is required', 'error');
       return;
     }
 
     if (!seed) {
-      this.showError('Seed is required');
+      this.displayStatusMessage('Seed is required', 'error');
       return;
     }
 
@@ -195,12 +195,12 @@ export class CreateGameView extends MenuView {
       });
 
       // Success - show message and reset form
-      this.showSuccess(`Game created successfully! Game ID: ${data.gameId}`);
+      this.displayStatusMessage(`Game created successfully! Game ID: ${data.gameId}`, 'success');
       this.resetForm();
 
     } catch (error) {
       console.error('Error creating game:', error);
-      this.showError(error.message || 'Failed to create game');
+      this.displayStatusMessage(error.message || 'Failed to create game', 'error');
     } finally {
       // Re-enable button
       this.createBtn.disabled = false;
@@ -230,71 +230,6 @@ export class CreateGameView extends MenuView {
     this.seedInput.value = seed;
   }
 
-  /**
-   * Show error message
-   */
-  showError(message) {
-    // Remove existing messages
-    const existingError = this.container.querySelector('.error-message');
-    if (existingError) {
-      existingError.remove();
-    }
-
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'error-message';
-    errorDiv.textContent = message;
-    errorDiv.style.cssText = `
-      background: rgba(255, 0, 0, 0.2);
-      border: 1px solid #ff4444;
-      color: #ff4444;
-      padding: 10px;
-      border-radius: 5px;
-      margin-bottom: 15px;
-    `;
-
-    const form = this.container.querySelector('#create-game-form');
-    form.insertBefore(errorDiv, form.firstChild);
-
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      if (errorDiv.parentNode) {
-        errorDiv.remove();
-      }
-    }, 5000);
-  }
-
-  /**
-   * Show success message
-   */
-  showSuccess(message) {
-    // Remove existing messages
-    const existingSuccess = this.container.querySelector('.success-message');
-    if (existingSuccess) {
-      existingSuccess.remove();
-    }
-
-    const successDiv = document.createElement('div');
-    successDiv.className = 'success-message';
-    successDiv.textContent = message;
-    successDiv.style.cssText = `
-      background: rgba(0, 255, 136, 0.2);
-      border: 1px solid #00ff88;
-      color: #00ff88;
-      padding: 10px;
-      border-radius: 5px;
-      margin-bottom: 15px;
-    `;
-
-    const form = this.container.querySelector('#create-game-form');
-    form.insertBefore(successDiv, form.firstChild);
-
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      if (successDiv.parentNode) {
-        successDiv.remove();
-      }
-    }, 5000);
-  }
 
   /**
    * Get the container element

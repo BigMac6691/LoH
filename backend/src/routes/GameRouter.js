@@ -226,7 +226,8 @@ export class GameRouter
       // Use authenticated user ID from JWT
       const userId = req.user.id;
 
-      // Get games where user is NOT a player, with player count (excluding AI) and owner info
+      // Get games where user is NOT a player, with player count (including AI) and owner info
+      // Only return games with status 'lobby' (not 'running')
       const { rows } = await pool.query(
         `SELECT 
           g.*,
@@ -237,11 +238,11 @@ export class GameRouter
         LEFT JOIN LATERAL (
           SELECT COUNT(*) as player_count
           FROM game_player
-          WHERE game_id = g.id AND type = 'player'
+          WHERE game_id = g.id
         ) player_counts ON true
         LEFT JOIN game_player gp ON g.id = gp.game_id AND gp.user_id = $1 AND gp.type = 'player'
         WHERE gp.user_id IS NULL
-          AND g.status IN ('lobby', 'running')
+          AND g.status = 'lobby'
           AND COALESCE(player_counts.player_count, 0) < g.max_players
         ORDER BY g.created_at DESC`,
         [userId]
