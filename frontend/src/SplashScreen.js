@@ -5,6 +5,7 @@
 
 import { assetManager } from './engine/AssetManager.js';
 import { RB, ApiError } from './utils/RequestBuilder.js';
+import { eventBus } from './eventBus.js';
 
 export class SplashScreen {
   constructor() {
@@ -508,9 +509,7 @@ export class SplashScreen {
         }
         
         // Emit login success event
-        if (window.eventBus) {
-          window.eventBus.emit('auth:loginSuccess', { user: data.user, tokens: { accessToken: data.accessToken, refreshToken: data.refreshToken } });
-        }
+        eventBus.emit('auth:loginSuccess', { user: data.user, tokens: { accessToken: data.accessToken, refreshToken: data.refreshToken } });
       } else {
         // Handle different failure types
         this.handleLoginFailure(data, email);
@@ -1189,9 +1188,7 @@ export class SplashScreen {
         }
         
         // Emit login success event
-        if (window.eventBus) {
-          window.eventBus.emit('auth:loginSuccess', { user: loginData.user, tokens: { accessToken: loginData.accessToken, refreshToken: loginData.refreshToken } });
-        }
+        eventBus.emit('auth:loginSuccess', { user: loginData.user, tokens: { accessToken: loginData.accessToken, refreshToken: loginData.refreshToken } });
         return; // Exit early - user is logged in
       }
     } catch (error) {

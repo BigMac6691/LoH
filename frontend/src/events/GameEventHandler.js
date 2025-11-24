@@ -262,16 +262,85 @@ export class GameEventHandler {
   }
 
   /**
-   * Handle load game event
+   * Handle load game event - loads complete game state and emits gameLoaded event
    * @param {Object} context - Current system context
-   * @param {string} gameId - Game ID to load
+   * @param {Object} data - Event data containing gameId
    */
-  handleLoadGame(context, gameId) {
-    console.log('🎮 GameEventHandler:(2) Loading game:', gameId);
+  async handleLoadGame(context, data) {
+    console.log('🎮 GameEventHandler: Loading game with data:', data);
     console.log('🎮 GameEventHandler: Context:', context);
     
-    // TODO: Implement game loading logic
-    // For now, just log the event as requested
+    try {
+      const gameId = data?.gameId || data; // Support both { gameId } and direct gameId
+      
+      if (!gameId) {
+        console.error('🎮 GameEventHandler: Missing gameId in loadGame data');
+        
+        // Emit error event
+        eventBus.emit('game:gameLoaded', { 
+          success: false, 
+          error: 'missing_gameId',
+          message: 'Game ID is required to load game'
+        });
+        return;
+      }
+      
+      // Load complete game state from backend
+      const gameData = await RB.fetchGet(`/api/games/${gameId}/state`);
+      console.log('🎮 GameEventHandler: Game state loaded successfully:', gameData);
+      
+      // Set game ID on event bus
+      eventBus.setGameId(gameId);
+      
+      // Set player ID from the game state (this is the player_id for the current user in this game)
+      if (gameData.currentPlayerId) {
+        eventBus.setPlayerId(gameData.currentPlayerId);
+        console.log('🎮 GameEventHandler: Set player ID:', gameData.currentPlayerId);
+      } else {
+        console.warn('🎮 GameEventHandler: No currentPlayerId in game state - user may not be a player in this game');
+        eventBus.setPlayerId(null);
+      }
+      
+      // Get current turn for the game
+      const currentTurn = await this.getCurrentTurn(gameId);
+      
+      // Join WebSocket game room if WebSocket is connected
+      if (webSocketManager.isWebSocketConnected() && gameData.currentPlayerId) {
+        webSocketManager.joinGame(gameId, gameData.currentPlayerId);
+      } else {
+        // If WebSocket not connected, start polling as fallback
+        if (currentTurn) {
+          gameStatePoller.startPolling(gameId, currentTurn.number);
+        }
+      }
+      
+      // Update poller with current turn number if polling is active
+      if (currentTurn && gameStatePoller.isPolling) {
+        gameStatePoller.updateTurnNumber(currentTurn.number);
+      }
+      
+      // Emit success event with complete game data including current turn
+      eventBus.emit('game:gameLoaded', {
+        success: true,
+        details: {
+          eventType: 'game:gameLoaded',
+          gameId: gameId,
+          gameData: gameData,
+          currentTurn: currentTurn
+        }
+      });
+      
+    } catch (error) {
+      console.error('🎮 GameEventHandler: Error loading game:', error);
+      const errorData = error instanceof ApiError ? (error.body || { error: error.message }) : { error: error.message };
+      
+      // Emit error event
+      eventBus.emit('game:gameLoaded', { 
+        success: false, 
+        error: 'api_error',
+        message: errorData.error || error.message || 'Failed to load game state'
+      });
+    }
   }
 
   /**
@@ -425,7 +494,7 @@ export class GameEventHandler {
   }
 
   /**
-   * Handle start game event - loads complete game state and emits gameLoaded event
+   * Handle start game event - starts the game after it has been loaded
    * @param {Object} context - Current system context
    * @param {Object} data - Event data containing gameId
    */
@@ -433,78 +502,23 @@ export class GameEventHandler {
     console.log('🎮 GameEventHandler: Starting game with data:', data);
     console.log('🎮 GameEventHandler: Context:', context);
     
-    try {
-      const { gameId } = data;
-      
-      if (!gameId) {
-        console.error('🎮 GameEventHandler: Missing gameId in startGame data');
-        
-        // Emit error event
-        eventBus.emit('game:gameLoaded', { 
-          success: false, 
-          error: 'missing_gameId',
-          message: 'Game ID is required to start game'
-        });
-        return;
-      }
-      
-      // Load complete game state from backend
-      const gameData = await RB.fetchGet(`/api/games/${gameId}/state`);
-      console.log('🎮 GameEventHandler: Game state loaded successfully:', gameData);
-      
-      // Set game ID on event bus
-      eventBus.setGameId(gameId);
-      
-      // Set player ID from the game state (this is the player_id for the current user in this game)
-      if (gameData.currentPlayerId) {
-        eventBus.setPlayerId(gameData.currentPlayerId);
-        console.log('🎮 GameEventHandler: Set player ID:', gameData.currentPlayerId);
-      } else {
-        console.warn('🎮 GameEventHandler: No currentPlayerId in game state - user may not be a player in this game');
-        eventBus.setPlayerId(null);
-      }
-      
-      // Get current turn for the game
-      const currentTurn = await this.getCurrentTurn(gameId);
-      
-      // Join WebSocket game room if WebSocket is connected
-      if (webSocketManager.isWebSocketConnected() && gameData.currentPlayerId) {
-        webSocketManager.joinGame(gameId, gameData.currentPlayerId);
-      } else {
-        // If WebSocket not connected, start polling as fallback
-        if (currentTurn) {
-          gameStatePoller.startPolling(gameId, currentTurn.number);
-        }
-      }
-      
-      // Update poller with current turn number if polling is active
-      if (currentTurn && gameStatePoller.isPolling) {
-        gameStatePoller.updateTurnNumber(currentTurn.number);
-      }
-      
-      // Emit success event with complete game data including current turn
-      console.log(eventBus.listeners)
-      eventBus.emit('game:gameLoaded', {
-        success: true,
-        details: {
-          eventType: 'game:gameLoaded',
-          gameId: gameId,
-          gameData: gameData,
-          currentTurn: currentTurn
-        }
-      });
-      
-    } catch (error) {
-      console.error('🎮 GameEventHandler: Error starting game:', error);
-      const errorData = error instanceof ApiError ? (error.body || { error: error.message }) : { error: error.message };
-      
-      // Emit error event
-      eventBus.emit('game:gameLoaded', { 
-        success: false, 
-        error: 'api_error',
-        message: errorData.error || error.message || 'Failed to load game state'
-      });
+    // Game should already be loaded at this point
+    // This method can be used for any additional initialization needed to start the game
+    const { gameId } = data;
+    
+    if (!gameId) {
+      console.error('🎮 GameEventHandler: Missing gameId in startGame data');
+      return;
     }
+    
+    // Emit game start event for rendering/display
+    eventBus.emit('game:start', {
+      success: true,
+      details: {
+        eventType: 'game:start',
+        gameId: gameId
+      }
+    });
   }
 
   /**

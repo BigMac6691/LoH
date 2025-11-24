@@ -3,6 +3,7 @@
  */
 import { RB } from '../utils/RequestBuilder.js';
 import { MenuView } from './MenuView.js';
+import { eventBus } from '../eventBus.js';
 
 export class GamesPlayingList extends MenuView {
   constructor(statusComponent) {
@@ -30,7 +31,16 @@ export class GamesPlayingList extends MenuView {
     `;
     
     this.loadGames();
+    this.setupEventListeners();
     return this.container;
+  }
+
+  /**
+   * Set up event listeners
+   */
+  setupEventListeners() {
+    // Listen for game loaded event
+    eventBus.on('game:gameLoaded', this.handleGameLoaded.bind(this));
   }
 
   /**
@@ -123,11 +133,31 @@ export class GamesPlayingList extends MenuView {
   async playGame(gameId) {
     if (!gameId) return;
 
-    // Emit event to load game (main.js will handle this)
-    if (window.eventBus) {
-      window.eventBus.emit('game:load', { gameId });
+    // Post status message indicating game is being loaded
+    this.displayStatusMessage('Loading game...', 'info');
+
+    // Emit event to load game (main.js will handle UI switching, then emit game:loadGame)
+    eventBus.emit('game:load', { gameId });
+  }
+
+  /**
+   * Handle game loaded event
+   * @param {Object} context - Current system context
+   * @param {Object} data - Event data from game:gameLoaded event
+   */
+  handleGameLoaded(context, data) {
+    if (data.success) {
+      const gameId = data.details?.gameId;
+      
+      // Post status message indicating game has been loaded
+      this.displayStatusMessage('Game loaded successfully', 'success');
+      
+      // Emit game:startGame event to start the game
+      eventBus.emit('game:startGame', { gameId });
     } else {
-      console.error('Event bus not available');
+      // Post error message if loading failed
+      const errorMessage = data.message || 'Failed to load game';
+      this.displayStatusMessage(`Error: ${errorMessage}`, 'error');
     }
   }
 
@@ -172,6 +202,9 @@ export class GamesPlayingList extends MenuView {
    * Clean up
    */
   dispose() {
+    // Remove event listeners
+    eventBus.off('game:gameLoaded', this.handleGameLoaded.bind(this));
+    
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }

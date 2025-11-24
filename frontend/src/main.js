@@ -83,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () =>
     });
 
     // Listen for game:load event from home page (PLAY/JOIN buttons)
+    // This handles UI switching - the actual game loading is handled by game:loadGame
     eventBus.on('game:load', (context, data) => {
       const { gameId } = data;
       if (!gameId) {
@@ -100,10 +101,9 @@ document.addEventListener('DOMContentLoaded', () =>
         gameView.show();
       }
 
-      // Load the game by emitting game:startGame event
-      // This will be handled by GameEventHandler
-      // GameEventHandler expects gameId directly in the data object
-      eventBus.emit('game:startGame', { gameId });
+      // Emit game:loadGame to trigger actual game loading
+      // GameEventHandler will handle loading and emit game:gameLoaded when done
+      eventBus.emit('game:loadGame', { gameId });
     });
 
     // Listen for return to home event

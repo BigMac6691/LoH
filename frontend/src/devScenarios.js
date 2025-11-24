@@ -244,7 +244,7 @@ export function getDevModeStatus()
     enabled: DEV_MODE,
     mapConfig: DEFAULT_MAP_CONFIG,
     players: DEFAULT_PLAYERS,
-    eventBus: window.eventBus ? 'Available' : 'Not available',
+    eventBus: eventBus ? 'Available' : 'Not available',
     mapGenerator: window.mapGenerator ? 'Available' : 'Not available',
   };
 }

@@ -143,9 +143,6 @@ export class EventBus {
 // Create global event bus instance
 export const eventBus = new EventBus();
 
-// Make available globally for debugging
-window.eventBus = eventBus; 
-
 // Add star-related events to the global event bus
 export const STAR_EVENTS = {
   HOVER: 'star:hover',

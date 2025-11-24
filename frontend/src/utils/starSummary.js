@@ -1,6 +1,7 @@
 /**
  * Utility functions for building star summary table data.
  */
+import { eventBus } from '../eventBus.js';
 
 /**
  * Resolve a readable owner label for a star.
@@ -77,7 +78,7 @@ export function getStarSummaryRows()
 
    const stars = mapModel.getStars();
    const rows = [];
-   const currentPlayerId = window.eventBus?.getContext?.().playerId ?? window.eventBus?.context?.playerId ?? null; // Use playerId, not user (user is user_id)
+   const currentPlayerId = eventBus?.getContext?.()?.playerId ?? null; // Use playerId, not user (user is user_id)
 
    stars.forEach((star) =>
    {
