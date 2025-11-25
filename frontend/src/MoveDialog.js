@@ -534,18 +534,16 @@ export class MoveDialog extends BaseDialog
   async saveStandingOrders(starId, standingOrders) {
     const context = eventBus.getContext();
     const gameId = context.gameId;
-    const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
-
-    if (!gameId || !playerId) {
-      console.error('🚀 MoveDialog: Cannot save standing orders - missing gameId or playerId');
-      throw new Error('Missing gameId or playerId');
+    if (!gameId) {
+      console.error('🚀 MoveDialog: Cannot save standing orders - missing gameId');
+      throw new Error('Missing gameId');
     }
 
     try {
+      // playerId is derived from authenticated user on backend
       const result = await RB.fetchPost('/api/orders/standing', {
         gameId,
         starId,
-        playerId,
         standingOrders
       });
       console.log('🚀 MoveDialog: Standing orders saved:', result);
@@ -562,15 +560,14 @@ export class MoveDialog extends BaseDialog
   async deleteStandingOrders(starId) {
     const context = eventBus.getContext();
     const gameId = context.gameId;
-    const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
-
-    if (!gameId || !playerId) {
-      console.error('🚀 MoveDialog: Cannot delete standing orders - missing gameId or playerId');
-      throw new Error('Missing gameId or playerId');
+    if (!gameId) {
+      console.error('🚀 MoveDialog: Cannot delete standing orders - missing gameId');
+      throw new Error('Missing gameId');
     }
 
     try {
-      const result = await RB.fetchDelete(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`);
+      // playerId is derived from authenticated user on backend
+      const result = await RB.fetchDelete(`/api/orders/standing/${starId}?gameId=${gameId}`);
       console.log('🚀 MoveDialog: Standing orders deleted:', result);
       return result;
     } catch (error) {

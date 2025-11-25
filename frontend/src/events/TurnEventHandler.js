@@ -46,21 +46,19 @@ export class TurnEventHandler
             throw new Error('Missing event details');
          }
 
-         const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
          const
          {
             gameId
          } = context;
 
-         if (!gameId || !playerId)
+         if (!gameId)
          {
-            throw new Error('Missing required parameters: gameId, playerId');
+            throw new Error('Missing required parameter: gameId');
          }
 
-         // Make the backend call to end the turn
+         // Make the backend call to end the turn (playerId is derived from authenticated user on backend)
          const result = await RB.fetchPost('/api/turns/end-turn', {
-            gameId,
-            playerId
+            gameId
          });
          console.log('🔄 TurnEventHandler: Turn ended successfully:', result);
 
@@ -71,7 +69,6 @@ export class TurnEventHandler
             details:
             {
                eventType: 'turn:endTurnSuccess',
-               playerId,
                gameId,
                result
             }

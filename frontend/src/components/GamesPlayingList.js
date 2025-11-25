@@ -1,25 +1,39 @@
 /**
  * GamesPlayingList - List of games the current user is playing
  */
-import { RB } from '../utils/RequestBuilder.js';
-import { MenuView } from './MenuView.js';
-import { eventBus } from '../eventBus.js';
+import
+{
+   RB
+}
+from '../utils/RequestBuilder.js';
+import
+{
+   MenuView
+}
+from './MenuView.js';
+import
+{
+   eventBus
+}
+from '../eventBus.js';
 
-export class GamesPlayingList extends MenuView {
-  constructor(statusComponent) {
-    super(statusComponent);
-    this.container = null;
-    this.games = [];
-    this.userId = localStorage.getItem('user_id');
-  }
+export class GamesPlayingList extends MenuView
+{
+   constructor(statusComponent)
+   {
+      super(statusComponent);
+      this.container = null;
+      this.games = [];
+   }
 
-  /**
-   * Create and return the games playing list container
-   */
-  create() {
-    this.container = document.createElement('div');
-    this.container.className = 'games-playing-list';
-    this.container.innerHTML = `
+   /**
+    * Create and return the games playing list container
+    */
+   create()
+   {
+      this.container = document.createElement('div');
+      this.container.className = 'games-playing-list';
+      this.container.innerHTML = `
       <div class="view-header">
         <h2>Games Playing</h2>
       </div>
@@ -29,59 +43,61 @@ export class GamesPlayingList extends MenuView {
         </div>
       </div>
     `;
-    
-    this.loadGames();
-    this.setupEventListeners();
-    return this.container;
-  }
 
-  /**
-   * Set up event listeners
-   */
-  setupEventListeners() {
-    // Listen for game loaded event
-    eventBus.on('game:gameLoaded', this.handleGameLoaded.bind(this));
-  }
+      this.loadGames();
+      this.setupEventListeners();
+      return this.container;
+   }
 
-  /**
-   * Load games from API
-   */
-  async loadGames() {
-    if (!this.userId) {
-      this.showError('User ID not found. Please log in again.');
-      return;
-    }
+   /**
+    * Set up event listeners
+    */
+   setupEventListeners()
+   {
+      // Listen for game loaded event
+      eventBus.on('game:gameLoaded', this.handleGameLoaded.bind(this));
+   }
 
-    const listContainer = this.container?.querySelector('.games-list-container');
-    if (!listContainer) return;
+   /**
+    * Load games from API
+    */
+   async loadGames()
+   {
+      const listContainer = this.container?.querySelector('.games-list-container');
+      if (!listContainer) return;
 
-    try {
-      listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
+      try
+      {
+         listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
-      const data = await RB.fetchGet(`/api/games/playing`);
+         const data = await RB.fetchGet(`/api/games/playing`);
 
-      this.games = data.games || [];
-      this.renderGames();
+         this.games = data.games || [];
+         this.renderGames();
 
-    } catch (error) {
-      console.error('Error loading games playing:', error);
-      this.showError(error.message || 'Failed to load games');
-    }
-  }
+      }
+      catch (error)
+      {
+         console.error('Error loading games playing:', error);
+         this.showError(error.message || 'Failed to load games');
+      }
+   }
 
-  /**
-   * Render games in the list
-   */
-  renderGames() {
-    const listContainer = this.container?.querySelector('.games-list-container');
-    if (!listContainer) return;
+   /**
+    * Render games in the list
+    */
+   renderGames()
+   {
+      const listContainer = this.container?.querySelector('.games-list-container');
+      if (!listContainer) return;
 
-    if (this.games.length === 0) {
-      listContainer.innerHTML = '<div class="games-empty">No games found. Join a game from the Available Games list!</div>';
-      return;
-    }
+      if (this.games.length === 0)
+      {
+         listContainer.innerHTML = '<div class="games-empty">No games found. Join a game from the Available Games list!</div>';
+         return;
+      }
 
-    listContainer.innerHTML = this.games.map(game => `
+      listContainer.innerHTML = this.games.map(game => `
       <div class="game-card">
         <div class="game-card-header">
           <h3 class="game-title">${this.escapeHtml(game.title)}</h3>
@@ -117,99 +133,119 @@ export class GamesPlayingList extends MenuView {
       </div>
     `).join('');
 
-    // Add click handlers for PLAY buttons
-    listContainer.querySelectorAll('.play-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        if (btn.disabled) return;
-        const gameId = e.target.getAttribute('data-game-id');
-        this.playGame(gameId);
+      // Add click handlers for PLAY buttons
+      listContainer.querySelectorAll('.play-btn').forEach(btn =>
+      {
+         btn.addEventListener('click', (e) =>
+         {
+            if (btn.disabled) return;
+            const gameId = e.target.getAttribute('data-game-id');
+            this.playGame(gameId);
+         });
       });
-    });
-  }
+   }
 
-  /**
-   * Handle PLAY button click - load the game
-   */
-  async playGame(gameId) {
-    if (!gameId) return;
+   /**
+    * Handle PLAY button click - load the game
+    */
+   async playGame(gameId)
+   {
+      if (!gameId) return;
 
-    // Post status message indicating game is being loaded
-    this.displayStatusMessage('Loading game...', 'info');
+      // Post status message indicating game is being loaded
+      this.displayStatusMessage('Loading game...', 'info');
 
-    // Emit event to load game (main.js will handle UI switching, then emit game:loadGame)
-    eventBus.emit('game:load', { gameId });
-  }
+      // Emit event to load game (main.js will handle UI switching, then emit game:loadGame)
+      eventBus.emit('game:load',
+      {
+         gameId
+      });
+   }
 
-  /**
-   * Handle game loaded event
-   * @param {Object} context - Current system context
-   * @param {Object} data - Event data from game:gameLoaded event
-   */
-  handleGameLoaded(context, data) {
-    if (data.success) {
-      const gameId = data.details?.gameId;
-      
-      // Post status message indicating game has been loaded
-      this.displayStatusMessage('Game loaded successfully', 'success');
-      
-      // Emit game:startGame event to start the game
-      eventBus.emit('game:startGame', { gameId });
-    } else {
-      // Post error message if loading failed
-      const errorMessage = data.message || 'Failed to load game';
-      this.displayStatusMessage(`Error: ${errorMessage}`, 'error');
-    }
-  }
+   /**
+    * Handle game loaded event
+    * @param {Object} context - Current system context
+    * @param {Object} data - Event data from game:gameLoaded event
+    */
+   handleGameLoaded(context, data)
+   {
+      if (data.success)
+      {
+         const gameId = data.details?.gameId;
 
-  /**
-   * Show error message
-   */
-  showError(message) {
-    const listContainer = this.container?.querySelector('.games-list-container');
-    if (listContainer) {
-      listContainer.innerHTML = `<div class="games-error">Error: ${this.escapeHtml(message)}</div>`;
-    }
-  }
+         // Post status message indicating game has been loaded
+         this.displayStatusMessage('Game loaded successfully', 'success');
 
-  /**
-   * Escape HTML to prevent XSS
-   */
-  escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
+         // Emit game:startGame event to start the game
+         eventBus.emit('game:startGame',
+         {
+            gameId
+         });
+      }
+      else
+      {
+         // Post error message if loading failed
+         const errorMessage = data.message || 'Failed to load game';
+         this.displayStatusMessage(`Error: ${errorMessage}`, 'error');
+      }
+   }
 
-  /**
-   * Get the container element
-   */
-  getContainer() {
-    if (!this.container) {
-      this.create();
-    }
-    return this.container;
-  }
+   /**
+    * Show error message
+    */
+   showError(message)
+   {
+      const listContainer = this.container?.querySelector('.games-list-container');
+      if (listContainer)
+      {
+         listContainer.innerHTML = `<div class="games-error">Error: ${this.escapeHtml(message)}</div>`;
+      }
+   }
 
-  /**
-   * Refresh the games list
-   */
-  refresh() {
-    this.loadGames();
-  }
+   /**
+    * Escape HTML to prevent XSS
+    */
+   escapeHtml(text)
+   {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+   }
 
-  /**
-   * Clean up
-   */
-  dispose() {
-    // Remove event listeners
-    eventBus.off('game:gameLoaded', this.handleGameLoaded.bind(this));
-    
-    if (this.container && this.container.parentNode) {
-      this.container.parentNode.removeChild(this.container);
-    }
-    this.container = null;
-    this.games = [];
-  }
+   /**
+    * Get the container element
+    */
+   getContainer()
+   {
+      if (!this.container)
+      {
+         this.create();
+      }
+      return this.container;
+   }
+
+   /**
+    * Refresh the games list
+    */
+   refresh()
+   {
+      this.loadGames();
+   }
+
+   /**
+    * Clean up
+    */
+   dispose()
+   {
+      // Remove event listeners
+      eventBus.off('game:gameLoaded', this.handleGameLoaded.bind(this));
+
+      if (this.container && this.container.parentNode)
+      {
+         this.container.parentNode.removeChild(this.container);
+      }
+      this.container = null;
+      this.games = [];
+   }
 }
-

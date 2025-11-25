@@ -780,10 +780,10 @@ export class OrderSummaryDialog extends BaseDialog
     */
    async handleCancelOrder(orderId)
    {
-      if (!this.currentGameId || !this.currentPlayerId)
+      if (!this.currentGameId)
       {
-         console.error('📋 OrderSummaryDialog: Cannot cancel order - missing gameId or playerId');
-         alert('Error: Cannot cancel order - missing game or player information');
+         console.error('📋 OrderSummaryDialog: Cannot cancel order - missing gameId');
+         alert('Error: Cannot cancel order - missing game information');
          return;
       }
 
@@ -794,7 +794,8 @@ export class OrderSummaryDialog extends BaseDialog
 
       try
       {
-         const result = await RB.fetchDelete(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`);
+         // playerId is derived from authenticated user on backend
+         const result = await RB.fetchDelete(`/api/orders/${orderId}?gameId=${this.currentGameId}`);
          console.log('📋 OrderSummaryDialog: Order cancelled successfully:', result);
 
          // Refresh data to update the table

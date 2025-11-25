@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { UIController } from './UIController.js';
 import { MapViewGenerator } from './MapViewGenerator.js';
-import { PlayerManager } from './PlayerManager.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DEV_MODE, setupDevModeEventListeners } from './devScenarios.js';
 import { eventBus } from './eventBus.js';
@@ -28,7 +27,6 @@ export class GameView {
     // Game components
     this.uiController = null;
     this.mapGenerator = null;
-    this.playerManager = null;
     this.systemEventHandler = null;
     this.gameEventHandler = null;
     this.devEventHandler = null;
@@ -98,7 +96,6 @@ export class GameView {
     // Initialize game components
     this.uiController = new UIController();
     this.mapGenerator = new MapViewGenerator(this.scene, this.camera);
-    this.playerManager = new PlayerManager();
 
     // Initialize event handlers
     this.systemEventHandler = new SystemEventHandler();

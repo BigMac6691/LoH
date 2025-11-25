@@ -2,6 +2,7 @@ import express from 'express';
 import { TurnService } from '../services/TurnService.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireGamePlayer } from '../middleware/rbac.js';
+import { pool } from '../db/pool.js';
 
 export class TurnRouter
 {
@@ -32,15 +33,29 @@ export class TurnRouter
   {
     try
     {
-      const { gameId, playerId } = req.body;
+      const { gameId } = req.body;
       
       // Validate required parameters
-      if (!gameId || !playerId)
+      if (!gameId)
       {
         return res.status(400).json({
-          error: 'Missing required parameters: gameId, playerId'
+          error: 'Missing required parameter: gameId'
         });
       }
+
+      // Derive playerId from authenticated user_id + gameId
+      const { rows: playerRows } = await pool.query(
+        `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
+        [gameId, req.user.id]
+      );
+
+      if (playerRows.length === 0) {
+        return res.status(404).json({
+          error: 'Player not found in this game'
+        });
+      }
+
+      const playerId = playerRows[0].id;
 
       // End the player's turn
       const result = await this.turnService.endPlayerTurn(gameId, playerId);

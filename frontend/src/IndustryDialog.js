@@ -664,20 +664,18 @@ export class IndustryDialog extends BaseDialog
   {
     const context = eventBus.getContext();
     const gameId = context.gameId;
-    const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
-
-    if (!gameId || !playerId)
+    if (!gameId)
     {
-      console.error('🏭 IndustryDialog: Cannot save standing orders - missing gameId or playerId');
-      throw new Error('Missing gameId or playerId');
+      console.error('🏭 IndustryDialog: Cannot save standing orders - missing gameId');
+      throw new Error('Missing gameId');
     }
 
     try
     {
+      // playerId is derived from authenticated user on backend
       const result = await RB.fetchPost('/api/orders/standing', {
         gameId,
         starId,
-        playerId,
         standingOrders
       });
       console.log('🏭 IndustryDialog: Standing orders saved:', result);
@@ -697,17 +695,16 @@ export class IndustryDialog extends BaseDialog
   {
     const context = eventBus.getContext();
     const gameId = context.gameId;
-    const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
-
-    if (!gameId || !playerId)
+    if (!gameId)
     {
-      console.error('🏭 IndustryDialog: Cannot delete standing orders - missing gameId or playerId');
-      throw new Error('Missing gameId or playerId');
+      console.error('🏭 IndustryDialog: Cannot delete standing orders - missing gameId');
+      throw new Error('Missing gameId');
     }
 
     try
     {
-      const result = await RB.fetchDelete(`/api/orders/standing/${starId}?gameId=${gameId}&playerId=${playerId}`);
+      // playerId is derived from authenticated user on backend
+      const result = await RB.fetchDelete(`/api/orders/standing/${starId}?gameId=${gameId}`);
       console.log('🏭 IndustryDialog: Standing orders deleted:', result);
       return result;
     }

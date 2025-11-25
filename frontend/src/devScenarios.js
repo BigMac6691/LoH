@@ -5,7 +5,6 @@
 
 import {eventBus} from './eventBus.js';
 import {assetManager} from './engine/AssetManager.js';
-import {PlayerManager} from './PlayerManager.js';
 
 import {Ship} from '@loh/shared';
 

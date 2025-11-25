@@ -491,12 +491,9 @@ export class SplashScreen {
           localStorage.setItem('refresh_token', data.refreshToken);
         }
         
-        // Store user info
+        // Store user info (user_id is not stored - backend extracts it from JWT token)
         if (data.user) {
           localStorage.setItem('user_email', data.user.email);
-          if (data.user.id) {
-            localStorage.setItem('user_id', data.user.id);
-          }
           if (data.user.displayName) {
             localStorage.setItem('user_display_name', data.user.displayName);
           }
@@ -1170,12 +1167,9 @@ export class SplashScreen {
           localStorage.setItem('refresh_token', loginData.refreshToken);
         }
         
-        // Store user info
+        // Store user info (user_id is not stored - backend extracts it from JWT token)
         if (loginData.user) {
           localStorage.setItem('user_email', loginData.user.email);
-          if (loginData.user.id) {
-            localStorage.setItem('user_id', loginData.user.id);
-          }
           if (loginData.user.displayName) {
             localStorage.setItem('user_display_name', loginData.user.displayName);
           }

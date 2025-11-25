@@ -57,20 +57,20 @@ export class OrdersRouter
   {
     try
     {
-      const { gameId, orderType, payload, playerId } = req.body;
+      const { gameId, orderType, payload } = req.body;
       
       // Validate required parameters
-      if (!gameId || !orderType || !payload || !playerId)
+      if (!gameId || !orderType || !payload)
       {
         return res.status(400).json({
-          error: 'Missing required parameters: gameId, orderType, payload, playerId'
+          error: 'Missing required parameters: gameId, orderType, payload'
         });
       }
 
-      // Verify the player is not an AI player
+      // Derive playerId from authenticated user_id + gameId
       const { rows: playerRows } = await pool.query(
-        `SELECT type FROM game_player WHERE game_id = $1 AND id = $2`,
-        [gameId, playerId]
+        `SELECT id, type FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
+        [gameId, req.user.id]
       );
 
       if (playerRows.length === 0) {
@@ -78,6 +78,8 @@ export class OrdersRouter
           error: 'Player not found in this game'
         });
       }
+
+      const playerId = playerRows[0].id;
 
       if (playerRows[0].type === 'ai') {
         return res.status(403).json({
@@ -143,13 +145,36 @@ export class OrdersRouter
     try
     {
       const { starId } = req.params;
-      const { gameId, playerId, orderType } = req.query;
+      const { gameId, playerId: providedPlayerId, orderType } = req.query;
 
       if (!gameId)
       {
         return res.status(400).json({
           error: 'Missing required parameter: gameId'
         });
+      }
+
+      // Derive playerId from authenticated user if not provided, or verify it matches if provided
+      let playerId = providedPlayerId;
+      if (!playerId) {
+        const { rows: playerRows } = await pool.query(
+          `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
+          [gameId, req.user.id]
+        );
+        if (playerRows.length > 0) {
+          playerId = playerRows[0].id;
+        }
+      } else {
+        // Verify provided playerId belongs to authenticated user
+        const { rows: playerRows } = await pool.query(
+          `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND id = $3 AND type = 'player'`,
+          [gameId, req.user.id, playerId]
+        );
+        if (playerRows.length === 0) {
+          return res.status(403).json({
+            error: 'Player ID does not match authenticated user'
+          });
+        }
       }
 
       const orders = await this.ordersService.getOrdersForStar(gameId, starId, playerId, orderType);
@@ -178,13 +203,36 @@ export class OrdersRouter
     try
     {
       const { turnId } = req.params;
-      const { gameId, playerId } = req.query;
+      const { gameId, playerId: providedPlayerId } = req.query;
 
       if (!gameId)
       {
         return res.status(400).json({
           error: 'Missing required parameter: gameId'
         });
+      }
+
+      // Derive playerId from authenticated user if not provided, or verify it matches if provided
+      let playerId = providedPlayerId;
+      if (!playerId) {
+        const { rows: playerRows } = await pool.query(
+          `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
+          [gameId, req.user.id]
+        );
+        if (playerRows.length > 0) {
+          playerId = playerRows[0].id;
+        }
+      } else {
+        // Verify provided playerId belongs to authenticated user
+        const { rows: playerRows } = await pool.query(
+          `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND id = $3 AND type = 'player'`,
+          [gameId, req.user.id, playerId]
+        );
+        if (playerRows.length === 0) {
+          return res.status(403).json({
+            error: 'Player ID does not match authenticated user'
+          });
+        }
       }
 
       const orders = await this.ordersService.getOrdersForTurn(gameId, turnId, playerId);
@@ -212,15 +260,29 @@ export class OrdersRouter
   {
     try
     {
-      const { gameId, starId, playerId, standingOrders } = req.body;
+      const { gameId, starId, standingOrders } = req.body;
       
       // Validate required parameters
-      if (!gameId || !starId || !playerId || !standingOrders)
+      if (!gameId || !starId || !standingOrders)
       {
         return res.status(400).json({
-          error: 'Missing required parameters: gameId, starId, playerId, standingOrders'
+          error: 'Missing required parameters: gameId, starId, standingOrders'
         });
       }
+
+      // Derive playerId from authenticated user_id + gameId
+      const { rows: playerRows } = await pool.query(
+        `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
+        [gameId, req.user.id]
+      );
+
+      if (playerRows.length === 0) {
+        return res.status(404).json({
+          error: 'Player not found in this game'
+        });
+      }
+
+      const playerId = playerRows[0].id;
 
       // Validate ownership - check that the star is owned by this player
       const starState = await getStarState({ gameId, starId });
@@ -315,14 +377,28 @@ export class OrdersRouter
     try
     {
       const { starId } = req.params;
-      const { gameId, playerId } = req.query;
+      const { gameId } = req.query;
 
-      if (!gameId || !playerId)
+      if (!gameId)
       {
         return res.status(400).json({
-          error: 'Missing required parameters: gameId, playerId'
+          error: 'Missing required parameter: gameId'
         });
       }
+
+      // Derive playerId from authenticated user_id + gameId
+      const { rows: playerRows } = await pool.query(
+        `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
+        [gameId, req.user.id]
+      );
+
+      if (playerRows.length === 0) {
+        return res.status(404).json({
+          error: 'Player not found in this game'
+        });
+      }
+
+      const playerId = playerRows[0].id;
 
       // Validate ownership
       const starState = await getStarState({ gameId, starId });
@@ -368,14 +444,28 @@ export class OrdersRouter
     try
     {
       const { orderId } = req.params;
-      const { gameId, playerId } = req.query;
+      const { gameId } = req.query;
 
-      if (!gameId || !playerId)
+      if (!gameId)
       {
         return res.status(400).json({
-          error: 'Missing required parameters: gameId, playerId'
+          error: 'Missing required parameter: gameId'
         });
       }
+
+      // Derive playerId from authenticated user_id + gameId
+      const { rows: playerRows } = await pool.query(
+        `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
+        [gameId, req.user.id]
+      );
+
+      if (playerRows.length === 0) {
+        return res.status(404).json({
+          error: 'Player not found in this game'
+        });
+      }
+
+      const playerId = playerRows[0].id;
 
       // Delete the order (deleteOrderById validates playerId)
       const deleted = await deleteOrderById(orderId, playerId);

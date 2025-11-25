@@ -9,7 +9,6 @@ export class GamesAvailableList extends MenuView {
     super(statusComponent);
     this.container = null;
     this.games = [];
-    this.userId = localStorage.getItem('user_id');
   }
 
   /**
@@ -37,11 +36,6 @@ export class GamesAvailableList extends MenuView {
    * Load games from API
    */
   async loadGames() {
-    if (!this.userId) {
-      this.showError('User ID not found. Please log in again.');
-      return;
-    }
-
     const listContainer = this.container?.querySelector('.games-list-container');
     if (!listContainer) return;
 

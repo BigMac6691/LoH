@@ -711,10 +711,10 @@ export class ShipSummaryDialog extends BaseDialog
     */
    async handleCancelMove(orderId)
    {
-      if (!this.currentGameId || !this.currentPlayerId)
+      if (!this.currentGameId)
       {
-         console.error('🚢 ShipSummaryDialog: Cannot cancel order - missing gameId or playerId');
-         alert('Error: Cannot cancel order - missing game or player information');
+         console.error('🚢 ShipSummaryDialog: Cannot cancel order - missing gameId');
+         alert('Error: Cannot cancel order - missing game information');
          return;
       }
 
@@ -725,7 +725,8 @@ export class ShipSummaryDialog extends BaseDialog
 
       try
       {
-         const result = await RB.fetchDelete(`/api/orders/${orderId}?gameId=${this.currentGameId}&playerId=${this.currentPlayerId}`);
+         // playerId is derived from authenticated user on backend
+         const result = await RB.fetchDelete(`/api/orders/${orderId}?gameId=${this.currentGameId}`);
          console.log('🚢 ShipSummaryDialog: Order cancelled successfully:', result);
 
          // Refresh data to update the table

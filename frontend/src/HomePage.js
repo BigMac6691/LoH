@@ -12,7 +12,6 @@ import { ManageGamesView } from './components/ManageGamesView.js';
 import { UserManagerView } from './components/UserManagerView.js';
 import { ManageNewsEventsView } from './components/ManageNewsEventsView.js';
 import { CreateGameView } from './components/CreateGameView.js';
-import { UIController } from './UIController.js';
 import { RB } from './utils/RequestBuilder.js';
 
 export class HomePage {
@@ -25,7 +24,6 @@ export class HomePage {
     this.utcClock = null;
     this.currentView = null;
     this.currentViewInstance = null;
-    this.uiController = null;
     this.userRole = localStorage.getItem('user_role') || 'player';
     this.displayName = localStorage.getItem('user_display_name') || localStorage.getItem('user_email') || 'Commander';
     this.emailVerified = localStorage.getItem('user_email_verified') === 'true';
@@ -330,46 +328,6 @@ export class HomePage {
   }
 
   /**
-   * Show UIController for game creation
-   */
-  showUIController() {
-    console.log('showUIController called');
-    if (!this.uiController) {
-      console.log('Creating new UIController');
-      this.uiController = new UIController();
-    }
-    
-    // Clear main content and show UIController
-    if (this.mainContent) {
-      this.mainContent.innerHTML = '';
-      this.mainContent.style.display = 'none';
-    }
-    
-    // UIController creates its own panel that's positioned fixed
-    // We just need to make sure it's visible
-    if (this.uiController.panel) {
-      console.log('Panel exists, showing it');
-      this.uiController.panel.style.display = 'block';
-    } else {
-      console.log('Panel does not exist, calling showPanel()');
-      this.uiController.showPanel();
-    }
-  }
-
-  /**
-   * Hide UIController
-   */
-  hideUIController() {
-    if (this.uiController && this.uiController.panel) {
-      this.uiController.panel.style.display = 'none';
-    }
-    
-    if (this.mainContent) {
-      this.mainContent.style.display = 'flex';
-    }
-  }
-
-  /**
    * Handle logoff button click
    */
   async handleLogoff() {
@@ -385,10 +343,9 @@ export class HomePage {
       // Continue with logout even if API call fails
     }
 
-    // Clear localStorage
+    // Clear localStorage (user_id is not stored - backend extracts it from JWT token)
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user_id');
     localStorage.removeItem('user_email');
     localStorage.removeItem('user_display_name');
     localStorage.removeItem('user_role');
@@ -422,9 +379,6 @@ export class HomePage {
     if (this.container) {
       this.container.style.display = 'none';
     }
-    
-    // Hide UIController if showing
-    this.hideUIController();
   }
 
   /**

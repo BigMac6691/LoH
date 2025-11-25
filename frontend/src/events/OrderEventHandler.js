@@ -53,17 +53,15 @@ export class OrderEventHandler
 
       const { orderType, payload } = eventData.details;
       const gameId = context.gameId;
-      const playerId = context.playerId; // Use playerId from context, not user (user is user_id)
 
-      if (!gameId || !playerId || !orderType || !payload)
+      if (!gameId || !orderType || !payload)
       {
-        throw new Error(`Missing required parameters: gameId${gameId ? '✅' : '❌'}, playerId${playerId ? '✅' : '❌'}, orderType${orderType ? '✅' : '❌'}, payload${payload ? '✅' : '❌'}`);
+        throw new Error(`Missing required parameters: gameId${gameId ? '✅' : '❌'}, orderType${orderType ? '✅' : '❌'}, payload${payload ? '✅' : '❌'}`);
       }
 
-      // Make the backend call
+      // Make the backend call (playerId is derived from authenticated user on backend)
       const result = await RB.fetchPost('/api/orders', {
         gameId,
-        playerId,
         orderType,
         payload
       });
@@ -78,7 +76,6 @@ export class OrderEventHandler
           order: result.order,
           orders: result.orders, // Include updated orders from server
           gameId,
-          playerId,
           orderType,
           payload
         }
