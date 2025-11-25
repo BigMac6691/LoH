@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-// import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'; // No longer needed
 import { MapModel, Economy, Ship } from '@loh/shared';
 import { StarInteractionManager } from './StarInteractionManager.js';
 import { RadialMenu } from './RadialMenu.js';
@@ -302,7 +301,7 @@ export class MapViewGenerator
     mem.disposeAll();
     
     // Remove existing objects from scene (MemoryManager handles disposal)
-    if (this.mapModel && typeof this.mapModel.getStars === 'function')
+    if (this.mapModel)
     {
       const stars = this.mapModel.getStars();
       stars.forEach(star =>
@@ -467,15 +466,7 @@ export class MapViewGenerator
       {
         this.stars.push(star);
       }
-      this.starLookup.set(star.id, star);
-      
-      // CSS2D labels disabled - using 3D labels instead
-      // if (!star.css2dLabel) {
-      //   const starLabel = this.createStarLabel(star);
-      //   star.css2dLabel = starLabel;
-      //   this.scene.add(starLabel);
-      //   this.starLabels.push(starLabel);
-      // }
+      this.starLookup.set(star.id, star);      
     });
     
     const wormholes = this.mapModel.getWormholes();
@@ -1017,11 +1008,7 @@ export class MapViewGenerator
 
     const stars = this.mapModel.getStars();
     
-    this.starInteractionManager = new StarInteractionManager(
-      this.scene, 
-      this.camera, 
-      stars
-    );
+    this.starInteractionManager = new StarInteractionManager(this.scene, this.camera, stars);
     
     // Create radial menu instance
     if (this.radialMenu)

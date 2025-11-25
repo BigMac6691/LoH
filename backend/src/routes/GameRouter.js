@@ -531,6 +531,25 @@ export class GameRouter
           currentPlayerId = currentPlayerRows[0].id;
         }
       }
+
+      // Get current open turn
+      const { getOpenTurn } = await import('../repos/turnsRepo.js');
+      const { getOrdersForTurn } = await import('../repos/ordersRepo.js');
+      const { getAllTurnEvents } = await import('../repos/turnEventRepo.js');
+      
+      const currentTurn = await getOpenTurn(gameId);
+      
+      // Get orders for the current turn (if turn exists)
+      let orders = [];
+      if (currentTurn && currentTurn.id) {
+        orders = await getOrdersForTurn(gameId, currentTurn.id);
+      }
+
+      // Get events for the current turn (if turn exists)
+      let events = [];
+      if (currentTurn && currentTurn.id) {
+        events = await getAllTurnEvents(gameId, currentTurn.id);
+      }
       
       // Log the first few stars to inspect resource values
       console.log('🔍 Game State - Sample Stars with Resource Values:');
@@ -540,6 +559,8 @@ export class GameRouter
       console.log(`  Total stars: ${stars.length}`);
       console.log(`  Game map size: ${gameInfo.map_size}`);
       console.log(`  Current player ID: ${currentPlayerId || 'none'}`);
+      console.log(`  Current turn: ${currentTurn?.number || 'none'}`);
+      console.log(`  Orders: ${orders.length}, Events: ${events.length}`);
 
       res.json({
         stars,
@@ -549,12 +570,16 @@ export class GameRouter
         players,
         gameInfo,
         currentPlayerId, // The player_id for the authenticated user in this game
+        orders, // Orders for the current open turn
+        events, // Events for the current open turn
         counts: {
           stars: stars.length,
           wormholes: wormholes.length,
           starStates: starStates.length,
           ships: ships.length,
-          players: players.length
+          players: players.length,
+          orders: orders.length,
+          events: events.length
         }
       });
       

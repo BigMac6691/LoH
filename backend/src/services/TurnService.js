@@ -1250,12 +1250,18 @@ export class TurnService
          // Step 6: Notify WebSocket clients about turn completion
          try {
             const { webSocketService } = await import('./WebSocketService.js');
-            webSocketService.notifyGameUpdate(gameId, {
+            const updateData = {
                newTurnId: newTurn[0].id,
                newTurnNumber: nextTurnNumber,
                previousTurnId: turnId,
                previousTurnNumber: currentTurnNumber
-            });
+            };
+            console.log(`🔌 TurnService: Preparing to notify WebSocket clients for game ${gameId}`);
+            console.log(`🔌 TurnService: Previous turn - Number: ${currentTurnNumber}, ID: ${turnId}`);
+            console.log(`🔌 TurnService: New turn - Number: ${nextTurnNumber}, ID: ${newTurn[0].id}`);
+            console.log(`🔌 TurnService: Sending updateData:`, JSON.stringify(updateData, null, 2));
+            
+            await webSocketService.notifyGameUpdate(gameId, updateData);
             console.log(`🔌 TurnService: Notified WebSocket clients about turn completion for game ${gameId}`);
          } catch (error) {
             console.error('🔌 TurnService: Error notifying WebSocket clients:', error);
