@@ -99,10 +99,8 @@ document.addEventListener('DOMContentLoaded', () =>
       // This handles UI switching - the actual game loading is handled by game:loadGame
       eventBus.on('game:load', (context, data) =>
       {
-         const
-         {
-            gameId
-         } = data;
+         const { gameId } = data;
+
          if (!gameId)
          {
             console.error('game:load event missing gameId');
@@ -123,10 +121,7 @@ document.addEventListener('DOMContentLoaded', () =>
 
          // Emit game:loadGame to trigger actual game loading
          // GameEventHandler will handle loading and emit game:gameLoaded when done
-         eventBus.emit('game:loadGame',
-         {
-            gameId
-         });
+         eventBus.emit('game:loadGame', { gameId });
       });
 
       // Listen for return to home event
