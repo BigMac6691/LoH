@@ -6,6 +6,8 @@ import { createStarLabel3D } from './scene/createStarLabel3D.js';
 import { assetManager } from './engine/AssetManager.js';
 import { mem } from './engine/MemoryManager.js';
 import { eventBus } from './eventBus.js';
+import { VictoryDialog } from './VictoryDialog.js';
+import { DefeatDialog } from './DefeatDialog.js';
 
 // Constants for rendering
 const DEBUG_SHOW_SECTOR_BORDERS = true; // Set to false to hide sector borders
@@ -32,6 +34,8 @@ export class MapViewGenerator
     this.font = null; // Will be loaded via AssetManager
     this.rocketModel = null; // Will be loaded via AssetManager
     this.starLookup = new Map(); // Lookup for efficient star access by ID
+    this.victoryDialog = new VictoryDialog();
+    this.defeatDialog = new DefeatDialog();
     
     // Set up asset manager event listeners
     this.setupAssetEventListeners();
@@ -342,6 +346,19 @@ export class MapViewGenerator
     {
       this.radialMenu.dispose();
       this.radialMenu = null;
+    }
+    
+    // Hide and dispose dialogs
+    if (this.victoryDialog)
+    {
+      this.victoryDialog.hide();
+      this.victoryDialog.dispose();
+    }
+    
+    if (this.defeatDialog)
+    {
+      this.defeatDialog.hide();
+      this.defeatDialog.dispose();
     }
     
     this.mapModel = null;
@@ -765,42 +782,6 @@ export class MapViewGenerator
   }
 
   /**
-   * Create a star name label
-   * @param {Object} star - Star object
-   * @returns {CSS2DObject} Label object
-   */
-  createStarLabel(star)
-  {
-    const labelDiv = document.createElement('div');
-    labelDiv.className = 'star-label';
-    labelDiv.textContent = star.getName ? star.getName() : `Star ${star.id}`;
-    labelDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-    labelDiv.style.color = 'white';
-    labelDiv.style.padding = '3px 8px';
-    labelDiv.style.borderRadius = '4px';
-    labelDiv.style.fontSize = '11px';
-    labelDiv.style.fontFamily = 'Arial, sans-serif';
-    labelDiv.style.whiteSpace = 'nowrap';
-    labelDiv.style.pointerEvents = 'none';
-    labelDiv.style.userSelect = 'none';
-    labelDiv.style.transform = 'translate(-50%, 0)'; // Center horizontally
-    labelDiv.style.border = '1px solid rgba(255, 255, 255, 0.3)';
-    
-    const label = new CSS2DObject(labelDiv);
-    
-    // Calculate the star's radius for proper label positioning
-    const { starRadius } = this.calculateScalingFactors();
-    const isOwned = star.isOwned && star.isOwned();
-    const finalRadius = isOwned ? starRadius * 1.25 : starRadius;
-    
-    // Position label below the star using the star's radius as offset
-    const labelOffset = finalRadius + 0.2; // Star radius + small gap
-    label.position.set(star.getX(), star.getY() - labelOffset, star.getZ());
-    
-    return label;
-  }
-
-  /**
    * Update star groups to face the camera and manage fleet icons
    */
   updateStarGroups()
@@ -1079,195 +1060,11 @@ export class MapViewGenerator
 
     // Check status
     if (currentPlayer.status === 'winner') {
-      this.showVictoryPanel(currentPlayer);
+      console.log('🏆 MapViewGenerator: Showing victory dialog for player', currentPlayer);
+      this.victoryDialog.show(currentPlayer);
     } else if (currentPlayer.status === 'lost') {
-      this.showDefeatPanel(currentPlayer);
+      console.log('💀 MapViewGenerator: Showing defeat dialog for player', currentPlayer);
+      this.defeatDialog.show(currentPlayer);
     }
-  }
-
-  /**
-   * Show victory panel
-   * @param {Object} player - Player information
-   */
-  showVictoryPanel(player)
-  {
-    console.log('🏆 MapViewGenerator: Showing victory panel for player', player);
-    
-    const dialog = document.createElement('div');
-    dialog.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 500px;
-      max-width: 90vw;
-      background: rgba(20, 20, 40, 0.98);
-      border: 3px solid #ffd700;
-      border-radius: 20px;
-      box-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
-      backdrop-filter: blur(20px);
-      z-index: 3000;
-      padding: 40px;
-      text-align: center;
-      font-family: 'Courier New', monospace;
-      color: #ffffff;
-    `;
-
-    const title = document.createElement('h1');
-    title.textContent = '🏆 VICTORY! 🏆';
-    title.style.cssText = `
-      margin: 0 0 20px 0;
-      color: #ffd700;
-      font-size: 36px;
-      font-weight: bold;
-      text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
-    `;
-
-    const message = document.createElement('p');
-    message.textContent = `Congratulations ${player.name}! You have conquered the galaxy!`;
-    message.style.cssText = `
-      margin: 20px 0;
-      color: #ffffff;
-      font-size: 18px;
-      line-height: 1.6;
-    `;
-
-    const subtitle = document.createElement('p');
-    subtitle.textContent = 'All opponents have been defeated!';
-    subtitle.style.cssText = `
-      margin: 10px 0 30px 0;
-      color: #ffd700;
-      font-size: 14px;
-      font-style: italic;
-    `;
-
-    const closeButton = document.createElement('button');
-    closeButton.textContent = 'Close';
-    closeButton.style.cssText = `
-      padding: 12px 30px;
-      background: rgba(255, 215, 0, 0.2);
-      border: 2px solid #ffd700;
-      border-radius: 8px;
-      color: #ffd700;
-      font-family: 'Courier New', monospace;
-      font-size: 16px;
-      cursor: pointer;
-      transition: all 0.3s;
-      font-weight: bold;
-    `;
-
-    closeButton.addEventListener('mouseenter', () => {
-      closeButton.style.background = 'rgba(255, 215, 0, 0.4)';
-      closeButton.style.transform = 'scale(1.05)';
-    });
-
-    closeButton.addEventListener('mouseleave', () => {
-      closeButton.style.background = 'rgba(255, 215, 0, 0.2)';
-      closeButton.style.transform = 'scale(1)';
-    });
-
-    closeButton.addEventListener('click', () => {
-      document.body.removeChild(dialog);
-    });
-
-    dialog.appendChild(title);
-    dialog.appendChild(message);
-    dialog.appendChild(subtitle);
-    dialog.appendChild(closeButton);
-
-    document.body.appendChild(dialog);
-  }
-
-  /**
-   * Show defeat panel
-   * @param {Object} player - Player information
-   */
-  showDefeatPanel(player)
-  {
-    console.log('💀 MapViewGenerator: Showing defeat panel for player', player);
-    
-    const dialog = document.createElement('div');
-    dialog.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 500px;
-      max-width: 90vw;
-      background: rgba(40, 20, 20, 0.98);
-      border: 3px solid #ff4444;
-      border-radius: 20px;
-      box-shadow: 0 0 50px rgba(255, 68, 68, 0.5);
-      backdrop-filter: blur(20px);
-      z-index: 3000;
-      padding: 40px;
-      text-align: center;
-      font-family: 'Courier New', monospace;
-      color: #ffffff;
-    `;
-
-    const title = document.createElement('h1');
-    title.textContent = '💀 DEFEAT 💀';
-    title.style.cssText = `
-      margin: 0 0 20px 0;
-      color: #ff4444;
-      font-size: 36px;
-      font-weight: bold;
-      text-shadow: 0 0 20px rgba(255, 68, 68, 0.8);
-    `;
-
-    const message = document.createElement('p');
-    message.textContent = `Your empire has fallen, ${player.name}.`;
-    message.style.cssText = `
-      margin: 20px 0;
-      color: #ffffff;
-      font-size: 18px;
-      line-height: 1.6;
-    `;
-
-    const subtitle = document.createElement('p');
-    subtitle.textContent = 'You no longer control any stars.';
-    subtitle.style.cssText = `
-      margin: 10px 0 30px 0;
-      color: #ff8888;
-      font-size: 14px;
-      font-style: italic;
-    `;
-
-    const closeButton = document.createElement('button');
-    closeButton.textContent = 'Close';
-    closeButton.style.cssText = `
-      padding: 12px 30px;
-      background: rgba(255, 68, 68, 0.2);
-      border: 2px solid #ff4444;
-      border-radius: 8px;
-      color: #ff4444;
-      font-family: 'Courier New', monospace;
-      font-size: 16px;
-      cursor: pointer;
-      transition: all 0.3s;
-      font-weight: bold;
-    `;
-
-    closeButton.addEventListener('mouseenter', () => {
-      closeButton.style.background = 'rgba(255, 68, 68, 0.4)';
-      closeButton.style.transform = 'scale(1.05)';
-    });
-
-    closeButton.addEventListener('mouseleave', () => {
-      closeButton.style.background = 'rgba(255, 68, 68, 0.2)';
-      closeButton.style.transform = 'scale(1)';
-    });
-
-    closeButton.addEventListener('click', () => {
-      document.body.removeChild(dialog);
-    });
-
-    dialog.appendChild(title);
-    dialog.appendChild(message);
-    dialog.appendChild(subtitle);
-    dialog.appendChild(closeButton);
-
-    document.body.appendChild(dialog);
   }
 } 
