@@ -158,12 +158,12 @@ export class MapViewGenerator
       const gameData = { stars, wormholes };
       
       // Set map data with stars and wormholes
-      this.mapModel.buildSectors(gameInfo.map_size);
-      this.mapModel.setStars(stars);
-      this.mapModel.setWormholes(wormholes);
+      this.mapModel.buildSectors(gameInfo.map_size); // not needed
+      this.mapModel.setStars(stars); // not needed
+      this.mapModel.setWormholes(wormholes); // not needed
       
       // Apply current state to the static map
-      this.applyCurrentStateToMap(eventData.details.gameData);
+      this.applyCurrentStateToMap(eventData.details.gameData); // not needed in GSM 
       
       console.log('🎨 MapViewGenerator: Rendering game with data:', gameData);
       
@@ -475,7 +475,7 @@ export class MapViewGenerator
       // Add group to scene if not already added
       if (!this.scene.children.includes(starGroup))
       {
-        this.scene.add(starGroup);
+        this.scene.add(starGroup);  // this is where the star is added to the map
       }
       
       // Add to stars array and lookup

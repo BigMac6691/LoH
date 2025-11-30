@@ -1,27 +1,92 @@
-import { DEV_MODE } from './devScenarios.js';
+import { eventBus } from './eventBus.js';
+import { SplashScreen } from './SplashScreen.js';
+import { HomePage } from './HomePage.js';
+import { GameView } from './GameView.js';
 
 /**
  * UIController - Handles UI interactions for map generation
  */
-export class UIController {
-  constructor() {
-    
-    this.init();
-  }
+export class UIController
+{
+   constructor(key, initialScreen)
+   {
+      this.currentScreen = initialScreen;
+      this.screens = new Map();
+      
+      this.registerScreen(key, initialScreen);
 
-  /**
-   * Initialize the UI controller
-   */
-  init() {
-    // Don't create panel automatically - only when showPanel() is called
-    this.initializeEventListeners();
-  }
+      this.init();
+   }
 
-  /**
-   * Initialize all event listeners for the UI
-   */
-  initializeEventListeners() {
-    // Event listeners will be set up when the panel is created
-    // This method is called during initialization but elements don't exist yet
-  }
-} 
+   /**
+    * Initialize the UI controller
+    */
+   init()
+   {
+      this.registerScreen('splash', new SplashScreen());
+      this.registerScreen('home', new HomePage());
+      this.registerScreen('game', new GameView());
+
+      // Initialize event listeners
+      this.initializeEventListeners();
+   }
+
+   /**
+    * Initialize all event listeners for the UI
+    */
+   initializeEventListeners()
+   {
+      eventBus.on('system:userReady', this.handleUserReady.bind(this));
+      eventBus.on('system:assetLoaded', this.handleAssetLoaded.bind(this));
+      eventBus.on('system:assetLoading', this.handleAssetLoading.bind(this));
+      eventBus.on('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this));
+   }
+
+   handleUserReady(event)
+   {
+      console.log('🔐 UIController: User ready:', event, event.response);
+   }
+
+   handleAssetLoaded(event)
+   {
+      console.log('🔐 UIController: Asset loaded:', event, event.response);
+   }
+
+   handleAssetLoading(event)
+   {
+      console.log('🔐 UIController: Asset loading:', event, event.response);
+   }
+
+   handleAllAssetsLoaded(event)
+   {
+      console.log('🔐 UIController: All assets loaded:', event, event.response);
+   }
+
+   registerScreen(key, screen)
+   {
+      this.screens.set(key, screen);
+   }
+
+   getScreen(key)
+   {
+      return this.screens.get(key);
+   }
+
+   showScreen(key)
+   {
+      if (!this.screens.has(key))
+         throw new ApiError(`Screen ${key} not found`);
+
+      this.currentScreen.hide();
+      this.currentScreen = this.screens.get(key);
+      this.currentScreen.show();
+   }
+
+   dispose()
+   {
+      eventBus.off('system:userReady', this.handleUserReady.bind(this));
+      eventBus.off('system:assetLoaded', this.handleAssetLoaded.bind(this));
+      eventBus.off('system:assetLoading', this.handleAssetLoading.bind(this));
+      eventBus.off('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this));
+   }
+}

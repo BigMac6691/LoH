@@ -1,13 +1,8 @@
 import * as THREE from 'three';
-import { UIController } from './UIController.js';
 import { MapViewGenerator } from './MapViewGenerator.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DEV_MODE, setupDevModeEventListeners } from './devScenarios.js';
 import { eventBus } from './eventBus.js';
-import { SystemEventHandler } from './events/SystemEventHandler.js';
-import { GameEventHandler } from './events/GameEventHandler.js';
-import { OrderEventHandler } from './events/OrderEventHandler.js';
-import { TurnEventHandler } from './events/TurnEventHandler.js';
 import { DevEventHandler } from './events/DevEventHandler.js';
 import { DevPanel } from './dev/DevPanel.js';
 import { TurnEventsPanel } from './TurnEventsPanel.js';
@@ -31,13 +26,9 @@ export class GameView
       this.controls = null;
 
       // Game components
-      this.uiController = null;
       this.mapGenerator = null;
-      this.systemEventHandler = null;
-      this.gameEventHandler = null;
-      this.devEventHandler = null;
-      this.orderEventHandler = null;
-      this.turnEventHandler = null;
+
+      
 
       // UI components
       this.devPanel = null;
@@ -103,7 +94,6 @@ export class GameView
       this.controls.dampingFactor = 0.05;
 
       // Initialize game components
-      this.uiController = new UIController();
       this.mapGenerator = new MapViewGenerator(this.scene, this.camera);
 
       // Initialize event handlers
