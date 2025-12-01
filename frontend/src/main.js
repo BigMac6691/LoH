@@ -14,12 +14,12 @@ const loadingScreen =
   hide: () => { document.getElementById('loading').style.display = 'none';  }
 };
 
-let uiController = new UIController('loading', loadingScreen);
+const uiController = new UIController('loading', loadingScreen);
 
-let systemEventHandler = new SystemEventHandler();
-let gameEventHandler = new GameEventHandler();
-let orderEventHandler = new OrderEventHandler();
-let turnEventHandler = new TurnEventHandler();
+const systemEventHandler = new SystemEventHandler();
+const gameEventHandler = new GameEventHandler();
+const orderEventHandler = new OrderEventHandler();
+const turnEventHandler = new TurnEventHandler();
 
 // Start loading assets immediately (before DOM ready)
 console.log('🎨 Starting asset loading...');
@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () =>
    // Listen for login success to hide splash screen and show home page
    if (eventBus)
    {
-      eventBus.on('auth:loginSuccess', (context, data) =>
+      eventBus.on('auth:loginSuccess', () =>
       {
          uiController.showScreen('home');
          webSocketManager.connect();

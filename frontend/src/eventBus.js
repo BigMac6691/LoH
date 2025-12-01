@@ -102,7 +102,8 @@ export class EventBus
 export const eventBus = new EventBus();
 
 // Add star-related events to the global event bus
-export const STAR_EVENTS = {
+export const STAR_EVENTS = 
+{
    HOVER: 'star:hover',
    UNHOVER: 'star:unhover',
    CLICK: 'star:click'

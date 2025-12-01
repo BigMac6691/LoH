@@ -14,23 +14,13 @@ export class SplashScreen
       this.loadingAnimation = null;
       this.isVisible = false;
 
-      eventBus.on('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this));
+      eventBus.on('system:systemReady', this.handleSystemReady.bind(this)); // don't like this, going straight to the UI bypassing UIController
 
-      this.init();
-   }
-
-   /**
-    * Initialize and show the splash screen
-    */
-   init()
-   {
       this.createSplashScreen();
    }
 
-   handleAllAssetsLoaded(event)
+   handleSystemReady(event) // don't like this
    {
-      console.log('🔐 SplashScreen: All assets loaded:', event, event.response);
-
       this.showLoginForm();
    }
 
@@ -80,63 +70,11 @@ export class SplashScreen
       document.body.appendChild(this.container);
    }
 
-   /**
-    * Create the login form
-    */
    createLoginForm()
    {
       const form = document.createElement('div');
       form.className = 'splash-login-form';
-
-      form.innerHTML = 
-      `
-      <div class="login-title">Welcome Back, Commander!</div>
-      <div class="login-error" id="login-error" style="display: none;"></div>
-      
-      <form id="login-form" class="login-form">
-        <div class="form-group">
-          <label for="login-email" class="form-label">
-            <span class="form-icon">📧</span>
-            Email Address
-          </label>
-          <input 
-            type="email" 
-            id="login-email" 
-            class="form-input" 
-            placeholder="commander@hyperspace.space"
-            required
-            autocomplete="email"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label for="login-password" class="form-label">
-            <span class="form-icon">🔑</span>
-            Password
-          </label>
-          <input 
-            type="password" 
-            id="login-password" 
-            class="form-input" 
-            placeholder="Enter your password"
-            required
-            autocomplete="current-password"
-            minlength="8"
-          />
-        </div>
-        
-        <div class="login-actions">
-          <button type="submit" class="btn btn-primary btn-login" id="login-submit-btn">
-            Launch! 🚀
-          </button>
-        </div>
-        
-        <div class="login-links" id="login-links" style="display: none;">
-          <a href="#" id="recover-link" class="login-link">🔓 Forgot Password?</a>
-          <a href="#" id="register-link" class="login-link">✨ New Commander?</a>
-        </div>
-      </form>
-      `;
+      form.innerHTML = loginHTML;
 
       const formElement = form.querySelector('#login-form');
       formElement.addEventListener('submit', (e) =>
@@ -183,7 +121,7 @@ export class SplashScreen
          this.loadingAnimation.style.opacity = '0';
          this.loadingAnimation.style.transform = 'translateY(-20px)';
 
-         setTimeout(() => { this.loadingAnimation.style.display = 'none'; }, 500);
+         setTimeout(() => { this.loadingAnimation.style.display = 'none'; }, 100);
       }
 
       // Fade in login form
@@ -201,7 +139,7 @@ export class SplashScreen
          // Trigger animation
          setTimeout(() =>
          {
-            this.loginForm.style.transition = 'all 0.5s ease-out';
+            this.loginForm.style.transition = 'all 3.5s ease-out';
             this.loginForm.style.opacity = '1';
             this.loginForm.style.transform = 'translateY(0)';
          }, 100);
@@ -216,9 +154,6 @@ export class SplashScreen
       }, 600);
    }
 
-   /**
-    * Show the splash screen
-    */
    show()
    {
       if (this.container)
@@ -228,9 +163,6 @@ export class SplashScreen
       }
    }
 
-   /**
-    * Hide the splash screen
-    */
    hide()
    {
       if (this.container)
@@ -244,9 +176,6 @@ export class SplashScreen
       }
    }
 
-   /**
-    * Validate email format
-    */
    validateEmail(email)
    {
       const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -285,9 +214,6 @@ export class SplashScreen
       return { valid: errors.length === 0, errors };
    }
 
-   /**
-    * Show error message
-    */
    showError(message, links = null)
    {
       const errorDiv = document.getElementById('login-error');
@@ -360,9 +286,6 @@ export class SplashScreen
       return div.innerHTML;
    }
 
-   /**
-    * Clear error message
-    */
    clearError()
    {
       const errorDiv = document.getElementById('login-error');
@@ -414,7 +337,7 @@ export class SplashScreen
 
       try
       {
-         // Attempt login via API
+         // Attempt login via API - move this to SystemEventHandler
          const data = await RB.fetchPostUnauthenticated('/api/auth/login', {email, password});
 
          if (data.success)
@@ -534,94 +457,8 @@ export class SplashScreen
       recoveryForm.id = 'recovery-form';
       recoveryForm.className = 'splash-login-form';
 
-      recoveryForm.innerHTML = 
-      `
-      <div class="login-title">Password Recovery 🔓</div>
-      <div class="login-error" id="recovery-error" style="display: none;"></div>
-      <div class="login-success" id="recovery-success" style="display: none;"></div>
-      
-      <div id="recovery-step-1">
-        <p style="color: #ccc; margin-bottom: 20px; text-align: center;">
-          Enter your email address to receive a recovery token.
-        </p>
-        <form id="recovery-request-form" class="login-form">
-          <div class="form-group">
-            <label for="recovery-email" class="form-label">
-              <span class="form-icon">📧</span>
-              Email Address
-            </label>
-            <input 
-              type="email" 
-              id="recovery-email" 
-              class="form-input" 
-              placeholder="your.email@example.com"
-              value="${this.escapeHtml(email)}"
-              required
-            />
-          </div>
-          <button type="submit" id="recovery-request-btn" class="login-button">
-            Request Recovery Token 🔓
-          </button>
-        </form>
-      </div>
-
-      <div id="recovery-step-2" style="display: none;">
-        <p style="color: #00ff88; margin-bottom: 10px; text-align: center; font-weight: bold;">
-          ✓ Recovery token sent! Check the console/logs for the token.
-        </p>
-        <p style="color: #ccc; margin-bottom: 20px; text-align: center; font-size: 12px;">
-          Enter the recovery token and your new password below.
-        </p>
-        <form id="recovery-reset-form" class="login-form">
-          <div class="form-group">
-            <label for="recovery-token" class="form-label">
-              <span class="form-icon">🔑</span>
-              Recovery Token
-            </label>
-            <input 
-              type="text" 
-              id="recovery-token" 
-              class="form-input" 
-              placeholder="Enter recovery token from console/logs"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="recovery-new-password" class="form-label">
-              <span class="form-icon">🔒</span>
-              New Password
-            </label>
-            <input 
-              type="password" 
-              id="recovery-new-password" 
-              class="form-input" 
-              placeholder="Enter new password (8+ chars, upper, lower, number, symbol)"
-              required
-            />
-          </div>
-          <div class="form-group">
-            <label for="recovery-confirm-password" class="form-label">
-              <span class="form-icon">🔒</span>
-              Confirm New Password
-            </label>
-            <input 
-              type="password" 
-              id="recovery-confirm-password" 
-              class="form-input" 
-              placeholder="Confirm new password"
-              required
-            />
-          </div>
-          <button type="submit" id="recovery-reset-btn" class="login-button">
-            Reset Password 🔓
-          </button>
-        </form>
-      </div>
-
-      <div class="login-links" style="margin-top: 20px; text-align: center;">
-        <a href="#" id="recovery-back-link" class="login-link">← Back to Login</a>
-      </div>
-      `;
+      recoveryForm.innerHTML = recoveryHTML;
+      recoveryForm.querySelector('#recovery-email').value = this.escapeHtml(email);
 
       // Insert recovery form after login form container
       const loginContainer = document.querySelector('.splash-content');
@@ -850,88 +687,8 @@ export class SplashScreen
       registerForm.id = 'register-form';
       registerForm.className = 'splash-login-form';
 
-      registerForm.innerHTML = 
-      `
-      <div class="login-title">New Commander Registration ⭐</div>
-      <div class="login-error" id="register-error" style="display: none;"></div>
-      
-      <form id="registration-form" class="login-form">
-        <div class="form-group">
-          <label for="register-email" class="form-label">
-            <span class="form-icon">📧</span>
-            Email Address
-          </label>
-          <input 
-            type="email" 
-            id="register-email" 
-            class="form-input" 
-            placeholder="commander@hyperspace.space"
-            required
-            autocomplete="email"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label for="register-display-name" class="form-label">
-            <span class="form-icon">👤</span>
-            Display Name
-          </label>
-          <input 
-            type="text" 
-            id="register-display-name" 
-            class="form-input" 
-            placeholder="Commander Name"
-            required
-            autocomplete="name"
-          />
-        </div>
-        
-        <div class="form-group">
-          <label for="register-password" class="form-label">
-            <span class="form-icon">🔑</span>
-            Password
-          </label>
-          <input 
-            type="password" 
-            id="register-password" 
-            class="form-input" 
-            placeholder="Enter password (8+ chars, upper, lower, number, symbol)"
-            required
-            autocomplete="new-password"
-            minlength="8"
-          />
-          <div class="password-hint" style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">
-            Must include: uppercase, lowercase, number, and symbol (!@#$%^&*()_+-=[]{}|;:,.<>?)
-          </div>
-        </div>
-        
-        <div class="form-group">
-          <label for="register-password-confirm" class="form-label">
-            <span class="form-icon">🔒</span>
-            Confirm Password
-          </label>
-          <input 
-            type="password" 
-            id="register-password-confirm" 
-            class="form-input" 
-            placeholder="Confirm your password"
-            required
-            autocomplete="new-password"
-            minlength="8"
-          />
-        </div>
-        
-        <div class="login-actions">
-          <button type="submit" class="btn btn-primary btn-login" id="register-submit-btn">
-            Register! ⭐
-          </button>
-        </div>
-        
-        <div class="login-links" style="margin-top: 15px; text-align: center;">
-          <a href="#" id="back-to-login-link" class="login-link">← Back to Login</a>
-        </div>
-      </form>
-      `;
+      registerForm.innerHTML = registerHTML;
+      registerForm.querySelector('#register-email').value = this.escapeHtml(prefilledEmail);
 
       // Insert after login form (or in same container)
       if (this.loginForm && this.loginForm.parentNode)
@@ -1207,6 +964,226 @@ export class SplashScreen
 
    dispose()
    {
-      eventBus.off('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this));
+      eventBus.off('system:systemReady', this.handleSystemReady.bind(this));
    }
 }
+
+const loginHTML =
+`
+<div class="login-title">Welcome Back, Commander!</div>
+<div class="login-error" id="login-error" style="display: none;"></div>
+
+<form id="login-form" class="login-form">
+  <div class="form-group">
+    <label for="login-email" class="form-label">
+      <span class="form-icon">📧</span>
+      Email Address
+    </label>
+    <input 
+      type="email" 
+      id="login-email" 
+      class="form-input" 
+      placeholder="commander@hyperspace.space"
+      required
+      autocomplete="email"
+    />
+  </div>
+  
+  <div class="form-group">
+    <label for="login-password" class="form-label">
+      <span class="form-icon">🔑</span>
+      Password
+    </label>
+    <input 
+      type="password" 
+      id="login-password" 
+      class="form-input" 
+      placeholder="Enter your password"
+      required
+      autocomplete="current-password"
+      minlength="8"
+    />
+  </div>
+  
+  <div class="login-actions">
+    <button type="submit" class="btn btn-primary btn-login" id="login-submit-btn">
+      Launch! 🚀
+    </button>
+  </div>
+  
+  <div class="login-links" id="login-links" style="display: none;">
+    <a href="#" id="recover-link" class="login-link">🔓 Forgot Password?</a>
+    <a href="#" id="register-link" class="login-link">✨ New Commander?</a>
+  </div>
+</form>
+`;
+
+const recoveryHTML =
+`
+<div class="login-title">Password Recovery 🔓</div>
+<div class="login-error" id="recovery-error" style="display: none;"></div>
+<div class="login-success" id="recovery-success" style="display: none;"></div>
+
+<div id="recovery-step-1">
+  <p style="color: #ccc; margin-bottom: 20px; text-align: center;">
+    Enter your email address to receive a recovery token.
+  </p>
+  <form id="recovery-request-form" class="login-form">
+    <div class="form-group">
+      <label for="recovery-email" class="form-label">
+        <span class="form-icon">📧</span>
+        Email Address
+      </label>
+      <input 
+        type="email" 
+        id="recovery-email" 
+        class="form-input" 
+        placeholder="your.email@example.com"
+        value=""
+        required
+      />
+    </div>
+    <button type="submit" id="recovery-request-btn" class="login-button">
+      Request Recovery Token 🔓
+    </button>
+  </form>
+</div>
+<div id="recovery-step-2" style="display: none;">
+  <p style="color: #00ff88; margin-bottom: 10px; text-align: center; font-weight: bold;">
+    ✓ Recovery token sent! Check the console/logs for the token.
+  </p>
+  <p style="color: #ccc; margin-bottom: 20px; text-align: center; font-size: 12px;">
+    Enter the recovery token and your new password below.
+  </p>
+  <form id="recovery-reset-form" class="login-form">
+    <div class="form-group">
+      <label for="recovery-token" class="form-label">
+        <span class="form-icon">🔑</span>
+        Recovery Token
+      </label>
+      <input 
+        type="text" 
+        id="recovery-token" 
+        class="form-input" 
+        placeholder="Enter recovery token from console/logs"
+        required
+      />
+    </div>
+    <div class="form-group">
+      <label for="recovery-new-password" class="form-label">
+        <span class="form-icon">🔒</span>
+        New Password
+      </label>
+      <input 
+        type="password" 
+        id="recovery-new-password" 
+        class="form-input" 
+        placeholder="Enter new password (8+ chars, upper, lower, number, symbol)"
+        required
+      />
+    </div>
+    <div class="form-group">
+      <label for="recovery-confirm-password" class="form-label">
+        <span class="form-icon">🔒</span>
+        Confirm New Password
+      </label>
+      <input 
+        type="password" 
+        id="recovery-confirm-password" 
+        class="form-input" 
+        placeholder="Confirm new password"
+        required
+      />
+    </div>
+    <button type="submit" id="recovery-reset-btn" class="login-button">
+      Reset Password 🔓
+    </button>
+  </form>
+</div>
+<div class="login-links" style="margin-top: 20px; text-align: center;">
+  <a href="#" id="recovery-back-link" class="login-link">← Back to Login</a>
+</div>
+`;
+
+const registerHTML =
+`
+<div class="login-title">New Commander Registration ⭐</div>
+<div class="login-error" id="register-error" style="display: none;"></div>
+
+<form id="registration-form" class="login-form">
+  <div class="form-group">
+    <label for="register-email" class="form-label">
+      <span class="form-icon">📧</span>
+      Email Address
+    </label>
+    <input 
+      type="email" 
+      id="register-email" 
+      class="form-input" 
+      placeholder="commander@hyperspace.space"
+      required
+      autocomplete="email"
+    />
+  </div>
+  
+  <div class="form-group">
+    <label for="register-display-name" class="form-label">
+      <span class="form-icon">👤</span>
+      Display Name
+    </label>
+    <input 
+      type="text" 
+      id="register-display-name" 
+      class="form-input" 
+      placeholder="Commander Name"
+      required
+      autocomplete="name"
+    />
+  </div>
+  
+  <div class="form-group">
+    <label for="register-password" class="form-label">
+      <span class="form-icon">🔑</span>
+      Password
+    </label>
+    <input 
+      type="password" 
+      id="register-password" 
+      class="form-input" 
+      placeholder="Enter password (8+ chars, upper, lower, number, symbol)"
+      required
+      autocomplete="new-password"
+      minlength="8"
+    />
+    <div class="password-hint" style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">
+      Must include: uppercase, lowercase, number, and symbol (!@#$%^&*()_+-=[]{}|;:,.<>?)
+    </div>
+  </div>
+  
+  <div class="form-group">
+    <label for="register-password-confirm" class="form-label">
+      <span class="form-icon">🔒</span>
+      Confirm Password
+    </label>
+    <input 
+      type="password" 
+      id="register-password-confirm" 
+      class="form-input" 
+      placeholder="Confirm your password"
+      required
+      autocomplete="new-password"
+      minlength="8"
+    />
+  </div>
+  
+  <div class="login-actions">
+    <button type="submit" class="btn btn-primary btn-login" id="register-submit-btn">
+      Register! ⭐
+    </button>
+  </div>
+  
+  <div class="login-links" style="margin-top: 15px; text-align: center;">
+    <a href="#" id="back-to-login-link" class="login-link">← Back to Login</a>
+  </div>
+</form>
+`;

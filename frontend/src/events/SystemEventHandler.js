@@ -3,13 +3,14 @@
  * Handles user login, game selection, and other system-wide events
  */
 import { eventBus } from '../eventBus.js';
-import { ApiResponse } from './Events.js';
+import { ApiEvent, ApiResponse } from './Events.js';
 
 export class SystemEventHandler
 {
    constructor()
    {
-      // Set up event listeners
+      this.userLoggedIn = false;
+    
       this.setupEventListeners();
    }
 
@@ -18,14 +19,20 @@ export class SystemEventHandler
     */
    setupEventListeners()
    {
-      // Listen for login events
       eventBus.on('system:login', this.handleLogin.bind(this));
       eventBus.on('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this));
    }
 
+   /**
+    * Handle all assets loaded event, if no user has logged in, emit system:systemReady event
+    * @param {ApiResponse} event - Event object
+    */
    handleAllAssetsLoaded(event)
    {
       console.log('🔐 SystemEventHandler: All assets loaded:', event, event.response);
+
+      if(!this.userLoggedIn)
+        eventBus.emit('system:systemReady', new ApiEvent('system:systemReady'));
    }
 
    /**

@@ -169,7 +169,8 @@ export class RB
    */
   static extractErrorMessage(body)
   {
-     if (!body) return null;
+     if (!body) 
+       return null;
      return body.error || body.message || body.error?.message || null;
   }
 
@@ -197,8 +198,7 @@ export class RB
            // Failed to parse error body, that's okay
         }
 
-        const errorMessage = this.extractErrorMessage(errorBody) ||
-                            `HTTP ${response.status}: ${response.statusText}`;
+        const errorMessage = this.extractErrorMessage(errorBody) || `HTTP ${response.status}: ${response.statusText}`;
         throw new ApiError(errorMessage, response.status, response.statusText, errorBody);
      }
 

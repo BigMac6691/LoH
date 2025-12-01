@@ -39,7 +39,7 @@ export class UIController
       eventBus.on('system:userReady', this.handleUserReady.bind(this));
       eventBus.on('system:assetLoaded', this.handleAssetLoaded.bind(this));
       eventBus.on('system:assetLoading', this.handleAssetLoading.bind(this));
-      eventBus.on('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this));
+      // eventBus.on('system:systemReady', this.handleSystemReady.bind(this));
    }
 
    handleUserReady(event)
@@ -57,9 +57,9 @@ export class UIController
       console.log('🔐 UIController: Asset loading:', event, event.response);
    }
 
-   handleAllAssetsLoaded(event)
+   handleSystemReady(event)
    {
-      console.log('🔐 UIController: All assets loaded:', event, event.response);
+      console.log('🔐 UIController: System ready:', event, event.response);
    }
 
    registerScreen(key, screen)

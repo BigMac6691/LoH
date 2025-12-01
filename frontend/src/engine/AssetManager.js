@@ -21,7 +21,7 @@ export class AssetManager
       this.fontCache = new Map();
 
       // Loading state
-      this.loadingAssets = new Set();
+      this.loadingAssets = new Map();
       this.loadedAssets = new Set();
    }
 
@@ -40,38 +40,19 @@ export class AssetManager
 
       // Return existing promise if already loading
       if (this.loadingAssets.has(fullPath))
-      {
-         return new Promise((resolve, reject) =>
-         {
-            const checkLoaded = () =>
-            {
-               if (this.gltfCache.has(fullPath))
-                  resolve(this.gltfCache.get(fullPath));
-               else if (!this.loadingAssets.has(fullPath))
-                  reject(new Error(`Failed to load GLTF: ${path}`));
-               else
-                  setTimeout(checkLoaded, 100);
-            };
-
-            checkLoaded();
-         });
-      }
+         return this.loadingAssets.get(fullPath);
 
       // Start loading
-      this.loadingAssets.add(fullPath);
-
-      return new Promise((resolve, reject) =>
+      const promise = new Promise((resolve, reject) =>
       {
          this.gltfLoader.load(
             fullPath,
             (gltf) =>
             {
-               // Cache the loaded asset
                this.gltfCache.set(fullPath, gltf);
                this.loadingAssets.delete(fullPath);
                this.loadedAssets.add(fullPath);
 
-               // Fire asset loaded event
                eventBus.emit('system:assetLoaded', new ApiResponse('system:assetLoaded', { type: 'gltf', path: fullPath, asset: gltf }, 200));
 
                if(this.loadingAssets.size === 0)
@@ -81,7 +62,6 @@ export class AssetManager
             },
             (progress) =>
             {
-               // Optional: Fire progress event
                eventBus.emit('system:assetLoading', new ApiResponse('system:assetLoading', { type: 'gltf', path: fullPath, progress }, 200));
             },
             (error) =>
@@ -92,6 +72,10 @@ export class AssetManager
             }
          );
       });
+
+      this.loadingAssets.set(fullPath, promise);
+
+      return promise;
    }
 
    /**
@@ -109,39 +93,20 @@ export class AssetManager
 
       // Return existing promise if already loading
       if (this.loadingAssets.has(fullPath))
-      {
-         return new Promise((resolve, reject) =>
-         {
-            const checkLoaded = () =>
-            {
-               if (this.fontCache.has(fullPath))
-                  resolve(this.fontCache.get(fullPath));
-               else if (!this.loadingAssets.has(fullPath))
-                  reject(new Error(`Failed to load font: ${path}`));
-               else
-                  setTimeout(checkLoaded, 100);
-            };
-
-            checkLoaded();
-         });
-      }
+         return this.loadingAssets.get(fullPath);
 
       // Start loading
-      this.loadingAssets.add(fullPath);
-
-      return new Promise((resolve, reject) =>
+      const promise = new Promise((resolve, reject) =>
       {
          this.fontLoader.load(
             fullPath,
             (font) =>
             {
-               // Cache the loaded asset
                this.fontCache.set(fullPath, font);
                this.loadingAssets.delete(fullPath);
-               this.loadedAssets.add(fullPath);
+               this.loadedAssets.add(fullPath);         
 
-               // Fire asset loaded event
-               eventBus.emit('system:assetLoaded ', new ApiResponse('system:assetLoaded', { type: 'font', path: fullPath, asset: font }, 200));
+               eventBus.emit('system:assetLoaded', new ApiResponse('system:assetLoaded', { type: 'font', path: fullPath, asset: font }, 200));
 
                if(this.loadingAssets.size === 0)
                   eventBus.emit('system:allAssetsLoaded', new ApiResponse('system:allAssetsLoaded', { }, 200));
@@ -150,7 +115,6 @@ export class AssetManager
             },
             (progress) =>
             {
-               // Optional: Fire progress event
                eventBus.emit('system:assetLoading', new ApiResponse('system:assetLoading', { type: 'font', path: fullPath, progress }, 200));
             },
             (error) =>
@@ -161,9 +125,13 @@ export class AssetManager
             }
          );
       });
+
+      this.loadingAssets.set(fullPath, promise);
+
+      return promise;
    }
 
-   /**
+   /** MAY NOT NEED THIS FUNCTION
     * Load multiple assets and wait for all to complete
     * @param {Array} assets - Array of asset objects with type and path
     * @returns {Promise<Object>} Promise that resolves when all assets are loaded
