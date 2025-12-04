@@ -14,7 +14,6 @@ export class TurnEventHandler
    constructor()
    {
       this.setupEventListeners();
-      console.log('🔄 TurnEventHandler: Initialized');
    }
 
    /**
@@ -24,8 +23,6 @@ export class TurnEventHandler
    {
       // Listen for end turn requests
       eventBus.on('turn:endTurn', this.handleEndTurn.bind(this));
-
-      console.log('🔄 TurnEventHandler: Event listeners set up');
    }
 
    /**

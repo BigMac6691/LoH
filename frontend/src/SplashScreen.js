@@ -3,6 +3,7 @@
  * Shows a cartoon-style loading animation, then login form once assets are ready
  */
 import { RB, ApiError } from './utils/RequestBuilder.js';
+import { ApiEvent, ApiRequest } from './events/Events.js';
 import { eventBus } from './eventBus.js';
 
 export class SplashScreen
@@ -15,6 +16,7 @@ export class SplashScreen
       this.isVisible = false;
 
       eventBus.on('system:systemReady', this.handleSystemReady.bind(this)); // don't like this, going straight to the UI bypassing UIController
+      eventBus.on('system:loginResponse', this.handleLoginResponse.bind(this));
 
       this.createSplashScreen();
    }
@@ -24,9 +26,16 @@ export class SplashScreen
       this.showLoginForm();
    }
 
-   /**
-    * Create the splash screen DOM structure
-    */
+   handleLoginResponse(event)
+   {
+      console.log('🔐 SplashScreen: Login response:', event);
+
+      if (event.isSuccess())
+        eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', 'home'));
+      else
+        this.handleLoginFailure(event.error, event.response.email);
+   }
+
    createSplashScreen()
    {
       this.container = document.createElement('div');
@@ -335,65 +344,7 @@ export class SplashScreen
       submitBtn.disabled = true;
       submitBtn.textContent = 'Launching... 🚀';
 
-      try
-      {
-         // Attempt login via API - move this to SystemEventHandler
-         const data = await RB.fetchPostUnauthenticated('/api/auth/login', {email, password});
-
-         if (data.success)
-         {
-            // Success - hide splash and proceed
-            this.hide();
-
-            // Store JWT tokens if provided
-            if (data.accessToken)
-               localStorage.setItem('access_token', data.accessToken);
-            if (data.refreshToken)
-               localStorage.setItem('refresh_token', data.refreshToken);
-
-            // Store user info (user_id is not stored - backend extracts it from JWT token)
-            if (data.user)
-            {
-               localStorage.setItem('user_email', data.user.email);
-
-               if (data.user.displayName)
-                  localStorage.setItem('user_display_name', data.user.displayName);
-               if (data.user.role)
-                  localStorage.setItem('user_role', data.user.role);
-               if (data.user.emailVerified !== undefined)
-                  localStorage.setItem('user_email_verified', data.user.emailVerified.toString());
-            }
-
-            // Emit login success event
-            eventBus.emit('auth:loginSuccess',
-            {
-               user: data.user,
-               tokens:
-               {
-                  accessToken: data.accessToken,
-                  refreshToken: data.refreshToken
-               }
-            });
-         }
-         else
-            // Handle different failure types
-            this.handleLoginFailure(data, email);
-      }
-      catch (error)
-      {
-         console.error('Login error:', error);
-         // If it's an ApiError, try to extract error data for handling
-         if (error instanceof ApiError && error.body)
-            this.handleLoginFailure(error.body, email);
-         else
-            this.showError('Connection error. Please try again.', null);
-      }
-      finally
-      {
-         // Re-enable submit button
-         submitBtn.disabled = false;
-         submitBtn.textContent = 'Launch! 🚀';
-      }
+      eventBus.emit('system:loginRequest', new ApiRequest('system:loginRequest', {email, password}));
    }
 
    /**
@@ -965,6 +916,7 @@ export class SplashScreen
    dispose()
    {
       eventBus.off('system:systemReady', this.handleSystemReady.bind(this));
+      eventBus.off('system:loginResponse', this.handleLoginResponse.bind(this));
    }
 }
 

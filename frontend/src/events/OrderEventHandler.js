@@ -10,7 +10,6 @@ export class OrderEventHandler
   constructor()
   {
     this.setupEventListeners();
-    console.log('📋 OrderEventHandler: Initialized');
   }
 
   /**
@@ -29,8 +28,6 @@ export class OrderEventHandler
     // Listen for order loading requests by turn
     eventBus.on('order:move.loadForTurn', this.handleLoadOrdersForTurn.bind(this));
     eventBus.on('order:build.loadForTurn', this.handleLoadOrdersForTurn.bind(this));
-    
-    console.log('📋 OrderEventHandler: Event listeners set up');
   }
 
   /**

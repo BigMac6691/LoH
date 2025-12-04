@@ -143,20 +143,19 @@ export class RB
    */
   static postRequestUnauthenticated(url, body = null, signal = null)
   {
-     const options = {
+     const options = 
+     {
         method: 'POST',
         headers: {
            'Content-Type': 'application/json'
         }
      };
      
-     if (body !== null) {
+     if (body !== null) 
         options.body = typeof body === 'string' ? body : JSON.stringify(body);
-     }
      
-     if (signal !== null) {
+     if (signal !== null) 
         options.signal = signal;
-     }
      
      return new Request(url, options);
   }
@@ -171,6 +170,7 @@ export class RB
   {
      if (!body) 
        return null;
+
      return body.error || body.message || body.error?.message || null;
   }
 
@@ -189,9 +189,7 @@ export class RB
         {
            const contentType = response.headers.get('content-type');
            if (contentType && contentType.includes('application/json'))
-           {
               errorBody = await response.json();
-           }
         }
         catch (e)
         {

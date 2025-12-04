@@ -26,9 +26,12 @@ export class HomePage
       this.utcClock = null;
       this.currentView = null;
       this.currentViewInstance = null;
+
       this.userRole = localStorage.getItem('user_role') || 'visitor';
       this.displayName = localStorage.getItem('user_display_name') || localStorage.getItem('user_email') || 'Commander';
       this.emailVerified = localStorage.getItem('user_email_verified') === 'true';
+
+      this.init();
    }
 
    /**
@@ -37,10 +40,9 @@ export class HomePage
    init()
    {
       this.createHomePage();
-      this.show();
+
       // Show News and Events by default
       this.showView('news-events');
-      // Set active menu item
       this.setActiveMenuItem('news-events');
    }
 
@@ -50,6 +52,7 @@ export class HomePage
    createHomePage()
    {
       this.container = document.createElement('div');
+      this.container.style.display = 'none';
       this.container.id = 'home-page';
       this.container.className = 'home-page';
 
@@ -304,7 +307,9 @@ export class HomePage
     */
    setActiveMenuItem(viewId)
    {
-      if (!this.sidebar) return;
+      if (!this.sidebar) 
+         return;
+
       this.sidebar.querySelectorAll('.menu-item').forEach(mi =>
       {
          if (mi.getAttribute('data-view') === viewId)
@@ -319,7 +324,8 @@ export class HomePage
     */
    showView(viewId)
    {
-      if (!this.mainContent) return;
+      if (!this.mainContent) 
+         return;
 
       // Clean up current view
       if (this.currentViewInstance)
@@ -331,8 +337,8 @@ export class HomePage
       }
 
       // Hide UIController if it was showing
-      if (this.uiController && this.uiController.panel)
-         this.hideUIController();
+      // if (this.uiController && this.uiController.panel)
+      //    this.hideUIController();
 
       this.currentView = viewId;
 
@@ -451,6 +457,8 @@ export class HomePage
     */
    show()
    {
+      console.log('🔐 HomePage: Showing home page');
+      
       if (this.container)
          this.container.style.display = 'flex';
    }

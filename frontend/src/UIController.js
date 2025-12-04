@@ -14,7 +14,6 @@ export class UIController
       this.screens = new Map();
       
       this.registerScreen(key, initialScreen);
-
       this.init();
    }
 
@@ -36,15 +35,23 @@ export class UIController
     */
    initializeEventListeners()
    {
-      eventBus.on('system:userReady', this.handleUserReady.bind(this));
+      
       eventBus.on('system:assetLoaded', this.handleAssetLoaded.bind(this));
       eventBus.on('system:assetLoading', this.handleAssetLoading.bind(this));
-      // eventBus.on('system:systemReady', this.handleSystemReady.bind(this));
+      // eventBus.on('system:loginResponse', this.handleLoginResponse.bind(this));
+      eventBus.on('ui:showScreen', this.handleShowScreen.bind(this));
    }
 
-   handleUserReady(event)
+   handleShowScreen(event)
    {
-      console.log('🔐 UIController: User ready:', event, event.response);
+      console.log('🔐 UIController: Show screen:', event);
+
+      this.showScreen(event.request);
+   }
+
+   handleLoginResponse(event)
+   {
+      console.log('🔐 UIController: Login response:', event, event.response);
    }
 
    handleAssetLoaded(event)
@@ -84,9 +91,9 @@ export class UIController
 
    dispose()
    {
-      eventBus.off('system:userReady', this.handleUserReady.bind(this));
       eventBus.off('system:assetLoaded', this.handleAssetLoaded.bind(this));
       eventBus.off('system:assetLoading', this.handleAssetLoading.bind(this));
-      eventBus.off('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this));
+      eventBus.off('system:loginResponse', this.handleLoginResponse.bind(this));
+      eventBus.off('ui:showScreen', this.handleShowScreen.bind(this));
    }
 }
