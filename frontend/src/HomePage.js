@@ -42,8 +42,8 @@ export class HomePage
       this.createHomePage();
 
       // Show News and Events by default
-      this.showView('news-events');
-      this.setActiveMenuItem('news-events');
+      // this.showView('news-events');
+      // this.setActiveMenuItem('news-events');
    }
 
    /**
@@ -336,10 +336,6 @@ export class HomePage
          this.currentViewInstance = null;
       }
 
-      // Hide UIController if it was showing
-      // if (this.uiController && this.uiController.panel)
-      //    this.hideUIController();
-
       this.currentView = viewId;
 
       // Find or create view container (preserve status component)
@@ -457,10 +453,17 @@ export class HomePage
     */
    show()
    {
-      console.log('🔐 HomePage: Showing home page');
+      console.log('🔐 HomePage: Showing home page', this.currentViewInstance);
       
       if (this.container)
          this.container.style.display = 'flex';
+
+      if (!this.currentViewInstance)
+      {
+         this.showView('news-events');
+         this.setActiveMenuItem('news-events');
+      }
+         
    }
 
    /**

@@ -1,7 +1,11 @@
 import { eventBus } from './eventBus.js';
 import { SplashScreen } from './SplashScreen.js';
+import { LoginScreen } from './LoginScreen.js';
+import { RegisterScreen } from './RegisterScreen.js';
+import { RecoverScreen } from './RecoverScreen.js';
 import { HomePage } from './HomePage.js';
 import { GameView } from './GameView.js';
+import { ApiError } from './utils/RequestBuilder.js';
 
 /**
  * UIController - Handles UI interactions for map generation
@@ -23,6 +27,9 @@ export class UIController
    init()
    {
       this.registerScreen('splash', new SplashScreen());
+      this.registerScreen('login', new LoginScreen());
+      this.registerScreen('register', new RegisterScreen());
+      this.registerScreen('recover', new RecoverScreen());
       this.registerScreen('home', new HomePage());
       this.registerScreen('game', new GameView());
 
