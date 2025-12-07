@@ -1,38 +1,22 @@
 /**
  * RegisterScreen - Registration screen with form for new user registration
  */
+import { BaseFormScreen } from './BaseFormScreen.js';
 import { eventBus } from './eventBus.js';
 import { ApiRequest } from './events/Events.js';
 
-export class RegisterScreen
+export class RegisterScreen extends BaseFormScreen
 {
    constructor()
    {
-      this.container = null;
-      this.isVisible = false;
-      this.prefilledEmail = '';
-      
-      eventBus.on('system:registerResponse', this.handleRegisterResponse.bind(this));
-      
+      super('register-screen');
+      this.registerEventHandler('system:registerResponse', this.handleRegisterResponse);
       this.createRegisterScreen();
    }
 
    createRegisterScreen()
    {
-      this.container = document.createElement('div');
-      this.container.id = 'register-screen';
-      this.container.className = 'splash-screen';
-      this.container.style.display = 'none';
-
-      const content = document.createElement('div');
-      content.className = 'splash-content';
-
-      const logoArea = document.createElement('div');
-      logoArea.className = 'splash-logo';
-      logoArea.innerHTML = `
-      <div class="splash-title">⚔️ LoH ⚔️</div>
-      <div class="splash-subtitle">Lords of Hyperspace</div>
-      `;
+      const content = this.createBaseScreen();
 
       const registerForm = document.createElement('div');
       registerForm.className = 'splash-login-form';
@@ -49,53 +33,30 @@ export class RegisterScreen
       backLink.addEventListener('click', (e) =>
       {
          e.preventDefault();
-         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', 'login'));
+         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
+            targetScreen: 'login'
+         }));
       });
 
-      content.appendChild(logoArea);
       content.appendChild(registerForm);
-      this.container.appendChild(content);
-      document.body.appendChild(this.container);
    }
 
-   show()
+   onShow(parameters = {})
    {
-      if (this.container)
+      // Pre-fill email if provided in parameters
+      const emailInput = document.getElementById('register-email');
+      if (emailInput)
       {
-         this.container.style.display = 'flex';
-         this.isVisible = true;
-         
-         // Set prefilled email if available
-         if (this.prefilledEmail)
+         if (parameters.email)
          {
-            const emailInput = document.getElementById('register-email');
-            if (emailInput)
-            {
-               emailInput.value = this.prefilledEmail;
-               setTimeout(() =>
-               {
-                  emailInput.focus();
-                  emailInput.select();
-               }, 100);
-            }
+            this.prefillInput('register-email', parameters.email);
+            this.focusInput('register-email', true); // Select text if email provided
          }
          else
          {
-            setTimeout(() =>
-            {
-               const emailInput = document.getElementById('register-email');
-               if (emailInput) emailInput.focus();
-            }, 100);
+            emailInput.value = '';
+            this.focusInput('register-email');
          }
-      }
-   }
-
-   hide()
-   {
-      if (this.container)
-      {
-         this.container.style.display = 'none';
-         this.isVisible = false;
       }
    }
 
@@ -113,11 +74,7 @@ export class RegisterScreen
       const password = passwordInput.value;
       const passwordConfirm = passwordConfirmInput.value;
 
-      if (errorDiv)
-      {
-         errorDiv.style.display = 'none';
-         errorDiv.textContent = '';
-      }
+      this.clearError('register-error');
 
       if (!email || !displayName || !password || !passwordConfirm)
       {
@@ -147,11 +104,7 @@ export class RegisterScreen
          return;
       }
 
-      if (submitBtn)
-      {
-         submitBtn.disabled = true;
-         submitBtn.textContent = 'Registering... ⭐';
-      }
+      this.updateButtonState('register-submit-btn', true, 'Registering... ⭐');
 
       // Store request data for auto-login later
       const requestData = { email, password, displayName };
@@ -161,13 +114,7 @@ export class RegisterScreen
 
    handleRegisterResponse(event)
    {
-      const submitBtn = document.getElementById('register-submit-btn');
-      
-      if (submitBtn)
-      {
-         submitBtn.disabled = false;
-         submitBtn.textContent = 'Register! ⭐';
-      }
+      this.updateButtonState('register-submit-btn', false, 'Register! ⭐');
 
       if (event.isSuccess())
       {
@@ -216,7 +163,9 @@ export class RegisterScreen
       {
          setTimeout(() =>
          {
-            eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', 'login'));
+            eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
+               targetScreen: 'login'
+            }));
          }, 2000);
       }
    }
@@ -237,42 +186,7 @@ export class RegisterScreen
 
    showRegistrationError(message)
    {
-      const errorDiv = document.getElementById('register-error');
-      if (errorDiv)
-      {
-         errorDiv.textContent = message;
-         errorDiv.style.display = 'block';
-         errorDiv.className = 'login-error error-message';
-      }
-   }
-
-   validateEmail(email)
-   {
-      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return re.test(email);
-   }
-
-   validatePassword(password)
-   {
-      const errors = [];
-      if (!password || password.length < 8)
-         errors.push('Password must be at least 8 characters long');
-      if (password && !/[A-Z]/.test(password))
-         errors.push('Password must contain at least one uppercase letter');
-      if (password && !/[a-z]/.test(password))
-         errors.push('Password must contain at least one lowercase letter');
-      if (password && !/[0-9]/.test(password))
-         errors.push('Password must contain at least one number');
-      if (password && !/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password))
-         errors.push('Password must contain at least one safe symbol (!@#$%^&*()_+-=[]{}|;:,.<>?)');
-      return { valid: errors.length === 0, errors };
-   }
-
-   dispose()
-   {
-      eventBus.off('system:registerResponse', this.handleRegisterResponse.bind(this));
-      if (this.container && this.container.parentNode)
-         this.container.parentNode.removeChild(this.container);
+      this.showError('register-error', message);
    }
 }
 

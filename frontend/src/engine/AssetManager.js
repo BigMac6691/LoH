@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { eventBus } from '../eventBus.js';
 import { ApiResponse } from '../events/Events.js';
+import { ApiError } from '../utils/RequestBuilder.js';
 
 /**
  * AssetManager - Handles loading and caching of 3D assets and fonts
@@ -21,8 +22,25 @@ export class AssetManager
       this.fontCache = new Map();
 
       // Loading state
-      this.loadingAssets = new Map();
+      this.loadingAssets = new Set();
       this.loadedAssets = new Set();
+
+      eventBus.on('system:loadAsset', this.handleLoadAsset.bind(this));
+   }
+
+   handleLoadAsset(event)
+   {
+      console.log('🔐 AssetManager: Loading assets:', event);
+
+      switch (event.request.type)
+      {
+         case 'font':
+            return this.loadFont(event.request.asset);
+         case 'gltf':
+            return this.loadGLTF(event.request.asset);
+         default:
+            throw new Error(`Unknown asset type: ${event.request.type}`);
+      }
    }
 
    /**
@@ -34,48 +52,36 @@ export class AssetManager
    {
       const fullPath = `/assets/${path}`;
 
-      // Return cached asset if available
-      if (this.gltfCache.has(fullPath))
-         return Promise.resolve(this.gltfCache.get(fullPath));
-
-      // Return existing promise if already loading
-      if (this.loadingAssets.has(fullPath))
-         return this.loadingAssets.get(fullPath);
+      if (this.gltfCache.has(fullPath) || this.loadingAssets.has(fullPath))
+         return;
 
       // Start loading
-      const promise = new Promise((resolve, reject) =>
-      {
-         this.gltfLoader.load(
-            fullPath,
-            (gltf) =>
-            {
-               this.gltfCache.set(fullPath, gltf);
-               this.loadingAssets.delete(fullPath);
-               this.loadedAssets.add(fullPath);
+      this.gltfLoader.load(
+         fullPath,
+         (gltf) =>
+         {
+            this.gltfCache.set(fullPath, gltf);
+            this.loadingAssets.delete(fullPath);
+            this.loadedAssets.add(fullPath);
 
-               eventBus.emit('system:assetLoaded', new ApiResponse('system:assetLoaded', { type: 'gltf', path: fullPath, asset: gltf }, 200));
+            eventBus.emit('system:assetLoaded', new ApiResponse('system:assetLoaded', {type: 'gltf', path: fullPath, asset: gltf}, 200));
 
-               if(this.loadingAssets.size === 0)
-                  eventBus.emit('system:allAssetsLoaded', new ApiResponse('system:allAssetsLoaded', { }, 200));
+            if (this.loadingAssets.size === 0)
+               eventBus.emit('system:allAssetsLoaded', new ApiResponse('system:allAssetsLoaded', {}, 200));
+         },
+         (progress) =>
+         {
+            eventBus.emit('system:assetLoading', new ApiResponse('system:assetLoading', {type: 'gltf', path: fullPath, progress}, 200));
+         },
+         (error) =>
+         {
+            this.loadingAssets.delete(fullPath);
 
-               resolve(gltf);
-            },
-            (progress) =>
-            {
-               eventBus.emit('system:assetLoading', new ApiResponse('system:assetLoading', { type: 'gltf', path: fullPath, progress }, 200));
-            },
-            (error) =>
-            {
-               this.loadingAssets.delete(fullPath);
-               eventBus.emit('system:assetLoaded', new ApiResponse('system:assetLoaded', null, 500));
-               reject(new Error(`Failed to load GLTF ${path}: ${error.message}`));
-            }
-         );
-      });
+            throw new ApiError(`Failed to load GLTF ${path}: ${error.message}`, 500, error.message);
+         }
+      );
 
-      this.loadingAssets.set(fullPath, promise);
-
-      return promise;
+      this.loadingAssets.add(fullPath);
    }
 
    /**
@@ -87,83 +93,36 @@ export class AssetManager
    {
       const fullPath = `/assets/${path}`;
 
-      // Return cached asset if available
-      if (this.fontCache.has(fullPath))
-         return Promise.resolve(this.fontCache.get(fullPath));
-
-      // Return existing promise if already loading
-      if (this.loadingAssets.has(fullPath))
-         return this.loadingAssets.get(fullPath);
+      if (this.fontCache.has(fullPath) || this.loadingAssets.has(fullPath))
+         return;
 
       // Start loading
-      const promise = new Promise((resolve, reject) =>
-      {
-         this.fontLoader.load(
-            fullPath,
-            (font) =>
-            {
-               this.fontCache.set(fullPath, font);
-               this.loadingAssets.delete(fullPath);
-               this.loadedAssets.add(fullPath);         
-
-               eventBus.emit('system:assetLoaded', new ApiResponse('system:assetLoaded', { type: 'font', path: fullPath, asset: font }, 200));
-
-               if(this.loadingAssets.size === 0)
-                  eventBus.emit('system:allAssetsLoaded', new ApiResponse('system:allAssetsLoaded', { }, 200));
-
-               resolve(font);
-            },
-            (progress) =>
-            {
-               eventBus.emit('system:assetLoading', new ApiResponse('system:assetLoading', { type: 'font', path: fullPath, progress }, 200));
-            },
-            (error) =>
-            {
-               this.loadingAssets.delete(fullPath);
-               eventBus.emit('system:assetLoaded', new ApiResponse('system:assetLoaded', null, 500));
-               reject(new Error(`Failed to load font ${path}: ${error.message}`));
-            }
-         );
-      });
-
-      this.loadingAssets.set(fullPath, promise);
-
-      return promise;
-   }
-
-   /** MAY NOT NEED THIS FUNCTION
-    * Load multiple assets and wait for all to complete
-    * @param {Array} assets - Array of asset objects with type and path
-    * @returns {Promise<Object>} Promise that resolves when all assets are loaded
-    */
-   async loadAll(assets)
-   {
-      const loadPromises = assets.map(asset =>
-      {
-         switch (asset.type)
+      this.fontLoader.load(
+         fullPath,
+         (font) =>
          {
-            case 'gltf':
-               return this.loadGLTF(asset.path);
-            case 'font':
-               return this.loadFont(asset.path);
-            default:
-               throw new Error(`Unknown asset type: ${asset.type}`);
+            this.fontCache.set(fullPath, font);
+            this.loadingAssets.delete(fullPath);
+            this.loadedAssets.add(fullPath);
+
+            eventBus.emit('system:assetLoaded', new ApiResponse('system:assetLoaded', {type: 'font', path: fullPath, asset: font}, 200));
+
+            if (this.loadingAssets.size === 0)
+               eventBus.emit('system:allAssetsLoaded', new ApiResponse('system:allAssetsLoaded', {}, 200));
+         },
+         (progress) =>
+         {
+            eventBus.emit('system:assetLoading', new ApiResponse('system:assetLoading', {type: 'font', path: fullPath, progress}, 200));
+         },
+         (error) =>
+         {
+            this.loadingAssets.delete(fullPath);
+
+            throw new ApiError(`Failed to load font ${path}: ${error.message}`, 500, error.message);
          }
-      });
+      );
 
-      try
-      {
-         await Promise.all(loadPromises);
-
-         // Fire assets ready event
-         this.dispatchEvent(new CustomEvent('assets:ready', { detail: { assets: this.loadedAssets } }));
-
-         return { success: true, loadedCount: this.loadedAssets.size, assets: Array.from(this.loadedAssets) };
-      }
-      catch (error)
-      {
-         throw new Error(`Failed to load assets: ${error.message}`);
-      }
+      this.loadingAssets.add(fullPath);
    }
 
    /**

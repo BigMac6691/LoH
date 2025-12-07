@@ -1,33 +1,98 @@
 import rateLimit from 'express-rate-limit';
+import { getRateLimitKey, sanitizeEmail, validateEmail } from '../utils/security.js';
 
 /**
  * Rate limiter configurations for authentication endpoints
  * 
- * Note: Multiple users can share the same IP (corporate networks, VPNs, etc.),
- * so rate limits are per-IP. For stricter control, consider per-email limits
- * combined with IP limits, but be aware this might affect legitimate users
- * behind the same NAT/proxy.
+ * Development: Uses IP+Email combined key (Option 1) - easier for testing
+ * Production: Uses dual rate limiting (Option 3) - maximum security
  */
 
-/**
- * Login rate limiter: 5 attempts per 15 minutes per IP
- */
-export const loginRateLimiter = rateLimit({
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// ============================================================================
+// DEVELOPMENT: Option 1 - IP+Email Combined Key
+// ============================================================================
+const loginRateLimiterDev = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 login requests per windowMs
+  max: 5, // Limit each IP+email combination to 5 login requests per windowMs
   message: {
     success: false,
     error: 'TOO_MANY_LOGIN_ATTEMPTS',
-    message: 'Too many login attempts. Please try again in 15 minutes.'
+    message: 'Too many login attempts for this email. Please try again in 15 minutes.'
   },
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  // Use IP from headers if behind a proxy
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Extract email from request body
+    const email = req.body?.email;
+    if (email && validateEmail(sanitizeEmail(email))) {
+      return getRateLimitKey(req, sanitizeEmail(email));
+    }
+    // Fallback to IP-only if email is invalid/missing
+    return getRateLimitKey(req);
+  },
   skip: (req) => {
     // Skip rate limiting for localhost in development
-    return process.env.NODE_ENV === 'development' && req.ip === '127.0.0.1';
+    return isDevelopment && req.ip === '127.0.0.1';
   }
 });
+
+// ============================================================================
+// PRODUCTION: Option 3 - Dual Rate Limiting (IP + Email)
+// ============================================================================
+// IP-based limiter (more lenient)
+const loginRateLimiterIP = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20, // Higher limit for IP
+  keyGenerator: (req) => getRateLimitKey(req), // IP only
+  message: {
+    success: false,
+    error: 'TOO_MANY_LOGIN_ATTEMPTS_IP',
+    message: 'Too many login attempts from this network. Please try again in 15 minutes.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Email-based limiter (stricter)
+const loginRateLimiterEmail = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5, // Stricter limit per email
+  keyGenerator: (req) => {
+    const email = req.body?.email;
+    if (email && validateEmail(sanitizeEmail(email))) {
+      return `email:${sanitizeEmail(email)}`;
+    }
+    return `email:invalid`;
+  },
+  message: {
+    success: false,
+    error: 'TOO_MANY_LOGIN_ATTEMPTS_EMAIL',
+    message: 'Too many login attempts for this email. Please try again in 15 minutes.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// ============================================================================
+// EXPORT: Single rate limiter that works in both environments
+// ============================================================================
+/**
+ * Login rate limiter - automatically uses appropriate strategy based on NODE_ENV
+ * Development: IP+Email combined key (easier for testing)
+ * Production: Dual limiting (IP + Email) - both must pass
+ */
+export const loginRateLimiter = isDevelopment 
+  ? loginRateLimiterDev  // Development: single limiter
+  : (req, res, next) => {  // Production: apply both limiters sequentially
+      // Apply IP limiter first
+      loginRateLimiterIP(req, res, (err) => {
+        if (err) return next(err);
+        // If IP limiter passes, apply email limiter
+        loginRateLimiterEmail(req, res, next);
+      });
+    };
 
 /**
  * Registration rate limiter: 3 attempts per hour per IP

@@ -56,7 +56,7 @@ export class UIController
       this.showScreen(event.request);
    }
 
-   handleLoginResponse(event)
+   handleLoginResponse(event) // may need to drop this
    {
       console.log('🔐 UIController: Login response:', event, event.response);
    }
@@ -86,14 +86,18 @@ export class UIController
       return this.screens.get(key);
    }
 
-   showScreen(key)
+   showScreen(screenConfig)
    {
-      if (!this.screens.has(key))
-         throw new ApiError(`Screen ${key} not found`);
+      // Support object format: {targetScreen: "screen", parameters: {...}}
+      const screenName = screenConfig.targetScreen || screenConfig;
+      const parameters = screenConfig.parameters || {};
+
+      if (!this.screens.has(screenName))
+         throw new ApiError(`Screen ${screenName} not found`);
 
       this.currentScreen.hide();
-      this.currentScreen = this.screens.get(key);
-      this.currentScreen.show();
+      this.currentScreen = this.screens.get(screenName);
+      this.currentScreen.show(parameters);
    }
 
    dispose()

@@ -5,6 +5,7 @@
 import { eventBus }from '../eventBus.js';
 import { ApiEvent, ApiRequest, ApiResponse } from './Events.js';
 import { RB, ApiError } from '../utils/RequestBuilder.js';
+import { webSocketManager } from '../services/WebSocketManager.js';
 
 export class SystemEventHandler
 {
@@ -47,7 +48,10 @@ export class SystemEventHandler
    handleLoginResponse(event)
    {
       if (event.isSuccess())
+      {
+         webSocketManager.connect();
          this.userLoggedIn = true;
+      }
    }
 
    /**

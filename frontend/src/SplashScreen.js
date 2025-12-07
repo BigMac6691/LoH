@@ -21,7 +21,6 @@ export class SplashScreen
 
    handleSystemReady(event)
    {
-      console.log('🔐 SplashScreen: System ready');
       this.showContinueButton();
    }
 
@@ -80,7 +79,9 @@ export class SplashScreen
          
          this.continueButton.addEventListener('click', () =>
          {
-            eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', 'login'));
+            eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
+               targetScreen: 'login'
+            }));
          });
 
          const content = this.container.querySelector('.splash-content');

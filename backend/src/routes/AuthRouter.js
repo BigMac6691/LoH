@@ -27,7 +27,11 @@ import { authenticate } from '../middleware/auth.js';
  * AuthRouter - Handles authentication routes with comprehensive security
  * 
  * Security features:
- * - Rate limiting (5 login/15min, 3 register/1hr, 3 recover/1hr per IP)
+ * - Rate limiting:
+ *   - Development: 5 login attempts/15min per IP+Email combination
+ *   - Production: Dual limiting (20 attempts/15min per IP + 5 attempts/15min per email)
+ *   - Registration: 3 attempts/1hr per IP
+ *   - Recovery: 3 attempts/1hr per IP
  * - JWT tokens (access + refresh)
  * - Account lockout after 5 failed attempts (30 min)
  * - Email verification required for new accounts

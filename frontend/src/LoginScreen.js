@@ -1,37 +1,22 @@
 /**
  * LoginScreen - Login screen with form for user authentication
  */
+import { BaseFormScreen } from './BaseFormScreen.js';
 import { eventBus } from './eventBus.js';
 import { ApiRequest } from './events/Events.js';
 
-export class LoginScreen
+export class LoginScreen extends BaseFormScreen
 {
    constructor()
    {
-      this.container = null;
-      this.isVisible = false;
-      
-      eventBus.on('system:loginResponse', this.handleLoginResponse.bind(this));
-      
+      super('login-screen');
+      this.registerEventHandler('system:loginResponse', this.handleLoginResponse);
       this.createLoginScreen();
    }
 
    createLoginScreen()
    {
-      this.container = document.createElement('div');
-      this.container.id = 'login-screen';
-      this.container.className = 'splash-screen'; // Reuse splash styling
-      this.container.style.display = 'none';
-
-      const content = document.createElement('div');
-      content.className = 'splash-content';
-
-      const logoArea = document.createElement('div');
-      logoArea.className = 'splash-logo';
-      logoArea.innerHTML = `
-      <div class="splash-title">⚔️ LoH ⚔️</div>
-      <div class="splash-subtitle">Lords of Hyperspace</div>
-      `;
+      const content = this.createBaseScreen();
 
       const loginForm = document.createElement('div');
       loginForm.className = 'splash-login-form';
@@ -48,20 +33,25 @@ export class LoginScreen
       recoverLink.addEventListener('click', (e) =>
       {
          e.preventDefault();
-         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', 'recover'));
+         const email = document.getElementById('login-email')?.value.trim() || '';
+         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
+            targetScreen: 'recover',
+            parameters: email ? { email } : {}
+         }));
       });
 
       const registerLink = loginForm.querySelector('#register-link');
       registerLink.addEventListener('click', (e) =>
       {
          e.preventDefault();
-         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', 'register'));
+         const email = document.getElementById('login-email')?.value.trim() || '';
+         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
+            targetScreen: 'register',
+            parameters: email ? { email } : {}
+         }));
       });
 
-      content.appendChild(logoArea);
       content.appendChild(loginForm);
-      this.container.appendChild(content);
-      document.body.appendChild(this.container);
    }
 
    handleLogin()
@@ -71,18 +61,18 @@ export class LoginScreen
       const email = emailInput.value.trim();
       const password = passwordInput.value;
 
-      this.clearError();
+      this.clearError('login-error');
 
       if (!this.validateEmail(email))
       {
-         this.showError('Please enter a valid email address.');
+         this.showError('login-error', 'Please enter a valid email address.');
          emailInput.focus();
          return;
       }
 
       if (!password || password.trim().length === 0)
       {
-         this.showError('Password is required. If you forgot your password, please use password recovery.', 
+         this.showErrorWithLinks('login-error', 'Password is required. If you forgot your password, please use password recovery.', 
             {recover: true, email: email});
          return;
       }
@@ -97,49 +87,41 @@ export class LoginScreen
       this.updateViewState(false, event.response?.email);
 
       if (event.isSuccess())
-      {
-         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', 'home'));
-      }
+         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
+            targetScreen: 'home'
+         }));
       else
-      {
          this.handleLoginFailure(event.error, event.response?.email);
-      }
    }
 
    updateViewState(loading, email)
    {
-      const submitBtn = document.getElementById('login-submit-btn');
-      if (submitBtn)
-      {
-         submitBtn.disabled = loading;
-         submitBtn.textContent = loading ? 'Launching... 🚀' : 'Launch! 🚀';
-      }
-
-      const emailInput = document.getElementById('login-email');
-      if (emailInput && email)
-         emailInput.value = email;
+      this.updateButtonState('login-submit-btn', loading, loading ? 'Launching... 🚀' : 'Launch! 🚀');
+      
+      if (email)
+         this.prefillInput('login-email', email);
    }
 
    handleLoginFailure(data, email)
    {
       if (data?.error === 'PASSWORD_REQUIRED')
-         this.showError(data.message || 'Password is required. If you forgot your password, please use password recovery.', 
+         this.showErrorWithLinks('login-error', data.message || 'Password is required. If you forgot your password, please use password recovery.', 
             {recover: true, email: email});
       else if (data?.errorType === 1 || data?.error === 'INVALID_PASSWORD')
-         this.showError('Login failed. Incorrect password.', {recover: true, email: email});
+         this.showErrorWithLinks('login-error', 'Login failed. Incorrect password.', {recover: true, email: email});
       else if (data?.errorType === 2 || data?.error === 'USER_NOT_FOUND')
-         this.showError('Email address not found.', {register: true});
+         this.showErrorWithLinks('login-error', 'Email address not found.', {register: true, email: email});
       else
-         this.showError(data?.message || 'Login failed. Please try again.');
+         this.showError('login-error', data?.message || 'Login failed. Please try again.');
    }
 
-   validateEmail(email)
-   {
-      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return re.test(email);
-   }
-
-   showError(message, links = null)
+   /**
+    * Show error with action links (specialized for LoginScreen)
+    * @param {string} errorId - ID of the error div
+    * @param {string} message - Error message
+    * @param {Object} links - Links configuration {recover: boolean, register: boolean, email: string}
+    */
+   showErrorWithLinks(errorId, message, links = null)
    {
       const errorDiv = document.getElementById('login-error');
       if (!errorDiv) return;
@@ -170,7 +152,10 @@ export class LoginScreen
                recoverLink.addEventListener('click', (e) =>
                {
                   e.preventDefault();
-                  eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', 'recover'));
+                  eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
+                     targetScreen: 'recover',
+                     parameters: links.email ? { email: links.email } : {}
+                  }));
                });
             }
          }
@@ -182,52 +167,16 @@ export class LoginScreen
                registerLink.addEventListener('click', (e) =>
                {
                   e.preventDefault();
-                  eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', 'register'));
+                  eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
+                     targetScreen: 'register',
+                     parameters: links.email ? { email: links.email } : {}
+                  }));
                });
             }
          }
       }
    }
 
-   clearError()
-   {
-      const errorDiv = document.getElementById('login-error');
-      if (errorDiv)
-      {
-         errorDiv.style.display = 'none';
-         errorDiv.textContent = '';
-      }
-   }
-
-   show()
-   {
-      if (this.container)
-      {
-         this.container.style.display = 'flex';
-         this.isVisible = true;
-         setTimeout(() =>
-         {
-            const emailInput = document.getElementById('login-email');
-            if (emailInput) emailInput.focus();
-         }, 100);
-      }
-   }
-
-   hide()
-   {
-      if (this.container)
-      {
-         this.container.style.display = 'none';
-         this.isVisible = false;
-      }
-   }
-
-   dispose()
-   {
-      eventBus.off('system:loginResponse', this.handleLoginResponse.bind(this));
-      if (this.container && this.container.parentNode)
-         this.container.parentNode.removeChild(this.container);
-   }
 }
 
 const loginHTML = `
