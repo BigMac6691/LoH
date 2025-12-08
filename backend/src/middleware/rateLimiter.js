@@ -86,10 +86,10 @@ const loginRateLimiterEmail = rateLimit({
 export const loginRateLimiter = isDevelopment 
   ? loginRateLimiterDev  // Development: single limiter
   : (req, res, next) => {  // Production: apply both limiters sequentially
-      // Apply IP limiter first
-      loginRateLimiterIP(req, res, (err) => {
-        if (err) return next(err);
-        // If IP limiter passes, apply email limiter
+      // Apply IP limiter first - it will call next() if it passes, or send response if rate-limited
+      loginRateLimiterIP(req, res, () => {
+        // If IP limiter passes (calls next), apply email limiter
+        // Email limiter will call next() if it passes, or send response if rate-limited
         loginRateLimiterEmail(req, res, next);
       });
     };

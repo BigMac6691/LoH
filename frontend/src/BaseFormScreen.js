@@ -11,7 +11,9 @@ export class BaseFormScreen
       this.container = null;
       this.isVisible = false;
       this.screenId = screenId;
+
       this.eventHandlers = []; // Track event handlers for cleanup
+      this.inputControls = new Set();
    }
 
    /**
@@ -31,7 +33,8 @@ export class BaseFormScreen
 
       const logoArea = document.createElement('div');
       logoArea.className = 'splash-logo';
-      logoArea.innerHTML = `
+      logoArea.innerHTML = 
+      `
       <div class="splash-title">⚔️ LoH ⚔️</div>
       <div class="splash-subtitle">Lords of Hyperspace</div>
       `;
@@ -55,6 +58,8 @@ export class BaseFormScreen
          this.isVisible = true;
          this.onShow(parameters);
       }
+      else
+         throw new Error('BaseFormScreen: Container not found!');
    }
 
    /**
@@ -68,6 +73,8 @@ export class BaseFormScreen
          this.isVisible = false;
          this.onHide();
       }
+      else
+         throw new Error('BaseFormScreen: Container not found!');
    }
 
    /**
@@ -104,10 +111,7 @@ export class BaseFormScreen
     */
    unregisterEventHandlers()
    {
-      this.eventHandlers.forEach(({ eventType, handler }) =>
-      {
-         eventBus.off(eventType, handler);
-      });
+      this.eventHandlers.forEach(({ eventType, handler }) => { eventBus.off(eventType, handler); });
       this.eventHandlers = [];
    }
 
@@ -130,16 +134,22 @@ export class BaseFormScreen
    validatePassword(password)
    {
       const errors = [];
+
       if (!password || password.length < 8)
          errors.push('Password must be at least 8 characters long');
+
       if (password && !/[A-Z]/.test(password))
          errors.push('Password must contain at least one uppercase letter');
+
       if (password && !/[a-z]/.test(password))
          errors.push('Password must contain at least one lowercase letter');
+
       if (password && !/[0-9]/.test(password))
          errors.push('Password must contain at least one number');
+
       if (password && !/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password))
          errors.push('Password must contain at least one safe symbol (!@#$%^&*()_+-=[]{}|;:,.<>?)');
+
       return { valid: errors.length === 0, errors };
    }
 
@@ -151,12 +161,15 @@ export class BaseFormScreen
    showError(errorId, message)
    {
       const errorDiv = document.getElementById(errorId);
+
       if (errorDiv)
       {
          errorDiv.textContent = message;
          errorDiv.style.display = 'block';
          errorDiv.className = 'login-error error-message';
       }
+      else
+         throw new Error('BaseFormScreen: Error div not found!');
    }
 
    /**
@@ -166,11 +179,14 @@ export class BaseFormScreen
    clearError(errorId)
    {
       const errorDiv = document.getElementById(errorId);
+
       if (errorDiv)
       {
          errorDiv.style.display = 'none';
          errorDiv.textContent = '';
       }
+      else
+         throw new Error('BaseFormScreen: Error div not found!');
    }
 
    /**
@@ -183,12 +199,16 @@ export class BaseFormScreen
       setTimeout(() =>
       {
          const element = document.getElementById(elementId);
+
          if (element)
          {
             element.focus();
+
             if (select && element.select)
                element.select();
          }
+         else
+            throw new Error('BaseFormScreen: Element not found!');
       }, 100);
    }
 
@@ -200,25 +220,29 @@ export class BaseFormScreen
    prefillInput(elementId, value)
    {
       const element = document.getElementById(elementId);
-      if (element && value)
-         element.value = value;
+
+      if (element)
+      {
+         if (value)
+            element.value = value;
+         else
+            element.value = '';
+      }
+      else
+         throw new Error('BaseFormScreen: Element not found!');
    }
 
    /**
-    * Update button state (disabled/enabled and text)
-    * @param {string} buttonId - ID of the button
-    * @param {boolean} disabled - Whether button should be disabled
-    * @param {string} text - Button text (optional)
-    */
-   updateButtonState(buttonId, disabled, text)
+    * Update button and input state (disabled/enabled and text)
+    * @param {boolean} loading - Whether the view is loading
+    * @param {string} email - Email to prefill
+   */
+   updateViewState(loading, email)
    {
-      const button = document.getElementById(buttonId);
-      if (button)
-      {
-         button.disabled = disabled;
-         if (text !== undefined)
-            button.textContent = text;
-      }
+      this.inputControls.forEach(control => control.disabled = loading);
+
+      if (email)
+         this.prefillInput('login-email', email);
    }
 
    /**
@@ -227,6 +251,9 @@ export class BaseFormScreen
    dispose()
    {
       this.unregisterEventHandlers();
+
+      this.inputControls = [];
+
       if (this.container && this.container.parentNode)
          this.container.parentNode.removeChild(this.container);
    }

@@ -42,23 +42,14 @@ export class UIController
     */
    initializeEventListeners()
    {
-      
       eventBus.on('system:assetLoaded', this.handleAssetLoaded.bind(this));
       eventBus.on('system:assetLoading', this.handleAssetLoading.bind(this));
-      // eventBus.on('system:loginResponse', this.handleLoginResponse.bind(this));
       eventBus.on('ui:showScreen', this.handleShowScreen.bind(this));
    }
 
    handleShowScreen(event)
    {
-      console.log('🔐 UIController: Show screen:', event);
-
       this.showScreen(event.request);
-   }
-
-   handleLoginResponse(event) // may need to drop this
-   {
-      console.log('🔐 UIController: Login response:', event, event.response);
    }
 
    handleAssetLoaded(event)
@@ -69,11 +60,6 @@ export class UIController
    handleAssetLoading(event)
    {
       console.log('🔐 UIController: Asset loading:', event, event.response);
-   }
-
-   handleSystemReady(event)
-   {
-      console.log('🔐 UIController: System ready:', event, event.response);
    }
 
    registerScreen(key, screen)
@@ -104,7 +90,6 @@ export class UIController
    {
       eventBus.off('system:assetLoaded', this.handleAssetLoaded.bind(this));
       eventBus.off('system:assetLoading', this.handleAssetLoading.bind(this));
-      eventBus.off('system:loginResponse', this.handleLoginResponse.bind(this));
       eventBus.off('ui:showScreen', this.handleShowScreen.bind(this));
    }
 }

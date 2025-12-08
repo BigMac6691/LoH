@@ -99,8 +99,6 @@ export class SystemEventHandler
          .catch(error =>
          {
             console.error('Login error:', error);
-            console.log('Login error body:', error.body);
-            console.log(error instanceof ApiError ? 'ApiError' : 'Not ApiError');
 
             response = new ApiResponse('system:loginResponse', {email: event.request.email}, 401, error.body);
          })
@@ -108,7 +106,9 @@ export class SystemEventHandler
          {
             console.log('Login finally', response);
 
-            eventBus.emit('system:loginResponse', response);
+            setTimeout(() => { eventBus.emit('system:loginResponse', response); }, 5000); // simulate network delay
+
+            // eventBus.emit('system:loginResponse', response);
          });
    }
 

@@ -29,14 +29,19 @@ export class RegisterScreen extends BaseFormScreen
          this.handleRegistrationSubmit();
       });
 
+      // Add input fields to controls
+      this.inputControls.add(registerForm.querySelector('#register-submit-btn'));
+      this.inputControls.add(registerForm.querySelector('#register-email'));
+      this.inputControls.add(registerForm.querySelector('#register-display-name'));
+      this.inputControls.add(registerForm.querySelector('#register-password'));
+      this.inputControls.add(registerForm.querySelector('#register-password-confirm'));
+
       const backLink = registerForm.querySelector('#back-to-login-link');
-      backLink.addEventListener('click', (e) =>
-      {
-         e.preventDefault();
-         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
-            targetScreen: 'login'
-         }));
-      });
+      this.inputControls.add(backLink);
+      backLink.addEventListener('click', () => { eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'login'})); });
+
+      if(this.inputControls.has(undefined))
+         throw new Error('RegisterScreen: Input controls incomplete!');
 
       content.appendChild(registerForm);
    }
@@ -58,16 +63,16 @@ export class RegisterScreen extends BaseFormScreen
             this.focusInput('register-email');
          }
       }
+      else
+         throw new Error('RegisterScreen: Email input not found!');
    }
 
-   async handleRegistrationSubmit()
+   handleRegistrationSubmit()
    {
       const emailInput = document.getElementById('register-email');
       const displayNameInput = document.getElementById('register-display-name');
       const passwordInput = document.getElementById('register-password');
       const passwordConfirmInput = document.getElementById('register-password-confirm');
-      const submitBtn = document.getElementById('register-submit-btn');
-      const errorDiv = document.getElementById('register-error');
 
       const email = emailInput.value.trim();
       const displayName = displayNameInput.value.trim();
@@ -104,7 +109,8 @@ export class RegisterScreen extends BaseFormScreen
          return;
       }
 
-      this.updateButtonState('register-submit-btn', true, 'Registering... ⭐');
+      // Disable all inputs during submission
+      this.updateViewState(true, email);
 
       // Store request data for auto-login later
       const requestData = { email, password, displayName };
@@ -114,7 +120,8 @@ export class RegisterScreen extends BaseFormScreen
 
    handleRegisterResponse(event)
    {
-      this.updateButtonState('register-submit-btn', false, 'Register! ⭐');
+      // Re-enable all inputs after response
+      this.updateViewState(false, event.response?.email);
 
       if (event.isSuccess())
       {
@@ -124,15 +131,14 @@ export class RegisterScreen extends BaseFormScreen
          this.showRegistrationSuccess(event.response, email, password);
       }
       else
-      {
          this.handleRegistrationFailure(event.error);
-      }
    }
 
    showRegistrationSuccess(data, email, password)
    {
       const registerForm = document.getElementById('registration-form');
-      if (!registerForm) return;
+      if (!registerForm) 
+         throw new Error('RegisterScreen: Registration form not found!');
 
       let message = data?.message || 'Registration successful! Logging you in...';
       
@@ -153,21 +159,9 @@ export class RegisterScreen extends BaseFormScreen
 
       // Attempt auto-login
       if (email && password)
-      {
-         setTimeout(() =>
-         {
-            eventBus.emit('system:loginRequest', new ApiRequest('system:loginRequest', {email, password}));
-         }, 1000);
-      }
+         setTimeout(() => { eventBus.emit('system:loginRequest', new ApiRequest('system:loginRequest', {email, password})); }, 1000);
       else
-      {
-         setTimeout(() =>
-         {
-            eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
-               targetScreen: 'login'
-            }));
-         }, 2000);
-      }
+         setTimeout(() => { eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'login'})); }, 2000);
    }
 
    handleRegistrationFailure(data)
@@ -181,12 +175,7 @@ export class RegisterScreen extends BaseFormScreen
       else if (data?.error === 'MISSING_FIELDS')
          errorMessage = 'Please fill in all required fields.';
 
-      this.showRegistrationError(errorMessage);
-   }
-
-   showRegistrationError(message)
-   {
-      this.showError('register-error', message);
+      this.showError('register-error', errorMessage);
    }
 }
 
@@ -267,7 +256,7 @@ const registerHTML = `
   </div>
   
   <div class="login-links" style="margin-top: 15px; text-align: center;">
-    <a href="#" id="back-to-login-link" class="login-link">← Back to Login</a>
+    <button type="button" id="back-to-login-link" class="login-link">← Back to Login</button>
   </div>
 </form>
 `;

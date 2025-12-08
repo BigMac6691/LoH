@@ -25,8 +25,17 @@ export class RecoverScreen extends BaseFormScreen
 
       const requestForm = recoverForm.querySelector('#recovery-request-form');
       const resetForm = recoverForm.querySelector('#recovery-reset-form');
+      this.inputControls.add(resetForm);
       const backLink = recoverForm.querySelector('#recovery-back-link');
-
+      this.inputControls.add(backLink);
+      
+      // Add input fields to controls
+      this.inputControls.add(recoverForm.querySelector('#recovery-request-btn'));
+      this.inputControls.add(recoverForm.querySelector('#recovery-email'));
+      this.inputControls.add(recoverForm.querySelector('#recovery-token'));
+      this.inputControls.add(recoverForm.querySelector('#recovery-new-password'));
+      this.inputControls.add(recoverForm.querySelector('#recovery-confirm-password'));
+      
       requestForm.addEventListener('submit', (e) =>
       {
          e.preventDefault();
@@ -39,13 +48,15 @@ export class RecoverScreen extends BaseFormScreen
          this.handlePasswordReset();
       });
 
-      backLink.addEventListener('click', (e) =>
+      backLink.addEventListener('click', () =>
       {
-         e.preventDefault();
          eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
             targetScreen: 'login'
          }));
       });
+
+      if(this.inputControls.has(undefined))
+         throw new Error('RecoverScreen: Input controls incomplete!');
 
       content.appendChild(recoverForm);
    }
@@ -78,6 +89,8 @@ export class RecoverScreen extends BaseFormScreen
                setTimeout(() => emailInput.focus(), 100);
             }
          }
+         else
+            throw new Error('RecoverScreen: Email input not found!');
       }
    }
 
@@ -88,13 +101,13 @@ export class RecoverScreen extends BaseFormScreen
          this.container.style.display = 'none';
          this.isVisible = false;
       }
+      else
+         throw new Error('RecoverScreen: Container not found!');
    }
 
    async handleRecoveryRequest()
    {
       const emailInput = document.getElementById('recovery-email');
-      const submitBtn = document.getElementById('recovery-request-btn');
-      const errorDiv = document.getElementById('recovery-error');
       const successDiv = document.getElementById('recovery-success');
 
       const email = emailInput.value.trim();
@@ -106,17 +119,17 @@ export class RecoverScreen extends BaseFormScreen
          return;
       }
 
-      this.updateButtonState('recovery-request-btn', true, 'Sending...');
+      this.updateViewState(true, email);
 
       eventBus.emit('system:recoverRequest', new ApiRequest('system:recoverRequest', {email}));
    }
 
    handleRecoverResponse(event)
    {
-      const errorDiv = document.getElementById('recovery-error');
       const successDiv = document.getElementById('recovery-success');
 
-      this.updateButtonState('recovery-request-btn', false, 'Request Recovery Token 🔓');
+      // Re-enable all inputs after response
+      this.updateViewState(false, event.response?.email);
 
       if (event.isSuccess())
       {
@@ -139,7 +152,6 @@ export class RecoverScreen extends BaseFormScreen
       const tokenInput = document.getElementById('recovery-token');
       const newPasswordInput = document.getElementById('recovery-new-password');
       const confirmPasswordInput = document.getElementById('recovery-confirm-password');
-      const submitBtn = document.getElementById('recovery-reset-btn');
       const errorDiv = document.getElementById('recovery-error');
       const successDiv = document.getElementById('recovery-success');
 
@@ -172,12 +184,9 @@ export class RecoverScreen extends BaseFormScreen
          return;
       }
 
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Resetting...';
+      this.updateViewState(true, null);
 
-      eventBus.emit('system:resetPasswordRequest', new ApiRequest('system:resetPasswordRequest', {
-         token, newPassword
-      }));
+      eventBus.emit('system:resetPasswordRequest', new ApiRequest('system:resetPasswordRequest', { token, newPassword }));
    }
 
    handleResetPasswordResponse(event)
@@ -185,10 +194,10 @@ export class RecoverScreen extends BaseFormScreen
       const tokenInput = document.getElementById('recovery-token');
       const newPasswordInput = document.getElementById('recovery-new-password');
       const confirmPasswordInput = document.getElementById('recovery-confirm-password');
-      const errorDiv = document.getElementById('recovery-error');
       const successDiv = document.getElementById('recovery-success');
 
-      this.updateButtonState('recovery-reset-btn', false, 'Reset Password 🔓');
+      // Re-enable all inputs after response
+      this.updateViewState(false, null);
 
       if (event.isSuccess())
       {
@@ -200,12 +209,7 @@ export class RecoverScreen extends BaseFormScreen
          newPasswordInput.value = '';
          confirmPasswordInput.value = '';
 
-         setTimeout(() =>
-         {
-            eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
-               targetScreen: 'login'
-            }));
-         }, 2000);
+         setTimeout(() => { eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'login'})); }, 2000);
       }
       else
       {
@@ -298,7 +302,7 @@ const recoveryHTML = `
   </form>
 </div>
 <div class="login-links" style="margin-top: 20px; text-align: center;">
-  <a href="#" id="recovery-back-link" class="login-link">← Back to Login</a>
+  <button type="button" id="recovery-back-link" class="login-link">← Back to Login</button>
 </div>
 `;
 

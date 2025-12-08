@@ -304,14 +304,36 @@
   padding: 8px 15px;
   border-radius: 8px;
   border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
 }
 
-.login-link:hover {
+/* Make buttons with login-link class look like links */
+button.login-link {
+  color: var(--color-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  transition: all 0.3s ease;
+  padding: 8px 15px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.login-link:hover:not(:disabled) {
   color: var(--color-primary);
   text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
   border-color: var(--color-secondary);
   background: rgba(0, 255, 255, 0.1);
   transform: translateX(5px);
+}
+
+.login-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Responsive Design */

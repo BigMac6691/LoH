@@ -770,10 +770,10 @@ export class ShipSummaryDialog extends BaseDialog
          updatedStandingOrders.move = null; // Set to null to signal deletion
 
          // Update standing orders - backend will remove null properties
+         // playerId is derived from authenticated user on backend
          const result = await RB.fetchPost('/api/orders/standing', {
             gameId: this.currentGameId,
             starId: starId,
-            playerId: this.currentPlayerId,
             standingOrders: updatedStandingOrders
          });
          console.log('🚢 ShipSummaryDialog: Standing order cancelled successfully:', result);

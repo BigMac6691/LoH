@@ -29,27 +29,29 @@ export class LoginScreen extends BaseFormScreen
          this.handleLogin();
       });
 
+      // Add input fields to controls
+      this.inputControls.add(loginForm.querySelector('#login-submit-btn'));
+      this.inputControls.add(loginForm.querySelector('#login-email'));
+      this.inputControls.add(loginForm.querySelector('#login-password'));
+
       const recoverLink = loginForm.querySelector('#recover-link');
-      recoverLink.addEventListener('click', (e) =>
+      this.inputControls.add(recoverLink);
+      recoverLink.addEventListener('click', () =>
       {
-         e.preventDefault();
          const email = document.getElementById('login-email')?.value.trim() || '';
-         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
-            targetScreen: 'recover',
-            parameters: email ? { email } : {}
-         }));
+         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'recover', parameters: email ? { email } : {}}));
       });
 
       const registerLink = loginForm.querySelector('#register-link');
-      registerLink.addEventListener('click', (e) =>
+      this.inputControls.add(registerLink);
+      registerLink.addEventListener('click', () =>
       {
-         e.preventDefault();
          const email = document.getElementById('login-email')?.value.trim() || '';
-         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
-            targetScreen: 'register',
-            parameters: email ? { email } : {}
-         }));
+         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'register', parameters: email ? { email } : {}}));
       });
+      
+      if(this.inputControls.has(undefined))
+         throw new Error('LoginScreen: Input controls incomplete!');
 
       content.appendChild(loginForm);
    }
@@ -72,8 +74,7 @@ export class LoginScreen extends BaseFormScreen
 
       if (!password || password.trim().length === 0)
       {
-         this.showErrorWithLinks('login-error', 'Password is required. If you forgot your password, please use password recovery.', 
-            {recover: true, email: email});
+         this.showErrorWithLinks('login-error', 'Password is required. If you forgot your password, please use password recovery.', {recover: true, email: email});
          return;
       }
 
@@ -87,26 +88,15 @@ export class LoginScreen extends BaseFormScreen
       this.updateViewState(false, event.response?.email);
 
       if (event.isSuccess())
-         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
-            targetScreen: 'home'
-         }));
+         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'home'}));
       else
          this.handleLoginFailure(event.error, event.response?.email);
-   }
-
-   updateViewState(loading, email)
-   {
-      this.updateButtonState('login-submit-btn', loading, loading ? 'Launching... 🚀' : 'Launch! 🚀');
-      
-      if (email)
-         this.prefillInput('login-email', email);
    }
 
    handleLoginFailure(data, email)
    {
       if (data?.error === 'PASSWORD_REQUIRED')
-         this.showErrorWithLinks('login-error', data.message || 'Password is required. If you forgot your password, please use password recovery.', 
-            {recover: true, email: email});
+         this.showErrorWithLinks('login-error', data.message || 'Password is required. If you forgot your password, please use password recovery.', {recover: true, email: email});
       else if (data?.errorType === 1 || data?.error === 'INVALID_PASSWORD')
          this.showErrorWithLinks('login-error', 'Login failed. Incorrect password.', {recover: true, email: email});
       else if (data?.errorType === 2 || data?.error === 'USER_NOT_FOUND')
@@ -123,17 +113,21 @@ export class LoginScreen extends BaseFormScreen
     */
    showErrorWithLinks(errorId, message, links = null)
    {
-      const errorDiv = document.getElementById('login-error');
-      if (!errorDiv) return;
+      const errorDiv = document.getElementById(errorId);
+      if (!errorDiv) 
+         throw new Error('LoginScreen: Error div not found!');
 
       let errorHtml = message;
       if (links)
       {
          let linkHtml = '<div class="error-links" style="margin-top: 10px; display: flex; flex-direction: row; gap: 20px; justify-content: center;">';
+
          if (links.recover)
             linkHtml += `<a href="#" id="error-recover-link" class="login-link">🔓 Recover Password</a>`;
+
          if (links.register)
             linkHtml += `<a href="#" id="error-register-link" class="login-link">⭐ New Commander?</a>`;
+
          linkHtml += '</div>';
          errorHtml += linkHtml;
       }
@@ -147,36 +141,24 @@ export class LoginScreen extends BaseFormScreen
          if (links.recover)
          {
             const recoverLink = errorDiv.querySelector('#error-recover-link');
+
             if (recoverLink)
-            {
-               recoverLink.addEventListener('click', (e) =>
-               {
-                  e.preventDefault();
-                  eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
-                     targetScreen: 'recover',
-                     parameters: links.email ? { email: links.email } : {}
-                  }));
-               });
-            }
+               recoverLink.addEventListener('click', () => { eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'recover', parameters: links.email ? { email: links.email } : {}})); });
+            else
+               throw new Error('LoginScreen: Recover link not found!');
          }
+
          if (links.register)
          {
             const registerLink = errorDiv.querySelector('#error-register-link');
+            
             if (registerLink)
-            {
-               registerLink.addEventListener('click', (e) =>
-               {
-                  e.preventDefault();
-                  eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
-                     targetScreen: 'register',
-                     parameters: links.email ? { email: links.email } : {}
-                  }));
-               });
-            }
+               registerLink.addEventListener('click', () => { eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'register', parameters: links.email ? { email: links.email } : {}})); });
+            else
+               throw new Error('LoginScreen: Register link not found!');
          }
       }
    }
-
 }
 
 const loginHTML = `
@@ -222,8 +204,8 @@ const loginHTML = `
   </div>
   
   <div class="login-links" id="login-links" style="display: flex; flex-direction: row; gap: 20px; justify-content: center;">
-    <a href="#" id="recover-link" class="login-link">🔓 Forgot Password?</a>
-    <a href="#" id="register-link" class="login-link">✨ New Commander?</a>
+    <button type="button" id="recover-link" class="login-link">🔓 Forgot Password?</button>
+    <button type="button" id="register-link" class="login-link">✨ New Commander?</button>
   </div>
 </form>
 `;
