@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { eventBus } from '../eventBus.js';
-import { ApiResponse } from '../events/Events.js';
+import { ApiRequest, ApiResponse } from '../events/Events.js';
 import { ApiError } from '../utils/RequestBuilder.js';
 
 /**
@@ -32,14 +32,17 @@ export class AssetManager
    {
       console.log('🔐 AssetManager: Loading assets:', event);
 
-      switch (event.request.type)
+      if(!(event instanceof ApiRequest))
+         throw new Error('AssetManager: Invalid event type');
+
+      switch (event.data.type)
       {
          case 'font':
-            return this.loadFont(event.request.asset);
+            return this.loadFont(event.data.asset);
          case 'gltf':
-            return this.loadGLTF(event.request.asset);
+            return this.loadGLTF(event.data.asset);
          default:
-            throw new Error(`Unknown asset type: ${event.request.type}`);
+            throw new Error(`Unknown asset type: ${event.data.type}`);
       }
    }
 

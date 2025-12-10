@@ -238,6 +238,17 @@
   color: #ff4444;
 }
 
+.status-message.status-reject {
+  color: #ff4444;
+  font-weight: bold;
+}
+
+.status-message.status-fatal {
+  color: #ffffff;
+  font-weight: bold;
+  background: #ff4444;
+}
+
 .status-message.status-warning {
   color: #ffa500;
 }

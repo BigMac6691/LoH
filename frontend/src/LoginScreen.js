@@ -85,12 +85,12 @@ export class LoginScreen extends BaseFormScreen
    handleLoginResponse(event)
    {
       console.log('🔐 LoginScreen: Login response:', event);
-      this.updateViewState(false, event.response?.email);
+      this.updateViewState(false, event.data?.email);
 
       if (event.isSuccess())
          eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'home'}));
       else
-         this.handleLoginFailure(event.error, event.response?.email);
+         this.handleLoginFailure(event.error, event.data?.email);
    }
 
    handleLoginFailure(data, email)
@@ -151,7 +151,7 @@ export class LoginScreen extends BaseFormScreen
          if (links.register)
          {
             const registerLink = errorDiv.querySelector('#error-register-link');
-            
+
             if (registerLink)
                registerLink.addEventListener('click', () => { eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'register', parameters: links.email ? { email: links.email } : {}})); });
             else

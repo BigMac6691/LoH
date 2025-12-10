@@ -13,6 +13,9 @@ import { UserManagerView } from './components/UserManagerView.js';
 import { ManageNewsEventsView } from './components/ManageNewsEventsView.js';
 import { CreateGameView } from './components/CreateGameView.js';
 import { RB } from './utils/RequestBuilder.js';
+import { ApiRequest } from './events/Events.js';
+import { eventBus } from './eventBus.js';
+import { Utils } from './utils/Utils.js';
 
 export class HomePage
 {
@@ -27,28 +30,13 @@ export class HomePage
       this.currentView = null;
       this.currentViewInstance = null;
 
-      this.userRole = localStorage.getItem('user_role') || 'visitor';
-      this.displayName = localStorage.getItem('user_display_name') || localStorage.getItem('user_email') || 'Commander';
-      this.emailVerified = localStorage.getItem('user_email_verified') === 'true';
+      this.displayName = null;
+      this.userRole = null;
+      this.emailVerified = null;
 
-      this.init();
-   }
-
-   /**
-    * Initialize and show the home page
-    */
-   init()
-   {
       this.createHomePage();
-
-      // Show News and Events by default
-      // this.showView('news-events');
-      // this.setActiveMenuItem('news-events');
    }
 
-   /**
-    * Create the home page DOM structure
-    */
    createHomePage()
    {
       this.container = document.createElement('div');
@@ -71,16 +59,18 @@ export class HomePage
          this.utcClock = new UTClock(clockElement);
          this.utcClock.init();
       }
+      else
+         throw new Error('HomePage: UTC clock element not found!');
    }
 
-   /**
-    * Refresh header (updates role from localStorage)
-    */
    refreshHeader()
    {
       // Update role from localStorage
-      this.userRole = localStorage.getItem('user_role') || 'player';
-      this.displayName = localStorage.getItem('user_display_name') || localStorage.getItem('user_email') || 'Commander';
+      this.userRole = localStorage.getItem('user_role') || 'visitor';
+      this.displayName = localStorage.getItem('user_display_name');
+
+      if (!this.displayName)
+         throw new Error('HomePage: Display name not found!');
 
       // Update role badge if header exists
       if (this.header)
@@ -91,12 +81,17 @@ export class HomePage
             roleBadge.className = `role-badge role-${this.userRole}`;
             roleBadge.textContent = this.userRole;
          }
+         else
+            throw new Error('HomePage: Role badge not found!');
+
          const playerName = this.header.querySelector('.player-name');
          if (playerName)
-         {
-            playerName.textContent = this.escapeHtml(this.displayName);
-         }
+            playerName.textContent = Utils.escapeHtml(this.displayName);
+         else
+            throw new Error('HomePage: Player name not found!');
       }
+      else
+         throw new Error('HomePage: Header not found!');
    }
 
    /**
@@ -111,8 +106,8 @@ export class HomePage
         <span class="utc-clock"></span>
       </div>
       <div class="header-center">
-        <span class="player-name">${this.escapeHtml(this.displayName)}</span>
-        <span class="role-badge role-${this.userRole}">${this.userRole}</span>
+        <span class="player-name">name</span>
+        <span class="role-badge role-visitor">role</span>
       </div>
       <div class="header-right">
         <button class="logoff-btn" id="logoff-btn">Logoff</button>
@@ -124,9 +119,9 @@ export class HomePage
       // Add logoff button handler
       const logoffBtn = this.header.querySelector('#logoff-btn');
       if (logoffBtn)
-      {
          logoffBtn.addEventListener('click', () => this.handleLogoff());
-      }
+      else
+         throw new Error('HomePage: Logoff button not found!');
    }
 
    /**
@@ -158,134 +153,53 @@ export class HomePage
     */
    refreshSidebar()
    {
-      // Update role and emailVerified from localStorage
-      this.userRole = localStorage.getItem('user_role') || 'player';
-      this.emailVerified = localStorage.getItem('user_email_verified') === 'true';
+      this.userRole = localStorage.getItem('user_role') || 'visitor';
 
       // Recreate the sidebar
       if (this.sidebar)
       {
          const currentView = this.sidebar.querySelector('.menu-item.active')?.getAttribute('data-view');
+
          this.createSidebar();
+
          // Restore active menu item if it still exists
          if (currentView)
          {
             const menuItem = this.sidebar.querySelector(`[data-view="${currentView}"]`);
+
             if (menuItem)
-            {
                this.setActiveMenuItem(currentView);
-            }
             else
-            {
-               // If the current view is no longer available, default to news-events
                this.setActiveMenuItem('news-events');
-               this.showView('news-events');
-            }
          }
+         else
+            this.setActiveMenuItem('news-events');
       }
+      else
+         throw new Error('HomePage: Sidebar not found!');
    }
 
-   /**
-    * Create sidebar menu
-    */
    createSidebar()
    {
       // If sidebar already exists, clear it
       if (this.sidebar)
-      {
          this.sidebar.innerHTML = '';
-      }
       else
       {
          this.sidebar = document.createElement('div');
          this.sidebar.className = 'home-sidebar';
       }
 
-      const menuItems = [
-         {
-            id: 'player-profile',
-            label: 'Player Profile',
-            icon: '👤',
-            roles: ['visitor', 'player', 'sponsor', 'admin', 'owner']
-         },
-         {
-            id: 'news-events',
-            label: 'News and Events',
-            icon: '📰',
-            roles: ['visitor', 'player', 'sponsor', 'admin', 'owner']
-         },
-         {
-            id: 'rules',
-            label: 'Rules/Instructions',
-            icon: '📖',
-            roles: ['visitor', 'player', 'sponsor', 'admin', 'owner']
-         },
-         // Game-related items require verified email (not visitor)
-         {
-            id: 'games-playing',
-            label: 'Games Playing',
-            icon: '🎮',
-            roles: ['player', 'sponsor', 'admin', 'owner'],
-            requiresVerified: true
-         },
-         {
-            id: 'games-available',
-            label: 'Games Available',
-            icon: '🔍',
-            roles: ['player', 'sponsor', 'admin', 'owner'],
-            requiresVerified: true
-         },
-         {
-            id: 'create-game',
-            label: 'Create Game',
-            icon: '✨',
-            roles: ['sponsor', 'admin', 'owner'],
-            requiresVerified: true
-         },
-         {
-            id: 'manage-games',
-            label: 'Manage Games',
-            icon: '⚙️',
-            roles: ['sponsor', 'admin', 'owner'],
-            requiresVerified: true
-         },
-         {
-            id: 'user-manager',
-            label: 'User Manager',
-            icon: '👥',
-            roles: ['admin', 'owner']
-         },
-         {
-            id: 'manage-news-events',
-            label: 'Manage News and Events',
-            icon: '✏️',
-            roles: ['admin', 'owner']
-         },
-      ];
-
+      // menuItems array is defined at the bottom of the file
       const menuHtml = menuItems
-         .filter(item =>
-         {
-            // Check role access
-            if (!item.roles.includes(this.userRole))
-            {
-               return false;
-            }
-            // Check if verified email is required
-            // Hide game-related items for visitors OR any unverified users (regardless of role)
-            // This ensures all users verify their email before accessing games
-            if (item.requiresVerified && (this.userRole === 'visitor' || !this.emailVerified))
-            {
-               return false;
-            }
-            return true;
-         })
-         .map(item => `
-        <div class="menu-item" data-view="${item.id}">
-          <span class="menu-icon">${item.icon}</span>
-          <span class="menu-label">${this.escapeHtml(item.label)}</span>
-        </div>
-      `).join('');
+         .filter(item => item.roles.includes(this.userRole))
+         .map(item => 
+         `
+         <div class="menu-item" data-view="${item.id}">
+            <span class="menu-icon">${item.icon}</span>
+            <span class="menu-label">${Utils.escapeHtml(item.label)}</span>
+         </div>
+         `).join('');
 
       this.sidebar.innerHTML = `<div class="menu-items">${menuHtml}</div>`;
 
@@ -301,14 +215,10 @@ export class HomePage
       });
    }
 
-
-   /**
-    * Set the active menu item
-    */
    setActiveMenuItem(viewId)
    {
       if (!this.sidebar) 
-         return;
+         throw new Error('HomePage: Sidebar not found!');
 
       this.sidebar.querySelectorAll('.menu-item').forEach(mi =>
       {
@@ -319,20 +229,15 @@ export class HomePage
       });
    }
 
-   /**
-    * Show a specific view in the main content area
-    */
    showView(viewId)
    {
       if (!this.mainContent) 
-         return;
+         throw new Error('HomePage: Main content not found!');
 
       // Clean up current view
       if (this.currentViewInstance)
       {
-         if (this.currentViewInstance.dispose)
-            this.currentViewInstance.dispose();
-
+         this.currentViewInstance.dispose();
          this.currentViewInstance = null;
       }
 
@@ -341,6 +246,7 @@ export class HomePage
       // Find or create view container (preserve status component)
       const statusContainer = this.statusComponent.getContainer();
       let viewContainer = this.mainContent.querySelector('.view-container');
+
       if (!viewContainer)
       {
          viewContainer = document.createElement('div');
@@ -408,9 +314,6 @@ export class HomePage
       }
    }
 
-   /**
-    * Handle logoff button click
-    */
    async handleLogoff()
    {
       const refreshToken = localStorage.getItem('refresh_token');
@@ -435,49 +338,37 @@ export class HomePage
       localStorage.removeItem('user_role');
 
       // Hide home page
-      this.hide();
-
-      // Show splash screen
-      if (window.splashScreen)
-      {
-         window.splashScreen.show();
-         window.splashScreen.showLoginForm();
-      }
-      else
-         // Reload page if splash screen not available
-         window.location.reload();
+      eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'splash'}));
    }
 
-   /**
-    * Show the home page
-    */
    show()
    {
       console.log('🔐 HomePage: Showing home page', this.currentViewInstance);
-      
+
       if (this.container)
          this.container.style.display = 'flex';
+      else
+         throw new Error('HomePage: Container not found!');
 
-      if (!this.currentViewInstance)
+      this.userRole = localStorage.getItem('user_role') || 'visitor';
+      this.displayName = localStorage.getItem('user_display_name');
+      this.emailVerified = localStorage.getItem('user_email_verified') === 'true';
+
+      this.refreshHeader();
+      this.refreshSidebar();
+
+      if (!this.currentViewInstance) // necessary to show the first view
       {
          this.showView('news-events');
          this.setActiveMenuItem('news-events');
-      }
-         
+      }   
    }
 
-   /**
-    * Hide the home page
-    */
    hide()
    {
-      if (this.container)
-         this.container.style.display = 'none';
+      this.container.style.display = 'none';
    }
 
-   /**
-    * Clean up
-    */
    dispose()
    {
       if (this.utcClock)
@@ -502,18 +393,63 @@ export class HomePage
       this.currentViewInstance = null;
       this.uiController = null;
    }
-
-   /**
-    * Escape HTML to prevent XSS
-    */
-   escapeHtml(text)
-   {
-      if (!text) 
-        return '';
-
-      const div = document.createElement('div');
-      div.textContent = text;
-      
-      return div.innerHTML;
-   }
 }
+
+const menuItems = 
+[
+   {
+      id: 'player-profile',
+      label: 'Player Profile',
+      icon: '👤',
+      roles: ['visitor', 'player', 'sponsor', 'admin', 'owner']
+   },
+   {
+      id: 'news-events',
+      label: 'News and Events',
+      icon: '📰',
+      roles: ['visitor', 'player', 'sponsor', 'admin', 'owner']
+   },
+   {
+      id: 'rules',
+      label: 'Rules/Instructions',
+      icon: '📖',
+      roles: ['visitor', 'player', 'sponsor', 'admin', 'owner']
+   },
+   // Game-related items require verified email (not visitor)
+   {
+      id: 'games-playing',
+      label: 'Games Playing',
+      icon: '🎮',
+      roles: ['player', 'sponsor', 'admin', 'owner']
+   },
+   {
+      id: 'games-available',
+      label: 'Games Available',
+      icon: '🔍',
+      roles: ['player', 'sponsor', 'admin', 'owner']
+   },
+   {
+      id: 'create-game',
+      label: 'Create Game',
+      icon: '✨',
+      roles: ['sponsor', 'admin', 'owner']
+   },
+   {
+      id: 'manage-games',
+      label: 'Manage Games',
+      icon: '⚙️',
+      roles: ['sponsor', 'admin', 'owner']
+   },
+   {
+      id: 'user-manager',
+      label: 'User Manager',
+      icon: '👥',
+      roles: ['admin', 'owner']
+   },
+   {
+      id: 'manage-news-events',
+      label: 'Manage News and Events',
+      icon: '✏️',
+      roles: ['admin', 'owner']
+   },
+];

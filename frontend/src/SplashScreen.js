@@ -2,7 +2,7 @@
  * SplashScreen - Loading screen that appears while assets load
  * Shows a cartoon-style loading animation, then a continue button once assets are ready
  */
-import { ApiRequest } from './events/Events.js';
+import { ApiEvent } from './events/Events.js';
 import { eventBus } from './eventBus.js';
 
 export class SplashScreen
@@ -77,12 +77,7 @@ export class SplashScreen
             cursor: pointer;
          `;
          
-         this.continueButton.addEventListener('click', () =>
-         {
-            eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
-               targetScreen: 'login'
-            }));
-         });
+         this.continueButton.addEventListener('click', () => { eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'login'})); });
 
          const content = this.container.querySelector('.splash-content');
          if (content)

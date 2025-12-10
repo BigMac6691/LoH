@@ -121,14 +121,14 @@ export class RegisterScreen extends BaseFormScreen
    handleRegisterResponse(event)
    {
       // Re-enable all inputs after response
-      this.updateViewState(false, event.response?.email);
+      this.updateViewState(false, event.data.email);
 
       if (event.isSuccess())
       {
          // Get email and password from the original request
-         const email = event.request?.email;
-         const password = event.request?.password;
-         this.showRegistrationSuccess(event.response, email, password);
+         const email = event.data.email;
+         const password = event.data.password;
+         this.showRegistrationSuccess(event.data, email, password);
       }
       else
          this.handleRegistrationFailure(event.error);

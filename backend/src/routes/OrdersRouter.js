@@ -161,9 +161,12 @@ export class OrdersRouter
           `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
           [gameId, req.user.id]
         );
-        if (playerRows.length > 0) {
-          playerId = playerRows[0].id;
+        if (playerRows.length === 0) {
+          return res.status(404).json({
+            error: 'Player not found in this game'
+          });
         }
+        playerId = playerRows[0].id;
       } else {
         // Verify provided playerId belongs to authenticated user
         const { rows: playerRows } = await pool.query(
@@ -219,9 +222,12 @@ export class OrdersRouter
           `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
           [gameId, req.user.id]
         );
-        if (playerRows.length > 0) {
-          playerId = playerRows[0].id;
+        if (playerRows.length === 0) {
+          return res.status(404).json({
+            error: 'Player not found in this game'
+          });
         }
+        playerId = playerRows[0].id;
       } else {
         // Verify provided playerId belongs to authenticated user
         const { rows: playerRows } = await pool.query(

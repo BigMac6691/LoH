@@ -13,14 +13,6 @@ export class SystemEventHandler
    {
       this.userLoggedIn = false;
 
-      this.setupEventListeners();
-   }
-
-   /**
-    * Set up event listeners for system events
-    */
-   setupEventListeners()
-   {
       eventBus.on('system:loginRequest', this.handleLoginRequest.bind(this));
       eventBus.on('system:registerRequest', this.handleRegisterRequest.bind(this));
       eventBus.on('system:recoverRequest', this.handleRecoverRequest.bind(this));
@@ -35,7 +27,7 @@ export class SystemEventHandler
     */
    handleAllAssetsLoaded(event)
    {
-      console.log('🔐 SystemEventHandler: All assets loaded:', event, event.response);
+      console.log('🔐 SystemEventHandler: All assets loaded:', event, event.data);
 
       if (!this.userLoggedIn)
          eventBus.emit('system:systemReady', new ApiEvent('system:systemReady'));
@@ -47,6 +39,9 @@ export class SystemEventHandler
     */
    handleLoginResponse(event)
    {
+      if(!(event instanceof ApiResponse))
+         throw new Error('SystemEventHandler: Invalid event type');
+
       if (event.isSuccess())
       {
          webSocketManager.connect();
@@ -62,15 +57,18 @@ export class SystemEventHandler
    {
       console.log('🔐 SystemEventHandler: Processing login for user:', event);
 
+      if(!(event instanceof ApiRequest))
+         throw new Error('SystemEventHandler: Invalid event type');
+
       let response = null;
 
       // Attempt login via API - move this to SystemEventHandler
-      RB.fetchPostUnauthenticated('/api/auth/login', {...event.request})
+      RB.fetchPostUnauthenticated('/api/auth/login', {...event.data})
          .then(success =>
          {
             console.log('Login success:', success);
 
-            response = new ApiResponse('system:loginResponse', {email: event.request.email}, 200);
+            response = event.prepareResponse('system:loginResponse', {email: event.data.email}, 200);
 
             // Store JWT tokens if provided
             if (success.accessToken)
@@ -95,18 +93,20 @@ export class SystemEventHandler
             }
 
             this.userLoggedIn = true;
+            eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Login successful!', type: 'success'}));
          })
          .catch(error =>
          {
             console.error('Login error:', error);
 
-            response = new ApiResponse('system:loginResponse', {email: event.request.email}, 401, error.body);
+            response = event.prepareResponse('system:loginResponse', {email: event.data.email}, 401, error.body);
+            eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Login failed!', type: 'error'}));
          })
          .finally(() =>
          {
             console.log('Login finally', response);
 
-            setTimeout(() => { eventBus.emit('system:loginResponse', response); }, 5000); // simulate network delay
+            setTimeout(() => { eventBus.emit('system:loginResponse', response); }, 1000); // simulate network delay
 
             // eventBus.emit('system:loginResponse', response);
          });
@@ -120,24 +120,27 @@ export class SystemEventHandler
    {
       console.log('🔐 SystemEventHandler: Processing registration for user:', event);
 
+      if(!(event instanceof ApiRequest))
+         throw new Error('SystemEventHandler: Invalid event type');
+
       let response = null;
 
-      RB.fetchPostUnauthenticated('/api/auth/register', {...event.request})
+      RB.fetchPostUnauthenticated('/api/auth/register', {...event.data})
          .then(success =>
          {
             console.log('Registration success:', success);
-            response = new ApiResponse('system:registerResponse', success, 200, null);
+            response = event.prepareResponse('system:registerResponse', success, 200, null);
+            eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Registration successful! Logging you in...', type: 'success'}));
          })
          .catch(error =>
          {
             console.error('Registration error:', error);
             const errorBody = error instanceof ApiError ? error.body : {message: error.message};
-            response = new ApiResponse('system:registerResponse', null, 400, errorBody);
+            response = event.prepareResponse('system:registerResponse', null, 400, errorBody);
+            eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Registration failed!', type: 'error'}));
          })
          .finally(() =>
          {
-            // Include request data in response for auto-login if needed
-            response.request = event.request;
             eventBus.emit('system:registerResponse', response);
          });
    }
@@ -148,21 +151,23 @@ export class SystemEventHandler
     */
    handleRecoverRequest(event)
    {
-      console.log('🔐 SystemEventHandler: Processing recovery request for email:', event.request.email);
+      console.log('🔐 SystemEventHandler: Processing recovery request for email:', event.data.email);
 
       let response = null;
 
-      RB.fetchPostUnauthenticated('/api/auth/recover', {email: event.request.email})
+      RB.fetchPostUnauthenticated('/api/auth/recover', {email: event.data.email})
          .then(success =>
          {
             console.log('Recovery request success:', success);
-            response = new ApiResponse('system:recoverResponse', success, 200, null);
+            response = event.prepareResponse('system:recoverResponse', success, 200, null);
+            eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Recovery request successful!', type: 'success'}));
          })
          .catch(error =>
          {
             console.error('Recovery request error:', error);
             const errorBody = error instanceof ApiError ? error.body : {message: error.message};
-            response = new ApiResponse('system:recoverResponse', null, 400, errorBody);
+            response = event.prepareResponse('system:recoverResponse', null, 400, errorBody);
+            eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Recovery request failed!', type: 'error'}));
          })
          .finally(() =>
          {
@@ -180,20 +185,19 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPostUnauthenticated('/api/auth/reset-password', {
-         token: event.request.token,
-         newPassword: event.request.newPassword
-      })
+      RB.fetchPostUnauthenticated('/api/auth/reset-password', {token: event.data.token, newPassword: event.data.newPassword})
          .then(success =>
          {
             console.log('Password reset success:', success);
-            response = new ApiResponse('system:resetPasswordResponse', success, 200, null);
+            response = event.prepareResponse('system:resetPasswordResponse', success, 200, null);
+            eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Password reset successful!', type: 'success'}));
          })
          .catch(error =>
          {
             console.error('Password reset error:', error);
             const errorBody = error instanceof ApiError ? error.body : {message: error.message};
-            response = new ApiResponse('system:resetPasswordResponse', null, 400, errorBody);
+            response = event.prepareResponse('system:resetPasswordResponse', null, 400, errorBody);
+            eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Password reset failed!', type: 'error'}));
          })
          .finally(() =>
          {
@@ -201,9 +205,6 @@ export class SystemEventHandler
          });
    }
 
-   /**
-    * Clean up event listeners
-    */
    dispose()
    {
       eventBus.off('system:loginRequest', this.handleLoginRequest.bind(this));

@@ -49,17 +49,17 @@ export class UIController
 
    handleShowScreen(event)
    {
-      this.showScreen(event.request);
+      this.showScreen(event.data);
    }
 
    handleAssetLoaded(event)
    {
-      console.log('🔐 UIController: Asset loaded:', event, event.response);
+      console.log('🔐 UIController: Asset loaded:', event, event.data);
    }
 
    handleAssetLoading(event)
    {
-      console.log('🔐 UIController: Asset loading:', event, event.response);
+      console.log('🔐 UIController: Asset loading:', event, event.data);
    }
 
    registerScreen(key, screen)

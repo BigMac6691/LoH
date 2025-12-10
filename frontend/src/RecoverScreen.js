@@ -129,7 +129,7 @@ export class RecoverScreen extends BaseFormScreen
       const successDiv = document.getElementById('recovery-success');
 
       // Re-enable all inputs after response
-      this.updateViewState(false, event.response?.email);
+      this.updateViewState(false, event.data?.email);
 
       if (event.isSuccess())
       {
@@ -137,7 +137,7 @@ export class RecoverScreen extends BaseFormScreen
          document.getElementById('recovery-step-2').style.display = 'block';
          this.clearError('recovery-error');
          successDiv.style.display = 'block';
-         successDiv.textContent = event.response?.message || 'Recovery token sent! Check console/logs for the token.';
+         successDiv.textContent = event.data?.message || 'Recovery token sent! Check console/logs for the token.';
       }
       else
       {
@@ -201,7 +201,7 @@ export class RecoverScreen extends BaseFormScreen
 
       if (event.isSuccess())
       {
-         successDiv.textContent = event.response?.message || 'Password reset successfully! Redirecting to login...';
+         successDiv.textContent = event.data?.message || 'Password reset successfully! Redirecting to login...';
          successDiv.style.display = 'block';
          this.clearError('recovery-error');
 
