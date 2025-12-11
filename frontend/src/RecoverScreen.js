@@ -3,13 +3,14 @@
  */
 import { BaseFormScreen } from './BaseFormScreen.js';
 import { eventBus } from './eventBus.js';
-import { ApiRequest } from './events/Events.js';
+import { ApiEvent, ApiRequest } from './events/Events.js';
+import { Utils } from './utils/Utils.js';
 
 export class RecoverScreen extends BaseFormScreen
 {
    constructor()
    {
-      super('recover-screen');
+      super('recover');
       this.registerEventHandler('system:recoverResponse', this.handleRecoverResponse);
       this.registerEventHandler('system:resetPasswordResponse', this.handleResetPasswordResponse);
       this.createRecoverScreen();
@@ -18,23 +19,23 @@ export class RecoverScreen extends BaseFormScreen
    createRecoverScreen()
    {
       const content = this.createBaseScreen();
-
       const recoverForm = document.createElement('div');
       recoverForm.className = 'splash-login-form';
       recoverForm.innerHTML = recoveryHTML;
 
-      const requestForm = recoverForm.querySelector('#recovery-request-form');
-      const resetForm = recoverForm.querySelector('#recovery-reset-form');
+      const requestForm = Utils.requireChild(recoverForm, '#recovery-request-form');
+      const resetForm = Utils.requireChild(recoverForm, '#recovery-reset-form');
       this.inputControls.add(resetForm);
-      const backLink = recoverForm.querySelector('#recovery-back-link');
+
+      const backLink = Utils.requireChild(recoverForm, '#recovery-back-link');
       this.inputControls.add(backLink);
       
       // Add input fields to controls
-      this.inputControls.add(recoverForm.querySelector('#recovery-request-btn'));
-      this.inputControls.add(recoverForm.querySelector('#recovery-email'));
-      this.inputControls.add(recoverForm.querySelector('#recovery-token'));
-      this.inputControls.add(recoverForm.querySelector('#recovery-new-password'));
-      this.inputControls.add(recoverForm.querySelector('#recovery-confirm-password'));
+      this.inputControls.add(Utils.requireChild(recoverForm, '#recovery-request-btn'));
+      this.inputControls.add(Utils.requireChild(recoverForm, '#recovery-email'));
+      this.inputControls.add(Utils.requireChild(recoverForm, '#recovery-token'));
+      this.inputControls.add(Utils.requireChild(recoverForm, '#recovery-new-password'));
+      this.inputControls.add(Utils.requireChild(recoverForm, '#recovery-confirm-password'));
       
       requestForm.addEventListener('submit', (e) =>
       {
@@ -50,72 +51,53 @@ export class RecoverScreen extends BaseFormScreen
 
       backLink.addEventListener('click', () =>
       {
-         eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {
-            targetScreen: 'login'
-         }));
+         eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'login'}));
       });
-
-      if(this.inputControls.has(undefined))
-         throw new Error('RecoverScreen: Input controls incomplete!');
 
       content.appendChild(recoverForm);
    }
 
-   show(parameters = {})
+   onShow(parameters = {})
    {
-      if (this.container)
-      {
-         this.container.style.display = 'flex';
-         this.isVisible = true;
-         
-         // Reset to step 1
-         document.getElementById('recovery-step-1').style.display = 'block';
-         document.getElementById('recovery-step-2').style.display = 'none';
-         document.getElementById('recovery-success').style.display = 'none';
-         document.getElementById('recovery-error').style.display = 'none';
+      // Reset to step 1
+      Utils.requireElement('#recovery-step-1').style.display = 'block';
+      Utils.requireElement('#recovery-step-2').style.display = 'none';
+      Utils.requireElement('#recovery-success').style.display = 'none';
+      Utils.requireElement('#recovery-error').style.display = 'none';
 
-         // Pre-fill email if provided in parameters
-         const emailInput = document.getElementById('recovery-email');
-         if (emailInput)
-         {
-            if (parameters.email)
-            {
-               emailInput.value = parameters.email;
-               setTimeout(() => emailInput.focus(), 100);
-            }
-            else
-            {
-               emailInput.value = '';
-               setTimeout(() => emailInput.focus(), 100);
-            }
-         }
-         else
-            throw new Error('RecoverScreen: Email input not found!');
-      }
+      // Pre-fill email if provided in parameters
+      this.prefillInput('#recovery-email', parameters.email);
+      this.focusInput('#recovery-email', true);
    }
 
-   hide()
+   onHide()
    {
-      if (this.container)
-      {
-         this.container.style.display = 'none';
-         this.isVisible = false;
-      }
-      else
-         throw new Error('RecoverScreen: Container not found!');
+      // do nothing
+      return;
    }
 
-   async handleRecoveryRequest()
+   showSuccess(message)
    {
-      const emailInput = document.getElementById('recovery-email');
-      const successDiv = document.getElementById('recovery-success');
+      const successDiv = Utils.requireElement('#recovery-success');
+      successDiv.textContent = message;
+      successDiv.style.display = 'block';
+   }
 
-      const email = emailInput.value.trim();
+   hideSuccess()
+   {
+      const successDiv = Utils.requireElement('#recovery-success');
+      successDiv.style.display = 'none';
+   }
+
+   handleRecoveryRequest()
+   {
+      const email = Utils.requireElement('#recovery-email').value.trim();
 
       if (!this.validateEmail(email))
       {
-         this.showError('recovery-error', 'Please enter a valid email address.');
-         successDiv.style.display = 'none';
+         this.showError('#recovery-error', 'Please enter a valid email address.');
+         this.hideSuccess();
+
          return;
       }
 
@@ -126,61 +108,54 @@ export class RecoverScreen extends BaseFormScreen
 
    handleRecoverResponse(event)
    {
-      const successDiv = document.getElementById('recovery-success');
-
       // Re-enable all inputs after response
       this.updateViewState(false, event.data?.email);
 
       if (event.isSuccess())
       {
-         document.getElementById('recovery-step-1').style.display = 'none';
-         document.getElementById('recovery-step-2').style.display = 'block';
-         this.clearError('recovery-error');
-         successDiv.style.display = 'block';
-         successDiv.textContent = event.data?.message || 'Recovery token sent! Check console/logs for the token.';
+         Utils.requireElement('#recovery-step-1').style.display = 'none';
+         Utils.requireElement('#recovery-step-2').style.display = 'block';
+
+         this.clearError('#recovery-error');
+         this.showSuccess(event.data?.message || 'Recovery token sent! Check console/logs for the token.');
       }
       else
       {
          const errorMsg = event.error?.message || event.message || 'Failed to send recovery token.';
-         this.showError('recovery-error', errorMsg);
-         successDiv.style.display = 'none';
+
+         this.showError('#recovery-error', errorMsg);
+         this.hideSuccess();
       }
    }
 
-   async handlePasswordReset()
+   handlePasswordReset()
    {
-      const tokenInput = document.getElementById('recovery-token');
-      const newPasswordInput = document.getElementById('recovery-new-password');
-      const confirmPasswordInput = document.getElementById('recovery-confirm-password');
-      const errorDiv = document.getElementById('recovery-error');
-      const successDiv = document.getElementById('recovery-success');
-
-      const token = tokenInput.value.trim();
-      const newPassword = newPasswordInput.value;
-      const confirmPassword = confirmPasswordInput.value;
-
-      errorDiv.style.display = 'none';
-      successDiv.style.display = 'none';
+      const token = Utils.requireElement('#recovery-token').value.trim();
+      const newPassword = Utils.requireElement('#recovery-new-password').value;
+      const confirmPassword = Utils.requireElement('#recovery-confirm-password').value;
 
       if (!token || !newPassword || !confirmPassword)
       {
-         errorDiv.textContent = 'Please fill in all fields.';
-         errorDiv.style.display = 'block';
+         this.showError('#recovery-error', 'Please fill in all fields.');
+         this.hideSuccess();
+
          return;
       }
 
       if (newPassword !== confirmPassword)
       {
-         errorDiv.textContent = 'Passwords do not match.';
-         errorDiv.style.display = 'block';
+         this.showError('#recovery-error', 'Passwords do not match.');
+         this.hideSuccess();
+
          return;
       }
 
       const passwordValidation = this.validatePassword(newPassword);
       if (!passwordValidation.valid)
       {
-         errorDiv.textContent = passwordValidation.errors.join('. ');
-         errorDiv.style.display = 'block';
+         this.showError('#recovery-error', passwordValidation.errors.join('. '));
+         this.hideSuccess();
+
          return;
       }
 
@@ -191,31 +166,22 @@ export class RecoverScreen extends BaseFormScreen
 
    handleResetPasswordResponse(event)
    {
-      const tokenInput = document.getElementById('recovery-token');
-      const newPasswordInput = document.getElementById('recovery-new-password');
-      const confirmPasswordInput = document.getElementById('recovery-confirm-password');
-      const successDiv = document.getElementById('recovery-success');
-
       // Re-enable all inputs after response
       this.updateViewState(false, null);
 
       if (event.isSuccess())
       {
-         successDiv.textContent = event.data?.message || 'Password reset successfully! Redirecting to login...';
-         successDiv.style.display = 'block';
-         this.clearError('recovery-error');
+         this.showSuccess(event.data?.message || 'Password reset successfully! Redirecting to login...');
+         this.clearError('#recovery-error');
 
-         tokenInput.value = '';
-         newPasswordInput.value = '';
-         confirmPasswordInput.value = '';
-
-         setTimeout(() => { eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'login'})); }, 2000);
+         setTimeout(() => { eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'login'})); }, 2000);
       }
       else
       {
          const errorMsg = event.error?.message || event.message || 'Failed to reset password.';
-         this.showError('recovery-error', errorMsg);
-         successDiv.style.display = 'none';
+
+         this.showError('#recovery-error', errorMsg);
+         this.hideSuccess();
       }
    }
 }

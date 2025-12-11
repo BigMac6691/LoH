@@ -149,31 +149,19 @@ export class HomePage
    }
 
    /**
-    * Refresh sidebar menu (updates role and emailVerified from localStorage)
+    * Refresh sidebar menu when role has been updated
     */
    refreshSidebar()
    {
+      console.log('🔐 HomePage: Refreshing sidebar', this.currentView); 
+
       this.userRole = localStorage.getItem('user_role') || 'visitor';
 
       // Recreate the sidebar
       if (this.sidebar)
       {
-         const currentView = this.sidebar.querySelector('.menu-item.active')?.getAttribute('data-view');
-
          this.createSidebar();
-
-         // Restore active menu item if it still exists
-         if (currentView)
-         {
-            const menuItem = this.sidebar.querySelector(`[data-view="${currentView}"]`);
-
-            if (menuItem)
-               this.setActiveMenuItem(currentView);
-            else
-               this.setActiveMenuItem('news-events');
-         }
-         else
-            this.setActiveMenuItem('news-events');
+         this.setActiveMenuItem(this.currentView || 'news-events');
       }
       else
          throw new Error('HomePage: Sidebar not found!');
@@ -343,7 +331,7 @@ export class HomePage
 
    show()
    {
-      console.log('🔐 HomePage: Showing home page', this.currentViewInstance);
+      console.log('🔐 HomePage: Showing home page', this.currentView, this.currentViewInstance);
 
       if (this.container)
          this.container.style.display = 'flex';

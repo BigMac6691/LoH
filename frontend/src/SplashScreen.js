@@ -4,6 +4,7 @@
  */
 import { ApiEvent } from './events/Events.js';
 import { eventBus } from './eventBus.js';
+import { Utils } from './utils/Utils.js';
 
 export class SplashScreen
 {
@@ -70,7 +71,8 @@ export class SplashScreen
          this.continueButton.id = 'continue-to-login-btn';
          this.continueButton.className = 'btn btn-primary btn-continue';
          this.continueButton.textContent = 'Continue to Login/Register';
-         this.continueButton.style.cssText = `
+         this.continueButton.style.cssText = 
+         `
             margin-top: 30px;
             padding: 15px 30px;
             font-size: 18px;
@@ -79,51 +81,38 @@ export class SplashScreen
          
          this.continueButton.addEventListener('click', () => { eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'login'})); });
 
-         const content = this.container.querySelector('.splash-content');
-         if (content)
-         {
-            // Hide loading animation
-            if (this.loadingAnimation)
-            {
-               this.loadingAnimation.style.opacity = '0';
-               this.loadingAnimation.style.transform = 'translateY(-20px)';
-               setTimeout(() => { this.loadingAnimation.style.display = 'none'; }, 300);
-            }
+         const content = Utils.requireChild(this.container, '.splash-content');
+         this.loadingAnimation.style.opacity = '0';
+         this.loadingAnimation.style.transform = 'translateY(-20px)';
+         setTimeout(() => { this.loadingAnimation.style.display = 'none'; }, 500);
 
-            // Show continue button with animation
-            content.appendChild(this.continueButton);
-            this.continueButton.style.opacity = '0';
-            this.continueButton.style.transform = 'translateY(20px)';
-            setTimeout(() =>
-            {
-               this.continueButton.style.transition = 'all 0.5s ease-out';
-               this.continueButton.style.opacity = '1';
-               this.continueButton.style.transform = 'translateY(0)';
-            }, 100);
-         }
+         content.appendChild(this.continueButton);
+
+         this.continueButton.style.opacity = '0';
+         this.continueButton.style.transform = 'translateY(20px)';
+         setTimeout(() =>
+         {
+            this.continueButton.style.transition = 'all 0.5s ease-out';
+            this.continueButton.style.opacity = '1';
+            this.continueButton.style.transform = 'translateY(0)';
+         }, 500);
       }
    }
 
    show()
    {
-      if (this.container)
-      {
-         this.container.style.display = 'flex';
-         this.isVisible = true;
-      }
+      this.container.style.display = 'flex';
+      this.isVisible = true;
    }
 
    hide()
    {
-      if (this.container)
+      this.container.style.opacity = '0';
+      setTimeout(() =>
       {
-         this.container.style.opacity = '0';
-         setTimeout(() =>
-         {
-            this.container.style.display = 'none';
-            this.isVisible = false;
-         }, 500);
-      }
+         this.container.style.display = 'none';
+         this.isVisible = false;
+      }, 500);
    }
 
    dispose()

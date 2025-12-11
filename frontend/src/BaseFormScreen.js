@@ -3,6 +3,7 @@
  * Provides common functionality for screen management, validation, and DOM structure
  */
 import { eventBus } from './eventBus.js';
+import { Utils } from './utils/Utils.js';
 
 export class BaseFormScreen
 {
@@ -59,7 +60,7 @@ export class BaseFormScreen
          this.onShow(parameters);
       }
       else
-         throw new Error('BaseFormScreen: Container not found!');
+         throw new Error(`BaseFormScreen: Container for screen ${this.screenId} not found!`);
    }
 
    /**
@@ -74,7 +75,7 @@ export class BaseFormScreen
          this.onHide();
       }
       else
-         throw new Error('BaseFormScreen: Container not found!');
+         throw new Error(`BaseFormScreen: Container for screen ${this.screenId} not found!`);
    }
 
    /**
@@ -160,16 +161,11 @@ export class BaseFormScreen
     */
    showError(errorId, message)
    {
-      const errorDiv = document.getElementById(errorId);
+      const errorDiv = Utils.requireElement(errorId);
 
-      if (errorDiv)
-      {
-         errorDiv.textContent = message;
-         errorDiv.style.display = 'block';
-         errorDiv.className = 'login-error error-message';
-      }
-      else
-         throw new Error('BaseFormScreen: Error div not found!');
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      errorDiv.className = 'login-error error-message';
    }
 
    /**
@@ -178,15 +174,10 @@ export class BaseFormScreen
     */
    clearError(errorId)
    {
-      const errorDiv = document.getElementById(errorId);
+      const errorDiv = Utils.requireElement(errorId);
 
-      if (errorDiv)
-      {
-         errorDiv.style.display = 'none';
-         errorDiv.textContent = '';
-      }
-      else
-         throw new Error('BaseFormScreen: Error div not found!');
+      errorDiv.style.display = 'none';
+      errorDiv.textContent = '';
    }
 
    /**
@@ -198,17 +189,12 @@ export class BaseFormScreen
    {
       setTimeout(() =>
       {
-         const element = document.getElementById(elementId);
+         const element = Utils.requireElement(elementId);
 
-         if (element)
-         {
-            element.focus();
+         element.focus();
 
-            if (select && element.select)
-               element.select();
-         }
-         else
-            throw new Error('BaseFormScreen: Element not found!');
+         if (select && element.select)
+            element.select();
       }, 100);
    }
 
@@ -219,17 +205,9 @@ export class BaseFormScreen
     */
    prefillInput(elementId, value)
    {
-      const element = document.getElementById(elementId);
+      const element = Utils.requireElement(elementId);
 
-      if (element)
-      {
-         if (value)
-            element.value = value;
-         else
-            element.value = '';
-      }
-      else
-         throw new Error('BaseFormScreen: Element not found!');
+      element.value = value || '';
    }
 
    /**
@@ -242,7 +220,7 @@ export class BaseFormScreen
       this.inputControls.forEach(control => control.disabled = loading);
 
       if (email)
-         this.prefillInput('login-email', email);
+         this.prefillInput(`#${this.screenId}-email`, email);
    }
 
    /**

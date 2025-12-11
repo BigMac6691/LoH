@@ -26,10 +26,13 @@ export class RB
     */
    static getHeaders()
    {
-      return {
+      const headers =
+      {
          'Content-Type': 'application/json',
          'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
       };
+
+      return headers;
    }
 
   /**
@@ -38,9 +41,12 @@ export class RB
    */
   static getHeadersForGet()
   {
-     return {
-        'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
-     };
+      const headers =
+      {
+         'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+      };
+
+     return headers;
   }
 
   /**
@@ -51,14 +57,14 @@ export class RB
    */
   static getRequest(url, signal = null)
   {
-     const options = {
+     const options = 
+     {
         method: 'GET',
         headers: this.getHeadersForGet()
      };
      
-     if (signal !== null) {
+     if (signal !== null) 
         options.signal = signal;
-     }
      
      return new Request(url, options);
   }
@@ -71,14 +77,14 @@ export class RB
    */
   static deleteRequest(url, signal = null)
   {
-     const options = {
+     const options = 
+     {
         method: 'DELETE',
         headers: this.getHeadersForGet()
      };
      
-     if (signal !== null) {
+     if (signal !== null) 
         options.signal = signal;
-     }
      
      return new Request(url, options);
   }
@@ -92,18 +98,17 @@ export class RB
    */
   static postRequest(url, body = null, signal = null)
   {
-     const options = {
+     const options = 
+     {
         method: 'POST',
         headers: this.getHeaders()
      };
      
-     if (body !== null) {
+     if (body !== null) 
         options.body = typeof body === 'string' ? body : JSON.stringify(body);
-     }
      
-     if (signal !== null) {
+     if (signal !== null) 
         options.signal = signal;
-     }
      
      return new Request(url, options);
   }
@@ -117,18 +122,17 @@ export class RB
    */
   static putRequest(url, body = null, signal = null)
   {
-     const options = {
+     const options = 
+     {
         method: 'PUT',
         headers: this.getHeaders()
      };
      
-     if (body !== null) {
+     if (body !== null) 
         options.body = typeof body === 'string' ? body : JSON.stringify(body);
-     }
      
-     if (signal !== null) {
+     if (signal !== null) 
         options.signal = signal;
-     }
      
      return new Request(url, options);
   }
@@ -146,9 +150,7 @@ export class RB
      const options = 
      {
         method: 'POST',
-        headers: {
-           'Content-Type': 'application/json'
-        }
+        headers: {'Content-Type': 'application/json'}
      };
      
      if (body !== null) 
@@ -197,6 +199,7 @@ export class RB
         }
 
         const errorMessage = this.extractErrorMessage(errorBody) || `HTTP ${response.status}: ${response.statusText}`;
+
         throw new ApiError(errorMessage, response.status, response.statusText, errorBody);
      }
 
@@ -215,6 +218,7 @@ export class RB
   {
      const request = this.getRequest(url, signal);
      const response = await fetch(request);
+
      return await this.handleResponse(response);
   }
 
@@ -230,6 +234,7 @@ export class RB
   {
      const request = this.postRequest(url, body, signal);
      const response = await fetch(request);
+
      return await this.handleResponse(response);
   }
 
@@ -245,6 +250,7 @@ export class RB
   {
      const request = this.putRequest(url, body, signal);
      const response = await fetch(request);
+
      return await this.handleResponse(response);
   }
 
@@ -259,6 +265,7 @@ export class RB
   {
      const request = this.deleteRequest(url, signal);
      const response = await fetch(request);
+
      return await this.handleResponse(response);
   }
 
@@ -275,6 +282,7 @@ export class RB
   {
      const request = this.postRequestUnauthenticated(url, body, signal);
      const response = await fetch(request);
+
      return await this.handleResponse(response);
   }
 }

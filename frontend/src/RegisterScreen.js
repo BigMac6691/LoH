@@ -3,13 +3,14 @@
  */
 import { BaseFormScreen } from './BaseFormScreen.js';
 import { eventBus } from './eventBus.js';
-import { ApiRequest } from './events/Events.js';
+import { ApiEvent, ApiRequest } from './events/Events.js';
+import { Utils } from './utils/Utils.js';
 
 export class RegisterScreen extends BaseFormScreen
 {
    constructor()
    {
-      super('register-screen');
+      super('register');
       this.registerEventHandler('system:registerResponse', this.handleRegisterResponse);
       this.createRegisterScreen();
    }
@@ -17,12 +18,11 @@ export class RegisterScreen extends BaseFormScreen
    createRegisterScreen()
    {
       const content = this.createBaseScreen();
-
       const registerForm = document.createElement('div');
       registerForm.className = 'splash-login-form';
       registerForm.innerHTML = registerHTML;
 
-      const formElement = registerForm.querySelector('#registration-form');
+      const formElement = Utils.requireChild(registerForm, '#registration-form');
       formElement.addEventListener('submit', (e) =>
       {
          e.preventDefault();
@@ -30,138 +30,114 @@ export class RegisterScreen extends BaseFormScreen
       });
 
       // Add input fields to controls
-      this.inputControls.add(registerForm.querySelector('#register-submit-btn'));
-      this.inputControls.add(registerForm.querySelector('#register-email'));
-      this.inputControls.add(registerForm.querySelector('#register-display-name'));
-      this.inputControls.add(registerForm.querySelector('#register-password'));
-      this.inputControls.add(registerForm.querySelector('#register-password-confirm'));
+      this.inputControls.add(Utils.requireChild(registerForm, '#register-submit-btn'));
+      this.inputControls.add(Utils.requireChild(registerForm, '#register-email'));
+      this.inputControls.add(Utils.requireChild(registerForm, '#register-display-name'));
+      this.inputControls.add(Utils.requireChild(registerForm, '#register-password'));
+      this.inputControls.add(Utils.requireChild(registerForm, '#register-password-confirm'));
 
-      const backLink = registerForm.querySelector('#back-to-login-link');
+      const backLink = Utils.requireChild(registerForm, '#back-to-login-link');
       this.inputControls.add(backLink);
-      backLink.addEventListener('click', () => { eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'login'})); });
+      backLink.addEventListener('click', () => { eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'login'})); });
 
-      if(this.inputControls.has(undefined))
-         throw new Error('RegisterScreen: Input controls incomplete!');
+      content.append(this.createSuccessPanel(), registerForm);
+   }
 
-      content.appendChild(registerForm);
+   createSuccessPanel()
+   {
+      const successPanel = document.createElement('div');
+      successPanel.id = 'register-success';
+      successPanel.className = 'login-error';
+      successPanel.style.display = 'none';
+      successPanel.style.background = 'rgba(0, 255, 0, 0.2)';
+      successPanel.style.border = '2px solid var(--color-success)';
+      successPanel.style.color = 'var(--color-success)';
+      successPanel.style.whiteSpace = 'pre-line';
+      successPanel.textContent = 'Registration successful! Logging you in...';
+
+      return successPanel;
    }
 
    onShow(parameters = {})
    {
-      // Pre-fill email if provided in parameters
-      const emailInput = document.getElementById('register-email');
-      if (emailInput)
-      {
-         if (parameters.email)
-         {
-            this.prefillInput('register-email', parameters.email);
-            this.focusInput('register-email', true); // Select text if email provided
-         }
-         else
-         {
-            emailInput.value = '';
-            this.focusInput('register-email');
-         }
-      }
-      else
-         throw new Error('RegisterScreen: Email input not found!');
+      this.prefillInput('#register-email', parameters.email);
+      this.focusInput('#register-email', true);
    }
 
    handleRegistrationSubmit()
    {
-      const emailInput = document.getElementById('register-email');
-      const displayNameInput = document.getElementById('register-display-name');
-      const passwordInput = document.getElementById('register-password');
-      const passwordConfirmInput = document.getElementById('register-password-confirm');
+      const email = Utils.requireElement('#register-email').value.trim();
+      const displayName = Utils.requireElement('#register-display-name').value.trim();
+      const password = Utils.requireElement('#register-password').value;
+      const passwordConfirm = Utils.requireElement('#register-password-confirm').value;
 
-      const email = emailInput.value.trim();
-      const displayName = displayNameInput.value.trim();
-      const password = passwordInput.value;
-      const passwordConfirm = passwordConfirmInput.value;
-
-      this.clearError('register-error');
+      this.clearError('#register-error');
 
       if (!email || !displayName || !password || !passwordConfirm)
       {
-         this.showRegistrationError('Please fill in all fields.');
+         this.showError('#register-error', 'Please fill in all fields.');
+
          return;
       }
 
       if (!this.validateEmail(email))
       {
-         this.showRegistrationError('Please enter a valid email address.');
-         emailInput.focus();
+         this.showError('#register-error', 'Please enter a valid email address.');
+         this.focusInput('#register-email', true);
+
          return;
       }
 
       if (password !== passwordConfirm)
       {
-         this.showRegistrationError('Passwords do not match.');
-         passwordConfirmInput.focus();
+         this.showError('#register-error', 'Passwords do not match.');
+         this.focusInput('#register-password-confirm', true);
+
          return;
       }
 
       const passwordValidation = this.validatePassword(password);
       if (!passwordValidation.valid)
       {
-         this.showRegistrationError(passwordValidation.errors.join('. '));
-         passwordInput.focus();
+         this.showError('#register-error', passwordValidation.errors.join('. '));
+         this.focusInput('#register-password', true);
+
          return;
       }
 
       // Disable all inputs during submission
       this.updateViewState(true, email);
 
-      // Store request data for auto-login later
-      const requestData = { email, password, displayName };
-      
-      eventBus.emit('system:registerRequest', new ApiRequest('system:registerRequest', requestData));
+      eventBus.emit('system:registerRequest', new ApiRequest('system:registerRequest', { email, password, displayName }));
    }
 
    handleRegisterResponse(event)
    {
-      // Re-enable all inputs after response
-      this.updateViewState(false, event.data.email);
-
       if (event.isSuccess())
-      {
-         // Get email and password from the original request
-         const email = event.data.email;
-         const password = event.data.password;
-         this.showRegistrationSuccess(event.data, email, password);
-      }
+         this.showRegistrationSuccess(event.data);
       else
+      {
+         this.updateViewState(false, null); // Re-enable all inputs after response
          this.handleRegistrationFailure(event.error);
+      }
    }
 
-   showRegistrationSuccess(data, email, password)
+   showRegistrationSuccess(data)
    {
-      const registerForm = document.getElementById('registration-form');
-      if (!registerForm) 
-         throw new Error('RegisterScreen: Registration form not found!');
+      Utils.requireElement('#registration-form').style.display = 'none';
 
-      let message = data?.message || 'Registration successful! Logging you in...';
+      const successPanel = Utils.requireElement('#register-success');
+      successPanel.style.display = 'block';
+      successPanel.textContent = data?.message || 'Registration successful! Logging you in...';
+
+      const email = data.user.email;
+      const password = Utils.requireElement('#register-password').value;
       
-      if (data?.verificationToken)
-         console.log('🔐 Verification token (dev mode):', data.verificationToken);
-
-      const successDiv = document.createElement('div');
-      successDiv.className = 'login-error';
-      successDiv.style.background = 'rgba(0, 255, 0, 0.2)';
-      successDiv.style.border = '2px solid var(--color-success)';
-      successDiv.style.color = 'var(--color-success)';
-      successDiv.style.display = 'block';
-      successDiv.style.whiteSpace = 'pre-line';
-      successDiv.textContent = message;
-
-      registerForm.style.display = 'none';
-      this.container.querySelector('.splash-content').insertBefore(successDiv, registerForm.parentNode);
-
       // Attempt auto-login
       if (email && password)
          setTimeout(() => { eventBus.emit('system:loginRequest', new ApiRequest('system:loginRequest', {email, password})); }, 1000);
       else
-         setTimeout(() => { eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'login'})); }, 2000);
+         setTimeout(() => { eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'login'})); }, 2000);
    }
 
    handleRegistrationFailure(data)
@@ -174,8 +150,10 @@ export class RegisterScreen extends BaseFormScreen
          errorMessage = data.message || 'Password does not meet requirements.';
       else if (data?.error === 'MISSING_FIELDS')
          errorMessage = 'Please fill in all required fields.';
+      else if (data?.error === 'TOO_MANY_REGISTRATION_ATTEMPTS')
+         errorMessage = data.message || 'Too many registration attempts. Please try again in 1 hour.';
 
-      this.showError('register-error', errorMessage);
+      this.showError('#register-error', errorMessage);
    }
 }
 
