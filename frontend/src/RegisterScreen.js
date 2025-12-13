@@ -105,8 +105,7 @@ export class RegisterScreen extends BaseFormScreen
          return;
       }
 
-      // Disable all inputs during submission
-      this.updateViewState(true, email);
+      this.updateViewState(true, email); // Disable all inputs during submission
 
       eventBus.emit('system:registerRequest', new ApiRequest('system:registerRequest', { email, password, displayName }));
    }

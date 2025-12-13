@@ -102,6 +102,8 @@ export class SplashScreen
    show()
    {
       this.container.style.display = 'flex';
+      this.container.style.opacity = '1';
+      this.container.style.transition = 'opacity 0.5s ease-out';
       this.isVisible = true;
    }
 

@@ -56,9 +56,8 @@ export class LoginScreen extends BaseFormScreen
    handleLogin()
    {
       const emailInput = Utils.requireElement('#login-email');
-      const passwordInput = Utils.requireElement('#login-password');
       const email = emailInput.value.trim();
-      const password = passwordInput.value;
+      const password = Utils.requireElement('#login-password').value;
 
       this.clearError('#login-error');
 
@@ -81,25 +80,27 @@ export class LoginScreen extends BaseFormScreen
 
    handleLoginResponse(event)
    {
-      console.log('🔐 LoginScreen: Login response:', event);
       this.updateViewState(false, event.data?.email);
 
       if (event.isSuccess())
          eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'home'}));
       else
-         this.handleLoginFailure(event.error, event.data?.email);
+         this.handleLoginFailure(event);
    }
 
-   handleLoginFailure(data, email)
+   handleLoginFailure(event)
    {
-      if (data?.error === 'PASSWORD_REQUIRED')
-         this.showErrorWithLinks('#login-error', data.message || 'Password is required. If you forgot your password, please use password recovery.', {recover: true, email: email});
-      else if (data?.errorType === 1 || data?.error === 'INVALID_PASSWORD')
+      const error = event.error;
+      const email = event.data?.email;
+
+      if (error.error === 'PASSWORD_REQUIRED')
+         this.showErrorWithLinks('#login-error', error.message || 'Password is required. If you forgot your password, please use password recovery.', {recover: true, email: email});
+      else if (error.errorType === 1 || error.error === 'INVALID_PASSWORD')
          this.showErrorWithLinks('#login-error', 'Login failed. Incorrect password.', {recover: true, email: email});
-      else if (data?.errorType === 2 || data?.error === 'USER_NOT_FOUND')
+      else if (error.errorType === 2 || error.error === 'USER_NOT_FOUND')
          this.showErrorWithLinks('#login-error', 'Email address not found.', {register: true, email: email});
       else
-         this.showError('#login-error', data?.message || 'Login failed. Please try again.');
+         this.showError('#login-error', error.message || 'Login failed. Please try again.');
    }
 
    /**

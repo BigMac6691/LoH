@@ -14,11 +14,12 @@ export class SystemEventHandler
       this.userLoggedIn = false;
 
       eventBus.on('system:loginRequest', this.handleLoginRequest.bind(this));
+      eventBus.on('system:loginResponse', this.handleLoginResponse.bind(this));
       eventBus.on('system:registerRequest', this.handleRegisterRequest.bind(this));
       eventBus.on('system:recoverRequest', this.handleRecoverRequest.bind(this));
       eventBus.on('system:resetPasswordRequest', this.handleResetPasswordRequest.bind(this));
       eventBus.on('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this));
-      eventBus.on('system:loginResponse', this.handleLoginResponse.bind(this)); // Track login success
+      eventBus.on('system:logoutRequest', this.handleLogoutRequest.bind(this));
    }
 
    /**
@@ -110,6 +111,37 @@ export class SystemEventHandler
 
             // eventBus.emit('system:loginResponse', response);
          });
+   }
+
+   handleLogoutRequest(event)
+   {
+      console.log('🔐 SystemEventHandler: Processing logout for user:', event);
+
+      if(!(event instanceof ApiRequest))
+         throw new Error('SystemEventHandler: Invalid event type');
+
+      const refreshToken = localStorage.getItem('refresh_token');
+
+      if (refreshToken)
+         RB.fetchPost('/api/auth/logout', {refreshToken})
+            .then(success =>
+            {
+               console.log('Logout success:', success);
+               eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Logout successful!', type: 'success'}));
+            })
+            .catch(error =>
+            {
+               console.error('Logout error:', error);
+               eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Logout failed!', type: 'error'}));
+            })
+            .finally(() =>
+            {
+               this.userLoggedIn = false;
+
+               localStorage.clear();
+               webSocketManager.disconnect();
+               eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'splash'}));
+            });
    }
 
    /**
@@ -208,10 +240,11 @@ export class SystemEventHandler
    dispose()
    {
       eventBus.off('system:loginRequest', this.handleLoginRequest.bind(this));
+      eventBus.off('system:loginResponse', this.handleLoginResponse.bind(this));
       eventBus.off('system:registerRequest', this.handleRegisterRequest.bind(this));
       eventBus.off('system:recoverRequest', this.handleRecoverRequest.bind(this));
       eventBus.off('system:resetPasswordRequest', this.handleResetPasswordRequest.bind(this));
       eventBus.off('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this));
-      eventBus.off('system:loginResponse', this.handleLoginResponse.bind(this));
+      eventBus.off('system:logoutRequest', this.handleLogoutRequest.bind(this));
    }
 }

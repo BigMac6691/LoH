@@ -10,7 +10,7 @@ export class RecoverScreen extends BaseFormScreen
 {
    constructor()
    {
-      super('recover');
+      super('recovery');
       this.registerEventHandler('system:recoverResponse', this.handleRecoverResponse);
       this.registerEventHandler('system:resetPasswordResponse', this.handleResetPasswordResponse);
       this.createRecoverScreen();
@@ -92,6 +92,8 @@ export class RecoverScreen extends BaseFormScreen
    handleRecoveryRequest()
    {
       const email = Utils.requireElement('#recovery-email').value.trim();
+
+      console.log('🔐 RecoverScreen: Handling recovery request for email:', email);
 
       if (!this.validateEmail(email))
       {

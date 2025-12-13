@@ -12,7 +12,6 @@ import { ManageGamesView } from './components/ManageGamesView.js';
 import { UserManagerView } from './components/UserManagerView.js';
 import { ManageNewsEventsView } from './components/ManageNewsEventsView.js';
 import { CreateGameView } from './components/CreateGameView.js';
-import { RB } from './utils/RequestBuilder.js';
 import { ApiRequest } from './events/Events.js';
 import { eventBus } from './eventBus.js';
 import { Utils } from './utils/Utils.js';
@@ -25,6 +24,7 @@ export class HomePage
       this.header = null;
       this.sidebar = null;
       this.mainContent = null;
+      this.viewContainer = null;
       this.statusComponent = new StatusComponent();
       this.utcClock = null;
       this.currentView = null;
@@ -44,23 +44,10 @@ export class HomePage
       this.container.id = 'home-page';
       this.container.className = 'home-page';
 
-      // Create header
       this.createHeader();
-
-      // Create body with sidebar and main content
-      this.createBody();
+      this.createBody(); // Create body with sidebar and main content
 
       document.body.appendChild(this.container);
-
-      // Initialize UTC clock
-      const clockElement = this.header.querySelector('.utc-clock');
-      if (clockElement)
-      {
-         this.utcClock = new UTClock(clockElement);
-         this.utcClock.init();
-      }
-      else
-         throw new Error('HomePage: UTC clock element not found!');
    }
 
    refreshHeader()
@@ -70,28 +57,18 @@ export class HomePage
       this.displayName = localStorage.getItem('user_display_name');
 
       if (!this.displayName)
-         throw new Error('HomePage: Display name not found!');
-
-      // Update role badge if header exists
-      if (this.header)
       {
-         const roleBadge = this.header.querySelector('.role-badge');
-         if (roleBadge)
-         {
-            roleBadge.className = `role-badge role-${this.userRole}`;
-            roleBadge.textContent = this.userRole;
-         }
-         else
-            throw new Error('HomePage: Role badge not found!');
-
-         const playerName = this.header.querySelector('.player-name');
-         if (playerName)
-            playerName.textContent = Utils.escapeHtml(this.displayName);
-         else
-            throw new Error('HomePage: Player name not found!');
+         this.displayName = 'Unknown';
+         this.statusComponent.postStatusMessage('Unknown display name', 'warning');
       }
-      else
-         throw new Error('HomePage: Header not found!');
+
+      Utils.requireElement('.home-header'); // this throws error if not found
+
+      const roleBadge = Utils.requireChild(this.header, '.role-badge');
+      roleBadge.className = `role-badge role-${this.userRole}`;
+      roleBadge.textContent = this.userRole;
+
+      Utils.requireChild(this.header, '.player-name').textContent = Utils.escapeHtml(this.displayName);
    }
 
    /**
@@ -101,49 +78,35 @@ export class HomePage
    {
       this.header = document.createElement('div');
       this.header.className = 'home-header';
-      this.header.innerHTML = `
-      <div class="header-left">
-        <span class="utc-clock"></span>
-      </div>
-      <div class="header-center">
-        <span class="player-name">name</span>
-        <span class="role-badge role-visitor">role</span>
-      </div>
-      <div class="header-right">
-        <button class="logoff-btn" id="logoff-btn">Logoff</button>
-      </div>
-    `;
+      this.header.innerHTML = headerHTML;
 
+      this.utcClock = new UTClock(Utils.requireChild(this.header, '.utc-clock'));
+      this.utcClock.init();
+
+      Utils.requireChild(this.header, '#logoff-btn')
+         .addEventListener('click', () => eventBus.emit('system:logoutRequest', new ApiRequest('system:logoutRequest')));
+      
       this.container.appendChild(this.header);
-
-      // Add logoff button handler
-      const logoffBtn = this.header.querySelector('#logoff-btn');
-      if (logoffBtn)
-         logoffBtn.addEventListener('click', () => this.handleLogoff());
-      else
-         throw new Error('HomePage: Logoff button not found!');
    }
 
    /**
-    * Create body with sidebar and main content area
+    * Create body with sidebar, main content area and status component
     */
    createBody()
    {
-      const body = document.createElement('div');
-      body.className = 'home-body';
-
-      // Create sidebar
       this.createSidebar();
-      body.appendChild(this.sidebar);
 
-      // Create main content area
+      // Create main content area, view container and status component
+      this.viewContainer = document.createElement('div');
+      this.viewContainer.className = 'view-container';
+
       this.mainContent = document.createElement('div');
       this.mainContent.className = 'home-main-content';
+      this.mainContent.append(this.viewContainer, this.statusComponent.getContainer());
 
-      // Add status component at the bottom
-      this.mainContent.appendChild(this.statusComponent.getContainer());
-
-      body.appendChild(this.mainContent);
+      const body = document.createElement('div');
+      body.className = 'home-body';
+      body.append(this.sidebar, this.mainContent);
 
       this.container.appendChild(body);
    }
@@ -153,18 +116,12 @@ export class HomePage
     */
    refreshSidebar()
    {
-      console.log('🔐 HomePage: Refreshing sidebar', this.currentView); 
-
       this.userRole = localStorage.getItem('user_role') || 'visitor';
 
-      // Recreate the sidebar
-      if (this.sidebar)
-      {
-         this.createSidebar();
-         this.setActiveMenuItem(this.currentView || 'news-events');
-      }
-      else
-         throw new Error('HomePage: Sidebar not found!');
+      Utils.requireElement('.home-sidebar'); // this throws error if not found
+
+      this.createSidebar();
+      this.setActiveMenuItem(this.currentView || 'news-events');
    }
 
    createSidebar()
@@ -205,8 +162,7 @@ export class HomePage
 
    setActiveMenuItem(viewId)
    {
-      if (!this.sidebar) 
-         throw new Error('HomePage: Sidebar not found!');
+      Utils.requireElement('.home-sidebar'); // this throws error if not found
 
       this.sidebar.querySelectorAll('.menu-item').forEach(mi =>
       {
@@ -219,8 +175,7 @@ export class HomePage
 
    showView(viewId)
    {
-      if (!this.mainContent) 
-         throw new Error('HomePage: Main content not found!');
+      Utils.requireElement('.view-container'); // this throws error if not found
 
       // Clean up current view
       if (this.currentViewInstance)
@@ -230,113 +185,15 @@ export class HomePage
       }
 
       this.currentView = viewId;
+      this.currentViewInstance = Viewfactory.create(viewId, {statusComponent: this.statusComponent});
 
-      // Find or create view container (preserve status component)
-      const statusContainer = this.statusComponent.getContainer();
-      let viewContainer = this.mainContent.querySelector('.view-container');
-
-      if (!viewContainer)
-      {
-         viewContainer = document.createElement('div');
-         viewContainer.className = 'view-container';
-         // Insert before status component
-         if (statusContainer && statusContainer.parentNode)
-            this.mainContent.insertBefore(viewContainer, statusContainer);
-         else
-            this.mainContent.appendChild(viewContainer);
-      }
-      else
-         // Clear existing view content
-         viewContainer.innerHTML = '';
-
-      switch (viewId)
-      {
-         case 'player-profile':
-            this.currentViewInstance = new PlayerProfileView(this.statusComponent);
-            viewContainer.appendChild(this.currentViewInstance.getContainer());
-            break;
-
-         case 'news-events':
-            this.currentViewInstance = new NewsEventsView(this.statusComponent);
-            viewContainer.appendChild(this.currentViewInstance.getContainer());
-            break;
-
-         case 'games-playing':
-            this.currentViewInstance = new GamesPlayingList(this.statusComponent);
-            viewContainer.appendChild(this.currentViewInstance.getContainer());
-            break;
-
-         case 'games-available':
-            this.currentViewInstance = new GamesAvailableList(this.statusComponent);
-            viewContainer.appendChild(this.currentViewInstance.getContainer());
-            break;
-
-         case 'rules':
-            this.currentViewInstance = new RulesView(this.statusComponent);
-            viewContainer.appendChild(this.currentViewInstance.getContainer());
-            break;
-
-         case 'create-game':
-            // Show CreateGameView for game creation
-            this.currentViewInstance = new CreateGameView(this.statusComponent);
-            viewContainer.appendChild(this.currentViewInstance.getContainer());
-            break;
-
-         case 'manage-games':
-            this.currentViewInstance = new ManageGamesView(this.statusComponent);
-            viewContainer.appendChild(this.currentViewInstance.getContainer());
-            break;
-
-         case 'user-manager':
-            this.currentViewInstance = new UserManagerView(this.statusComponent);
-            viewContainer.appendChild(this.currentViewInstance.getContainer());
-            break;
-
-         case 'manage-news-events':
-            this.currentViewInstance = new ManageNewsEventsView(this.statusComponent);
-            viewContainer.appendChild(this.currentViewInstance.getContainer());
-            break;
-
-         default:
-            console.warn('Unknown view:', viewId);
-      }
-   }
-
-   async handleLogoff()
-   {
-      const refreshToken = localStorage.getItem('refresh_token');
-
-      try
-      {
-         // Call logout endpoint
-         if (refreshToken)
-            await RB.fetchPost('/api/auth/logout', {refreshToken});
-      }
-      catch (error)
-      {
-         console.error('Error during logout:', error);
-         // Continue with logout even if API call fails
-      }
-
-      // Clear localStorage (user_id is not stored - backend extracts it from JWT token)
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user_email');
-      localStorage.removeItem('user_display_name');
-      localStorage.removeItem('user_role');
-
-      // Hide home page
-      eventBus.emit('ui:showScreen', new ApiRequest('ui:showScreen', {targetScreen: 'splash'}));
+      this.viewContainer.innerHTML = '';
+      this.viewContainer.appendChild(this.currentViewInstance.getContainer());
    }
 
    show()
    {
-      console.log('🔐 HomePage: Showing home page', this.currentView, this.currentViewInstance);
-
-      if (this.container)
-         this.container.style.display = 'flex';
-      else
-         throw new Error('HomePage: Container not found!');
+      Utils.requireElement('#home-page').style.display = 'flex'; // this throws error if not found
 
       this.userRole = localStorage.getItem('user_role') || 'visitor';
       this.displayName = localStorage.getItem('user_display_name');
@@ -382,6 +239,35 @@ export class HomePage
       this.uiController = null;
    }
 }
+
+class Viewfactory
+{
+   static registry = new Map();
+
+   static register(viewId, viewClass)
+   {
+      this.registry.set(viewId, viewClass);
+   }
+
+   static create(viewId, options = {})
+   {
+      const viewClass = this.registry.get(viewId);
+      if (!viewClass)
+         throw new Error('Viewfactory: View class not found for viewId:', viewId);
+
+      return new viewClass(options.statusComponent);
+   }
+}
+
+Viewfactory.register('player-profile', PlayerProfileView);
+Viewfactory.register('news-events', NewsEventsView);
+Viewfactory.register('games-playing', GamesPlayingList);
+Viewfactory.register('games-available', GamesAvailableList);
+Viewfactory.register('create-game', CreateGameView);
+Viewfactory.register('manage-games', ManageGamesView);
+Viewfactory.register('user-manager', UserManagerView);
+Viewfactory.register('manage-news-events', ManageNewsEventsView);
+Viewfactory.register('rules', RulesView);
 
 const menuItems = 
 [
@@ -441,3 +327,17 @@ const menuItems =
       roles: ['admin', 'owner']
    },
 ];
+
+const headerHTML =
+`
+<div class="header-left">
+  <span class="utc-clock"></span>
+</div>
+<div class="header-center">
+  <span class="player-name">name</span>
+  <span class="role-badge role-visitor">role</span>
+</div>
+<div class="header-right">
+  <button class="logoff-btn" id="logoff-btn">Logoff</button>
+</div>
+`;
