@@ -80,7 +80,7 @@ export class RegisterScreen extends BaseFormScreen
          return;
       }
 
-      if (!this.validateEmail(email))
+      if (!Utils.validateEmail(email))
       {
          this.showError('#register-error', 'Please enter a valid email address.');
          this.focusInput('#register-email', true);
@@ -96,7 +96,7 @@ export class RegisterScreen extends BaseFormScreen
          return;
       }
 
-      const passwordValidation = this.validatePassword(password);
+      const passwordValidation = Utils.validatePassword(password);
       if (!passwordValidation.valid)
       {
          this.showError('#register-error', passwordValidation.errors.join('. '));

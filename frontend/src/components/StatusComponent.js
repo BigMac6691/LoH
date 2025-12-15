@@ -14,8 +14,9 @@ export class StatusComponent
       this.container.innerHTML = '<div class="status-messages"></div>';
 
       this.messagesContainer = this.container.querySelector('.status-messages');
+      this._boundStatusMessage = this.statusMessage.bind(this);
 
-      eventBus.on('ui:statusMessage', this.statusMessage.bind(this));
+      eventBus.on('ui:statusMessage', this._boundStatusMessage);
    }
 
    /**
@@ -27,6 +28,14 @@ export class StatusComponent
       return this.container;
    }
 
+   mount(target)
+   {
+      if (!(target instanceof Node))
+         throw new Error('mount(): target must be a DOM Node');
+
+      target.appendChild(this.container);
+   }
+
    /**
     * Handle status message event
     * @param {ApiEvent} event - Event object
@@ -36,44 +45,32 @@ export class StatusComponent
       console.log('StatusComponent: statusMessage', event);
 
       let message = 'Unknown status message';
-      let type = 'fatal';
-    
+      
       switch (event?.data?.type)
       {
          case 'info':
-            message = `ℹ️ Info: ${event?.data?.message}`;
-            type = 'info';
-            break;
          case 'success':
-            message = `✅ Success: ${event?.data?.message}`;
-            type = 'success';
-            break;
+         case 'warning':
+            message = event?.data?.message;
+            break;   
          case 'error':
-            message = `❌ Error: ${event?.data?.message}, source: ${event?.data?.source}, line: ${event?.data?.lineno}, column: ${event?.data?.colno}, error: ${event?.data?.error}`;
-            type = 'error';
+            message = `${event?.data?.message}, source: ${event?.data?.source}, line: ${event?.data?.lineno}, column: ${event?.data?.colno}, error: ${event?.data?.error}`;
             break;
          case 'reject':
-            message = `❌ Reject: ${event?.data?.message}, reason: ${event?.data?.reason}, promise: ${event?.data?.promise}`;
-            type = 'reject';
-            break;
-         case 'warning':
-            message = `⚠️ Warning: ${event?.data?.message}`;
-            type = 'warning';
+            message = `${event?.data?.message}, reason: ${event?.data?.reason}, promise: ${event?.data?.promise}`;
             break;
       }
     
-      this.postStatusMessage(message, type);
+      this.postStatusMessage(message, event?.data?.type || 'fatal');
    }
 
    postStatusMessage(message, type = 'info')
    {
       const messageDiv = document.createElement('div');
       messageDiv.className = `status-message status-${type}`;
-      messageDiv.innerHTML = `<span class="status-time">[${Utils.getUTCTimeString()}]</span> <span class="status-text">${Utils.escapeHtml(message)}</span>`;
+      messageDiv.innerHTML = `<span class="status-time">[${Utils.getUTCTimeString()}]</span> <span class="status-text">${Utils.escapeHtml(this.prefixMessage(message, type))}</span>`;
       this.messagesContainer.appendChild(messageDiv);
-
-      // Auto-scroll to bottom
-      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight; // Auto-scroll to bottom
 
       // Auto-remove old messages after 30 seconds (keep last 10 messages)
       setTimeout(() =>
@@ -83,6 +80,25 @@ export class StatusComponent
          if (messages.length > 10)
             messages[0].remove();
       }, 30000);
+   }
+
+   prefixMessage(msg, type)
+   {
+      switch (type)
+      {
+         case 'info':
+            return `ℹ️ Info: ${msg}`;
+         case 'success':
+            return `✅ Success: ${msg}`;
+         case 'error':
+            return `❌ Error: ${msg}`;
+         case 'reject':
+            return `❌ Reject: ${msg}`;
+         case 'warning':
+            return `⚠️ Warning: ${msg}`;
+         default:
+            return msg;
+      }
    }
 
    /**
@@ -96,6 +112,6 @@ export class StatusComponent
       this.container = null;
       this.messagesContainer = null;
 
-      eventBus.off('ui:statusMessage', this.statusMessage.bind(this));
+      eventBus.off('ui:statusMessage', this._boundStatusMessage);
    }
 }

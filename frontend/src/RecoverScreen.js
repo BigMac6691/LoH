@@ -95,7 +95,7 @@ export class RecoverScreen extends BaseFormScreen
 
       console.log('🔐 RecoverScreen: Handling recovery request for email:', email);
 
-      if (!this.validateEmail(email))
+      if (!Utils.validateEmail(email))
       {
          this.showError('#recovery-error', 'Please enter a valid email address.');
          this.hideSuccess();
@@ -152,7 +152,7 @@ export class RecoverScreen extends BaseFormScreen
          return;
       }
 
-      const passwordValidation = this.validatePassword(newPassword);
+      const passwordValidation = Utils.validatePassword(newPassword);
       if (!passwordValidation.valid)
       {
          this.showError('#recovery-error', passwordValidation.errors.join('. '));

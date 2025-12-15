@@ -117,44 +117,6 @@ export class BaseFormScreen
    }
 
    /**
-    * Validate email address
-    * @param {string} email - Email to validate
-    * @returns {boolean} True if valid
-    */
-   validateEmail(email)
-   {
-      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return re.test(email);
-   }
-
-   /**
-    * Validate password strength
-    * @param {string} password - Password to validate
-    * @returns {Object} { valid: boolean, errors: string[] }
-    */
-   validatePassword(password)
-   {
-      const errors = [];
-
-      if (!password || password.length < 8)
-         errors.push('Password must be at least 8 characters long');
-
-      if (password && !/[A-Z]/.test(password))
-         errors.push('Password must contain at least one uppercase letter');
-
-      if (password && !/[a-z]/.test(password))
-         errors.push('Password must contain at least one lowercase letter');
-
-      if (password && !/[0-9]/.test(password))
-         errors.push('Password must contain at least one number');
-
-      if (password && !/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password))
-         errors.push('Password must contain at least one safe symbol (!@#$%^&*()_+-=[]{}|;:,.<>?)');
-
-      return { valid: errors.length === 0, errors };
-   }
-
-   /**
     * Show error message in an error div
     * @param {string} errorId - ID of the error div element
     * @param {string} message - Error message to display

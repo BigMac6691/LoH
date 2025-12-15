@@ -609,6 +609,14 @@
   font-weight: bold;
 }
 
+.email-verified-badge {
+  color: #00ff88;
+}
+
+.email-unverified-badge {
+  color: #ff4444;
+}
+
 /* Manage News and Events Styles */
 .news-events-manager {
   display: flex;

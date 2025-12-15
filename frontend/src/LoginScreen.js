@@ -61,7 +61,7 @@ export class LoginScreen extends BaseFormScreen
 
       this.clearError('#login-error');
 
-      if (!this.validateEmail(email))
+      if (!Utils.validateEmail(email))
       {
          this.showError('#login-error', 'Please enter a valid email address.');
          emailInput.focus();

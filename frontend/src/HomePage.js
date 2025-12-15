@@ -34,6 +34,9 @@ export class HomePage
       this.userRole = null;
       this.emailVerified = null;
 
+      this._boundRefresh = this.refresh.bind(this);
+      eventBus.on('system:userUpdated', this._boundRefresh);
+
       this.createHomePage();
    }
 
@@ -160,6 +163,16 @@ export class HomePage
       });
    }
 
+   refresh(event)
+   {
+      this.userRole = localStorage.getItem('user_role') || 'visitor';
+      this.displayName = localStorage.getItem('user_display_name');
+      this.emailVerified = localStorage.getItem('user_email_verified') === 'true';
+
+      this.refreshHeader();
+      this.refreshSidebar();
+   }
+
    setActiveMenuItem(viewId)
    {
       Utils.requireElement('.home-sidebar'); // this throws error if not found
@@ -237,6 +250,8 @@ export class HomePage
       this.currentView = null;
       this.currentViewInstance = null;
       this.uiController = null;
+
+      eventBus.off('system:userUpdated', this._boundRefresh);
    }
 }
 
