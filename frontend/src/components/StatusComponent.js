@@ -34,6 +34,8 @@ export class StatusComponent
          throw new Error('mount(): target must be a DOM Node');
 
       target.appendChild(this.container);
+
+      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight; // Auto-scroll to bottom
    }
 
    /**

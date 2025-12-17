@@ -23,9 +23,10 @@ export class ApiEvent
  */
 export class ApiRequest extends ApiEvent
 {
-    constructor(type, data = null)
+    constructor(type, data = null, signal = null)
     {
         super(type, data);
+        this.signal = signal;
     }
 
     prepareResponse(type, data = null, status = 200, error = null)
@@ -56,6 +57,11 @@ export class ApiResponse extends ApiEvent
     isSuccess()
     {
         return this.status >= 200 && this.status < 300;
+    }
+
+    isAborted()
+    {
+        return this.status === 499;
     }
 
     isError()

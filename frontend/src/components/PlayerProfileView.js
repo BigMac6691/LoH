@@ -14,6 +14,7 @@ export class PlayerProfileView extends MenuView
       super(statusComponent);
       this.container = null;
       this.dialog = null;
+      this.abortControl = null;
       this.profileData = null;
       this.isEditing = false;
 
@@ -34,19 +35,21 @@ export class PlayerProfileView extends MenuView
    {
       this.container = document.createElement('div');
       this.container.className = 'player-profile-view';
+      this.container.innerHTML = initialHTML;
       
       this.loadProfile(); // Load profile data (will trigger render when response arrives)
-      this.render(); // Render initial state (will be updated when profile loads)
 
       return this.container;
    }
 
    loadProfile()
    {
+      this.displayStatusMessage('Loading profile...', 'info');
+
     setTimeout(() =>
       {
       eventBus.emit('system:profileRequest', new ApiRequest('system:profileRequest'));
-      }, 12000);
+      }, 120);
    }
 
    /**
@@ -75,12 +78,6 @@ export class PlayerProfileView extends MenuView
 
    render()
    {
-      // if (!this.profileData)
-      // {
-      //    this.container.innerHTML = profileErrorHTML;
-      //    return;
-      // }
-
       if (this.isEditing)
          this.renderEditForm();
       else
@@ -187,7 +184,7 @@ export class PlayerProfileView extends MenuView
          title: 'Change Password',
          contentHTML: changePasswordDialogHTML,
          className: 'change-password-dialog',
-         onClose: () => { this.statusComponent.mount(Utils.requireElement('.home-main-content')); }
+         onClose: () => { this.handleDialogClose(); }
       });
 
       this.statusComponent.mount(Utils.requireChild(this.dialog.getDialog(), '#password-mount-point'));
@@ -219,10 +216,14 @@ export class PlayerProfileView extends MenuView
          if(statuses.some(status => !status.valid))
             return;
 
-         eventBus.emit('system:changePasswordRequest', new ApiRequest('system:changePasswordRequest', {oldPassword, newPassword, confirmPassword}));
+         this.abortControl = new AbortController();
+
+         this.displayStatusMessage('Changing password...', 'info');
+
+         eventBus.emit('system:changePasswordRequest', new ApiRequest('system:changePasswordRequest', {oldPassword, newPassword, confirmPassword}, this.abortControl.signal));
       });
 
-      Utils.requireChild(this.dialog.getDialog(), '.cancel-password-btn').addEventListener('click', () => { this.dialog.close(); });
+      Utils.requireChild(this.dialog.getDialog(), '.cancel-password-btn').addEventListener('click', () => { this.abort('User cancelled password change.'); });
 
       this.dialog.show();
    }
@@ -243,6 +244,11 @@ export class PlayerProfileView extends MenuView
          Utils.requireChild(this.dialog.getDialog(), '#change-password-form').reset(); // Clear form
 
          setTimeout(() => { this.dialog.close(); }, 2000);
+      }
+      else if (event.isAborted())
+      {
+         this.displayStatusMessage('Password change aborted.', 'error');
+         this.dialog.close();
       }
       else
          this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to change password.', 'error');
@@ -267,6 +273,7 @@ export class PlayerProfileView extends MenuView
       this.profileData = null;
       this.isEditing = false;
       this.dialog = null;
+      this.abortControl = null;
       this._boundFormatPhoneNumber = null;
    }
 
@@ -281,7 +288,7 @@ export class PlayerProfileView extends MenuView
          contentHTML: verifyEmailDialogHTML,
          className: 'verify-email-dialog',
          styles: 'background: rgba(20, 20, 30, 0.95);',
-         onClose: () => { this.statusComponent.mount(Utils.requireElement('.home-main-content')); }
+         onClose: () => { this.handleDialogClose(); }
       });
 
       this.statusComponent.mount(Utils.requireChild(this.dialog.getDialog(), '#email-mount-point'));
@@ -294,14 +301,18 @@ export class PlayerProfileView extends MenuView
             Utils.requireChild(this.dialog.getDialog(), '.verify-submit-btn').click();
       });
 
-      Utils.requireChild(this.dialog.getDialog(), '.verify-cancel-btn').addEventListener('click', () => { this.dialog.close(); });
+      Utils.requireChild(this.dialog.getDialog(), '.verify-cancel-btn').addEventListener('click', () => { this.abort('User cancelled verification'); });
       Utils.requireChild(this.dialog.getDialog(), '.verify-submit-btn').addEventListener('click', () =>
       {
          const token = tokenInput.value.trim();
          if (!token)
-            return this.displayStatusMessage('Please enter a verification token', 'error');
+            return this.displayStatusMessage('Please enter a verification token', 'error');  // void function
 
-         eventBus.emit('system:verifyEmailRequest', new ApiRequest('system:verifyEmailRequest', { token }));
+         this.abortControl = new AbortController();
+
+         this.displayStatusMessage('Verifying email...', 'info');
+
+         eventBus.emit('system:verifyEmailRequest', new ApiRequest('system:verifyEmailRequest', { token }, this.abortControl.signal));
       });
 
       this.dialog.show();
@@ -316,7 +327,6 @@ export class PlayerProfileView extends MenuView
       if (event.isSuccess() && event.data?.success)
       {
          this.dialog.close();
-         this.dialog = null;
 
          if (event.data.roleUpdated && event.data.newRole) // Update localStorage if role changed
             localStorage.setItem('user_role', event.data.newRole);
@@ -324,30 +334,23 @@ export class PlayerProfileView extends MenuView
          localStorage.setItem('user_email_verified', 'true');
 
          this.loadProfile(); // Reload profile to get email verified and role updated
-         eventBus.emit('system:userUpdated');
+         eventBus.emit('system:userUpdated'); // signal the rest of the application that the user has been updated
 
          const successMsg = 'Email verified successfully!' + (event.data.roleUpdated ? ` Your role has been updated to: ${event.data.newRole}` : '');
          this.displayStatusMessage(successMsg, 'success');
+      }
+      else if (event.isAborted())
+      {
+         this.displayStatusMessage('Email verification aborted.', 'error');
+         this.dialog.close();
       }
       else
          this.displayStatusMessage(event.error?.message || event.data?.message || 'Email verification failed. Please check your token and try again.', 'error');
    }
 
-   /**
-    * Handle resend verification email
-    */
    handleResendVerification()
    {
-      const btn = this.container.querySelector('.resend-verification-btn');
-      if (!btn) 
-        return;
-
-      const originalText = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = 'Sending...';
-
-      // Store button reference for response handler
-      this.pendingResendVerification = { btn, originalText };
+      this.displayStatusMessage('Sending verification token...', 'info');
 
       eventBus.emit('system:resendVerificationRequest', new ApiRequest('system:resendVerificationRequest'));
    }
@@ -358,30 +361,36 @@ export class PlayerProfileView extends MenuView
     */
    handleResendVerificationResponse(event)
    {
-      const { btn, originalText } = this.pendingResendVerification || {};
-      this.pendingResendVerification = null;
-
-      if (!btn)
-         return;
-
       if (event.isSuccess() && event.data?.success)
       {
          const token = event.data.verificationToken || 'Check server logs';
          const message = `Verification token sent! Token: ${token}. Click "Verify Email" to enter this token and verify your email address.`;
          this.displayStatusMessage(message, 'success');
-         // Reload profile to update verification status
-         this.loadProfile();
       }
       else
-      {
-         const errorMsg = 'Failed to send verification token: ' + (event.error?.message || event.data?.message || 'Unknown error');
-         this.displayStatusMessage(errorMsg, 'error');
-      }
-
-      btn.disabled = false;
-      btn.textContent = originalText;
+         this.displayStatusMessage('Failed to send verification token: ' + (event.error?.message || event.data?.message || 'Unknown error'), 'error');
    }
 
+   abort(message)
+   {
+      this.abortControl?.abort(message);
+      this.dialog.close();
+   }
+
+   /**
+    * Handle dialog close, assumes the HTML dialog itself is closed just need to null out the reference and abort any ongoing requests
+    */
+   handleDialogClose()
+   {
+      this.dialog = null;
+
+      if (this.abortControl && !this.abortControl.signal.aborted)
+         this.abortControl.abort("Dialog closing... aborting ongoing requests");
+
+      this.abortControl = null;
+
+      this.statusComponent.mount(Utils.requireElement('.home-main-content'));
+   }
    /**
     * Format phone number for display (e.g., (123) 456-7890)
     */
@@ -403,12 +412,12 @@ export class PlayerProfileView extends MenuView
 // HTML Templates
 // ============================================================================
 
-const profileErrorHTML = `
+const initialHTML = `
 <div class="view-header">
   <h2>Player Profile</h2>
 </div>
 <div class="view-content">
-  <p class="error-message">Failed to load profile data.</p>
+  <p>Loading profile data...</p>
 </div>
 `;
 

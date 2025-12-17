@@ -69,7 +69,7 @@ export class SystemEventHandler
       let response = null;
 
       // Attempt login via API - move this to SystemEventHandler
-      RB.fetchPostUnauthenticated('/api/auth/login', {...event.data})
+      RB.fetchPostUnauthenticated('/api/auth/login', {...event.data}, event.signal)
          .then(success =>
          {
             console.log('Login success:', success);
@@ -126,7 +126,7 @@ export class SystemEventHandler
       const refreshToken = localStorage.getItem('refresh_token');
 
       if (refreshToken)
-         RB.fetchPost('/api/auth/logout', {refreshToken})
+         RB.fetchPost('/api/auth/logout', {refreshToken}, event.signal)
             .then(success =>
             {
                console.log('Logout success:', success);
@@ -160,7 +160,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPostUnauthenticated('/api/auth/register', {...event.data})
+      RB.fetchPostUnauthenticated('/api/auth/register', {...event.data}, event.signal)
          .then(success =>
          {
             console.log('Registration success:', success);
@@ -188,7 +188,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPostUnauthenticated('/api/auth/recover', {email: event.data.email})
+      RB.fetchPostUnauthenticated('/api/auth/recover', {email: event.data.email}, event.signal)
          .then(success =>
          {
             console.log('Recovery request success:', success);
@@ -216,7 +216,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPostUnauthenticated('/api/auth/reset-password', {token: event.data.token, newPassword: event.data.newPassword})
+      RB.fetchPostUnauthenticated('/api/auth/reset-password', {token: event.data.token, newPassword: event.data.newPassword}, event.signal)
          .then(success =>
          {
             console.log('Password reset success:', success);
@@ -247,7 +247,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchGet('/api/auth/profile')
+      RB.fetchGet('/api/auth/profile', event.signal)
          .then(success =>
          {
             console.log('Profile request success:', success);
@@ -278,7 +278,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPut('/api/auth/profile', {...event.data})
+      RB.fetchPut('/api/auth/profile', {...event.data}, event.signal)
          .then(success =>
          {
             console.log('Update profile success:', success);
@@ -309,7 +309,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPost('/api/auth/change-password', {...event.data})
+      RB.fetchPost('/api/auth/change-password', {...event.data}, event.signal)
          .then(success =>
          {
             console.log('Change password success:', success);
@@ -340,17 +340,16 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPost('/api/auth/verify-email', {...event.data})
+      RB.fetchPost('/api/auth/verify-email', {...event.data}, event.signal)
          .then(success =>
          {
-            console.log('Verify email success:', success);
             response = event.prepareResponse('system:verifyEmailResponse', success, 200, null);
          })
          .catch(error =>
          {
-            console.error('Verify email error:', error);
-            const errorBody = error instanceof ApiError ? error.body : {message: error.message};
-            response = event.prepareResponse('system:verifyEmailResponse', null, 400, errorBody);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:verifyEmailResponse', null, status, errorBody);
          })
          .finally(() =>
          {
@@ -364,14 +363,12 @@ export class SystemEventHandler
     */
    handleResendVerificationRequest(event)
    {
-      console.log('🔐 SystemEventHandler: Processing resend verification request');
-
       if(!(event instanceof ApiRequest))
          throw new Error('SystemEventHandler: Invalid event type');
 
       let response = null;
 
-      RB.fetchPost('/api/auth/profile/resend-verification', null)
+      RB.fetchPost('/api/auth/profile/resend-verification', null, event.signal)
          .then(success =>
          {
             console.log('Resend verification success:', success);
