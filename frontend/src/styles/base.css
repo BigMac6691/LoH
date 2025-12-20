@@ -1,5 +1,13 @@
 /* Base CSS for LoH Frontend */
 
+/* Global fieldset reset - remove all default browser styling */
+fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
 :root {
   /* Color Palette */
   --color-primary: #00ff00;

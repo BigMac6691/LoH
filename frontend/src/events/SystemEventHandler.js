@@ -169,8 +169,9 @@ export class SystemEventHandler
          .catch(error =>
          {
             console.error('Registration error:', error);
-            const errorBody = error instanceof ApiError ? error.body : {message: error.message};
-            response = event.prepareResponse('system:registerResponse', null, 400, errorBody);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:registerResponse', null, status, errorBody);
          })
          .finally(() =>
          {
@@ -197,8 +198,9 @@ export class SystemEventHandler
          .catch(error =>
          {
             console.error('Recovery request error:', error);
-            const errorBody = error instanceof ApiError ? error.body : {message: error.message};
-            response = event.prepareResponse('system:recoverResponse', null, 400, errorBody);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:recoverResponse', null, status, errorBody);
          })
          .finally(() =>
          {
@@ -225,8 +227,9 @@ export class SystemEventHandler
          .catch(error =>
          {
             console.error('Password reset error:', error);
-            const errorBody = error instanceof ApiError ? error.body : {message: error.message};
-            response = event.prepareResponse('system:resetPasswordResponse', null, 400, errorBody);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:resetPasswordResponse', null, status, errorBody);
          })
          .finally(() =>
          {
@@ -256,8 +259,9 @@ export class SystemEventHandler
          .catch(error =>
          {
             console.error('Profile request error:', error);
-            const errorBody = error instanceof ApiError ? error.body : {message: error.message};
-            response = event.prepareResponse('system:profileResponse', null, 400, errorBody);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:profileResponse', null, status, errorBody);
          })
          .finally(() =>
          {
@@ -287,8 +291,9 @@ export class SystemEventHandler
          .catch(error =>
          {
             console.error('Update profile error:', error);
-            const errorBody = error instanceof ApiError ? error.body : {message: error.message};
-            response = event.prepareResponse('system:updateProfileResponse', null, 400, errorBody);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:updateProfileResponse', null, status, errorBody);
          })
          .finally(() =>
          {
@@ -318,8 +323,9 @@ export class SystemEventHandler
          .catch(error =>
          {
             console.error('Change password error:', error);
-            const errorBody = error instanceof ApiError ? error.body : {message: error.message};
-            response = event.prepareResponse('system:changePasswordResponse', null, 400, errorBody);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:changePasswordResponse', null, status, errorBody);
          })
          .finally(() =>
          {

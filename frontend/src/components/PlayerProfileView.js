@@ -89,10 +89,14 @@ export class PlayerProfileView extends MenuView
       this.container.innerHTML = getProfileViewHTML(this.profileData, this._boundFormatPhoneNumber);
 
       // Add event listeners
-      Utils.requireChild(this.container, '.change-password-btn').addEventListener('click', () => { this.showChangePasswordDialog(); });
-      Utils.requireChild(this.container, '.resend-verification-btn').addEventListener('click', () => { this.handleResendVerification(); });
-      Utils.requireChild(this.container, '.verify-email-btn').addEventListener('click', () => { this.showVerifyEmailDialog(); });
-      Utils.requireChild(this.container, '.edit-profile-btn').addEventListener('click', () =>
+      if(!this.profileData?.emailVerified)
+      {
+         Utils.requireChild(this.container, '.resend-verification-btn').addEventListener('click', () => { this.handleResendVerification(); });
+         Utils.requireChild(this.container, '.verify-email-btn').addEventListener('click', () => { this.showVerifyEmailDialog(); });
+      }
+      
+      Utils.requireChild(this.container, '#change-password-btn').addEventListener('click', () => { this.showChangePasswordDialog(); });
+      Utils.requireChild(this.container, '#edit-profile-btn').addEventListener('click', () =>
       {
          this.isEditing = true;
          this.render();
@@ -104,16 +108,25 @@ export class PlayerProfileView extends MenuView
       this.container.innerHTML = getProfileEditFormHTML(this.profileData);
 
       // Add event listeners
-      Utils.requireChild(this.container, '.save-profile-btn').addEventListener('click', () => { this.saveProfile(); });
-      Utils.requireChild(this.container, '.cancel-edit-btn').addEventListener('click', () =>
+      Utils.requireChild(this.container, '#save-profile-btn').addEventListener('click', () => { this.saveProfile(); });
+      Utils.requireChild(this.container, '#cancel-edit-profile-btn').addEventListener('click', () =>
       {
-         this.isEditing = false;
-         this.render();
+         this.displayStatusMessage('Requesting profile update to be cancelled.', 'warning');
+         this.abortControl?.abort("User cancelled profile update.");
       });
 
       // Phone number input validation (digits only, max 10)
       Utils.requireChild(this.container, '#text-message-contact-input')
          .addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); });
+   }
+
+   setProfileEditDisabled(state)
+   {
+      if(!this.isEditing)
+         return;
+
+      Utils.requireChild(this.container, 'fieldset').disabled = state;
+      Utils.requireChild(this.container, '#save-profile-btn').disabled = state;
    }
 
    saveProfile()
@@ -140,9 +153,14 @@ export class PlayerProfileView extends MenuView
       if (error !== null)
         return;
 
+      this.abortControl = new AbortController();
+      this.setProfileEditDisabled(true);
+
+      console.log('saving profile', this.container.parentNode);
+
       setTimeout(() =>
         {
-      eventBus.emit('system:updateProfileRequest', new ApiRequest('system:updateProfileRequest', {email, displayName, bio, textMessageContact}));
+      eventBus.emit('system:updateProfileRequest', new ApiRequest('system:updateProfileRequest', {email, displayName, bio, textMessageContact}, this.abortControl.signal));
         }, 12000);
    }
 
@@ -152,6 +170,8 @@ export class PlayerProfileView extends MenuView
     */
    handleUpdateProfileResponse(event)
    {
+      this.setProfileEditDisabled(false);
+      
       if (event.isSuccess() && event.data?.success)
       {
          this.profileData = event.data.user;
@@ -163,15 +183,19 @@ export class PlayerProfileView extends MenuView
          // Update header display name if it exists
          Utils.requireElement('.header-center .player-name').textContent = event.data.user.displayName;
 
-         // Switch back to view mode after a delay
-         setTimeout(() =>
-         {
-            this.isEditing = false;
-            this.render();
-         }, 2000);
+          this.setProfileEditDisabled(false);
+          this.isEditing = false;
+          this.render();
+      }
+      else if (event.isAborted())
+      {
+         this.displayStatusMessage('Profile update aborted.', 'error');
+         this.setProfileEditDisabled(false);
+         this.isEditing = false;
+         this.render();
       }
       else
-         this.displayStatusMessage('Failed to update profile: ' + event.error?.message || event.data?.message || 'Unknown error', 'error');
+         this.displayStatusMessage('Failed to update profile: ' + event.error?.message || event.data?.message || error || 'Unknown error', 'error');
    }
 
    showChangePasswordDialog()
@@ -184,12 +208,13 @@ export class PlayerProfileView extends MenuView
          title: 'Change Password',
          contentHTML: changePasswordDialogHTML,
          className: 'change-password-dialog',
+         buttonText: 'Change Password',
          onClose: () => { this.handleDialogClose(); }
       });
 
       this.statusComponent.mount(Utils.requireChild(this.dialog.getDialog(), '#password-mount-point'));
 
-      Utils.requireChild(this.dialog.getDialog(), '#change-password-form').addEventListener('submit', (e) =>
+      Utils.requireChild(this.dialog.getDialog(), '.save-dialog-btn').addEventListener('click', (e) =>
       {
          e.preventDefault();
 
@@ -219,11 +244,12 @@ export class PlayerProfileView extends MenuView
          this.abortControl = new AbortController();
 
          this.displayStatusMessage('Changing password...', 'info');
+         this.dialog.setDisabled(true);
 
-         eventBus.emit('system:changePasswordRequest', new ApiRequest('system:changePasswordRequest', {oldPassword, newPassword, confirmPassword}, this.abortControl.signal));
+          eventBus.emit('system:changePasswordRequest', new ApiRequest('system:changePasswordRequest', {oldPassword, newPassword, confirmPassword}, this.abortControl.signal));
       });
 
-      Utils.requireChild(this.dialog.getDialog(), '.cancel-password-btn').addEventListener('click', () => { this.abort('User cancelled password change.'); });
+      Utils.requireChild(this.dialog.getDialog(), '.cancel-dialog-btn').addEventListener('click', () => { this.abort('User cancelled password change.'); });
 
       this.dialog.show();
    }
@@ -234,15 +260,14 @@ export class PlayerProfileView extends MenuView
     */
    handleChangePasswordResponse(event)
    {
+      this.dialog.setDisabled(false);
+      
       if (event.isSuccess() && event.data?.success)
       {
          this.dialog.close();
-         this.dialog = null;
 
          this.displayStatusMessage(event.data.message || 'Password changed successfully!', 'success');
          
-         Utils.requireChild(this.dialog.getDialog(), '#change-password-form').reset(); // Clear form
-
          setTimeout(() => { this.dialog.close(); }, 2000);
       }
       else if (event.isAborted())
@@ -287,6 +312,7 @@ export class PlayerProfileView extends MenuView
          title: 'Verify Email Address',
          contentHTML: verifyEmailDialogHTML,
          className: 'verify-email-dialog',
+         buttonText: 'Verify Email',
          styles: 'background: rgba(20, 20, 30, 0.95);',
          onClose: () => { this.handleDialogClose(); }
       });
@@ -298,11 +324,11 @@ export class PlayerProfileView extends MenuView
       tokenInput.addEventListener('keypress', (e) =>
       {
          if (e.key === 'Enter')
-            Utils.requireChild(this.dialog.getDialog(), '.verify-submit-btn').click();
+            Utils.requireChild(this.dialog.getDialog(), '.save-dialog-btn').click();
       });
 
-      Utils.requireChild(this.dialog.getDialog(), '.verify-cancel-btn').addEventListener('click', () => { this.abort('User cancelled verification'); });
-      Utils.requireChild(this.dialog.getDialog(), '.verify-submit-btn').addEventListener('click', () =>
+      Utils.requireChild(this.dialog.getDialog(), '.cancel-dialog-btn').addEventListener('click', () => { this.abort('User cancelled verification'); });
+      Utils.requireChild(this.dialog.getDialog(), '.save-dialog-btn').addEventListener('click', () =>
       {
          const token = tokenInput.value.trim();
          if (!token)
@@ -311,6 +337,7 @@ export class PlayerProfileView extends MenuView
          this.abortControl = new AbortController();
 
          this.displayStatusMessage('Verifying email...', 'info');
+         this.dialog.setDisabled(true);
 
          eventBus.emit('system:verifyEmailRequest', new ApiRequest('system:verifyEmailRequest', { token }, this.abortControl.signal));
       });
@@ -324,6 +351,8 @@ export class PlayerProfileView extends MenuView
     */
    handleVerifyEmailResponse(event)
    {
+      this.dialog.setDisabled(false);
+      
       if (event.isSuccess() && event.data?.success)
       {
          this.dialog.close();
@@ -391,6 +420,7 @@ export class PlayerProfileView extends MenuView
 
       this.statusComponent.mount(Utils.requireElement('.home-main-content'));
    }
+
    /**
     * Format phone number for display (e.g., (123) 456-7890)
     */
@@ -421,18 +451,10 @@ const initialHTML = `
 </div>
 `;
 
-const getProfileViewHTML = (user, formatPhoneNumber) => `
-<div class="view-header">
-  <h2>Player Profile</h2>
-  <button class="edit-profile-btn" style="
-    padding: 8px 16px;
-    background: #00ff88;
-    color: black;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-  ">Edit Profile</button>
+const getProfileViewHTML = (user, formatPhoneNumber) => 
+`<div class="view-header">
+  <h2 style="margin: 5px;">Player Profile</h2>
+  <button id="edit-profile-btn" class="save-dialog-btn">Edit Profile</button>
 </div>
 <div class="view-content">
   <div class="profile-info">
@@ -471,45 +493,21 @@ const getProfileViewHTML = (user, formatPhoneNumber) => `
     </div>
     <div class="profile-section">
       <h3>Password</h3>
-      <button class="change-password-btn" style="
-        padding: 8px 16px;
-        background: rgba(0, 255, 136, 0.2);
-        color: #00ff88;
-        border: 1px solid #00ff88;
-        border-radius: 5px;
-        cursor: pointer;
-        font-weight: bold;
-      ">Change Password</button>
+      <button id="change-password-btn" class="save-dialog-btn">Change Password</button>
     </div>
   </div>
 </div>
 `;
 
-const getProfileEditFormHTML = (user) => `
-<div class="view-header">
-  <h2>Edit Profile</h2>
-  <button class="cancel-edit-btn" style="
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-    border: 1px solid #00ff88;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    margin-right: 10px;
-  ">Cancel</button>
-  <button class="save-profile-btn" style="
-    padding: 8px 16px;
-    background: #00ff88;
-    color: black;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-  ">Save Changes</button>
+const getProfileEditFormHTML = (user) => 
+`<div class="view-header">
+  <h2 style="margin: 5px;">Edit Profile</h2>
+  <button id="cancel-edit-profile-btn" class="cancel-dialog-btn">Cancel</button>
+  <button id="save-profile-btn" class="save-dialog-btn">Save Changes</button>
 </div>
 <div class="view-content">
   <form class="profile-edit-form" id="profile-edit-form">
+  <fieldset>
     <div class="form-group">
       <label for="email-input">Email:</label>
       <input type="email" id="email-input" class="profile-input" value="${Utils.escapeHtml(user.email || '')}" required />
@@ -528,14 +526,13 @@ const getProfileEditFormHTML = (user) => `
       <input type="tel" id="text-message-contact-input" class="profile-input" placeholder="1234567890" maxlength="10" pattern="[0-9]{10}" value="${user.textMessageContact ? Utils.escapeHtml(user.textMessageContact) : ''}" />
       <small class="form-hint">Enter a 10-digit phone number (digits only, no dashes or spaces)</small>
     </div>
-    <div id="profile-error" class="error-message" style="display: none; color: #ff4444; margin-top: 15px;"></div>
-    <div id="profile-success" class="success-message" style="display: none; color: #00ff88; margin-top: 15px;"></div>
+    </fieldset>
   </form>
 </div>
 `;
 
-const changePasswordDialogHTML = `
-<form id="change-password-form">
+const changePasswordDialogHTML = 
+` <fieldset>
   <div class="form-group" style="margin-bottom: 15px;">
     <label for="old-password" style="display: block; margin-bottom: 5px; color: #00ff88;">Old Password:</label>
     <input type="password" id="old-password" class="profile-input" required style="
@@ -576,35 +573,14 @@ const changePasswordDialogHTML = `
       box-sizing: border-box;
     " />
   </div>
+  </fieldset>
   <div id="password-mount-point"></div>
-  <div style="display: flex; gap: 10px; justify-content: flex-end;">
-    <button type="button" class="cancel-password-btn" style="
-      padding: 10px 20px;
-      background: rgba(255, 255, 255, 0.1);
-      color: white;
-      border: 1px solid #00ff88;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-    ">Cancel</button>
-    <button type="submit" class="save-password-btn" style="
-      padding: 10px 20px;
-      background: #00ff88;
-      color: black;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-    ">Change Password</button>
-  </div>
-</form>
 `;
 
-const verifyEmailDialogHTML = `
-<p style="margin-bottom: 20px; color: #cccccc;">
-  Enter the verification token you received. You can get a new token by clicking "Resend Token".
-</p>
-<div style="margin-bottom: 20px;">
+const verifyEmailDialogHTML = 
+`<p style="margin-bottom: 20px; color: #cccccc;">Enter the verification token you received. You can get a new token by clicking "Resend Token".</p>
+<fieldset>
+  <div style="margin-bottom: 20px;">
   <label for="verification-token-input" style="display: block; margin-bottom: 8px; color: #00ff88; font-weight: bold;">
     Verification Token:
   </label>
@@ -623,26 +599,7 @@ const verifyEmailDialogHTML = `
       box-sizing: border-box;
     "
   />
-</div>
-<div style="display: flex; gap: 10px; justify-content: flex-end;">
-  <button class="verify-cancel-btn" style="
-    padding: 10px 20px;
-    background: rgba(255, 68, 68, 0.2);
-    color: #ff4444;
-    border: 1px solid #ff4444;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-  ">Cancel</button>
-  <button class="verify-submit-btn" style="
-    padding: 10px 20px;
-    background: rgba(0, 255, 136, 0.2);
-    color: #00ff88;
-    border: 1px solid #00ff88;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-  ">Verify Email</button>
-</div>
+  </div>
+</fieldset>
 <div id="email-mount-point"></div>
 `;

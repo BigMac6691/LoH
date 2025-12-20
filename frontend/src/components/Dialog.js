@@ -2,6 +2,8 @@
  * Dialog - Base class for modal dialogs using HTML <dialog> element
  * Provides common functionality for creating, showing, and managing dialogs
  */
+import { Utils } from '../utils/Utils.js';
+
 export class Dialog
 {
    /**
@@ -20,8 +22,7 @@ export class Dialog
       
       // Apply default styles to match existing appearance
       this.dialog.style.cssText = 
-      `
-         background: rgba(0, 0, 0, 0.95);
+      `  background: rgba(0, 0, 0, 0.95);
          border: 2px solid #00ff88;
          border-radius: 15px;
          padding: 30px;
@@ -33,43 +34,20 @@ export class Dialog
          ${options.styles || ''}
       `;
 
-      // Build dialog HTML structure
+      // Build dialog HTML structure (without buttons initially)
       this.dialog.innerHTML = 
-      `
-         <h2 style="margin: 0 0 20px 0; color: #00ff88; text-align: center;">${options.title || 'Dialog'}</h2>
+      `  <h2 style="margin: 0 0 20px 0; color: #00ff88; text-align: center;">${options.title || 'Dialog'}</h2>
          ${options.contentHTML || ''}
       `;
 
-      this.onClose = options.onClose;
+      // Insert buttons after the fieldset element
+      const buttonsHTML = getBottomButtonsHTML(options.buttonText || 'Save');
+      Utils.requireChild(this.dialog, 'fieldset').insertAdjacentHTML('afterend', buttonsHTML);
 
-      // Add backdrop styling via CSS (::backdrop pseudo-element)
-      // Note: We'll need to add this to a style tag or CSS file, but for now we'll use inline styles
-      // The dialog element's ::backdrop is styled via CSS, but we can add a style tag
-      this.setupBackdrop();
+      this.onClose = options.onClose;
 
       // Setup event handlers
       this.setupEventHandlers();
-   }
-
-   /**
-    * Setup backdrop styling
-    */
-   setupBackdrop()
-   {
-      // Add style tag for backdrop if it doesn't exist
-      if (!document.getElementById('dialog-backdrop-styles'))
-      {
-         const style = document.createElement('style');
-         style.id = 'dialog-backdrop-styles';
-         style.textContent = 
-         `  dialog::backdrop 
-            {
-               background: rgba(0, 0, 0, 0.6);
-               backdrop-filter: blur(5px);
-            }
-         `;
-         document.head.appendChild(style);
-      }
    }
 
    /**
@@ -85,9 +63,6 @@ export class Dialog
       });
    }
 
-   /**
-    * Show the dialog
-    */
    show()
    {
       if (!this.dialog.parentNode)
@@ -96,9 +71,6 @@ export class Dialog
       this.dialog.showModal();
    }
 
-   /**
-    * Close the dialog
-    */
    close()
    {
       this.dialog.close();
@@ -119,4 +91,17 @@ export class Dialog
    {
       return this.dialog;
    }
+
+   setDisabled(state)
+   {
+      Utils.requireChild(this.dialog, 'fieldset').disabled = state;
+      Utils.requireChild(this.dialog, '.save-dialog-btn').disabled = state;
+   }
 }
+
+const getBottomButtonsHTML = (buttonText) =>
+`  <div style="display: flex; gap: 10px; justify-content: flex-end;">
+    <button type="button" class="cancel-dialog-btn">Cancel</button>
+    <button type="submit" class="save-dialog-btn">${buttonText}</button>
+  </div>
+`
