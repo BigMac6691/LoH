@@ -46,10 +46,7 @@ export class PlayerProfileView extends MenuView
    {
       this.displayStatusMessage('Loading profile...', 'info');
 
-    setTimeout(() =>
-      {
       eventBus.emit('system:profileRequest', new ApiRequest('system:profileRequest'));
-      }, 120);
    }
 
    /**
@@ -156,12 +153,7 @@ export class PlayerProfileView extends MenuView
       this.abortControl = new AbortController();
       this.setProfileEditDisabled(true);
 
-      console.log('saving profile', this.container.parentNode);
-
-      setTimeout(() =>
-        {
       eventBus.emit('system:updateProfileRequest', new ApiRequest('system:updateProfileRequest', {email, displayName, bio, textMessageContact}, this.abortControl.signal));
-        }, 12000);
    }
 
    /**
@@ -267,8 +259,6 @@ export class PlayerProfileView extends MenuView
          this.dialog.close();
 
          this.displayStatusMessage(event.data.message || 'Password changed successfully!', 'success');
-         
-         setTimeout(() => { this.dialog.close(); }, 2000);
       }
       else if (event.isAborted())
       {

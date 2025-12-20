@@ -3,19 +3,22 @@
  */
 import { MenuView } from './MenuView.js';
 
-export class RulesView extends MenuView {
-  constructor(statusComponent) {
-    super(statusComponent);
-    this.container = null;
-  }
+export class RulesView extends MenuView
+{
+   constructor(statusComponent)
+   {
+      super(statusComponent);
+      this.container = null;
+   }
 
-  /**
-   * Create and return the rules view container
-   */
-  create() {
-    this.container = document.createElement('div');
-    this.container.className = 'rules-view';
-    this.container.innerHTML = `
+   /**
+    * Create and return the rules view container
+    */
+   create()
+   {
+      this.container = document.createElement('div');
+      this.container.className = 'rules-view';
+      this.container.innerHTML = `
       <div class="view-header">
         <h2>Rules and Instructions</h2>
       </div>
@@ -24,27 +27,28 @@ export class RulesView extends MenuView {
         <p class="placeholder-text">This is a placeholder for structured HTML content.</p>
       </div>
     `;
-    return this.container;
-  }
+      return this.container;
+   }
 
-  /**
-   * Get the container element
-   */
-  getContainer() {
-    if (!this.container) {
-      this.create();
-    }
-    return this.container;
-  }
+   /**
+    * Get the container element
+    */
+   getContainer()
+   {
+      if (!this.container)
+         this.create();
 
-  /**
-   * Clean up
-   */
-  dispose() {
-    if (this.container && this.container.parentNode) {
-      this.container.parentNode.removeChild(this.container);
-    }
-    this.container = null;
-  }
+      return this.container;
+   }
+
+   /**
+    * Clean up
+    */
+   dispose()
+   {
+      if (this.container && this.container.parentNode)
+         this.container.parentNode.removeChild(this.container);
+
+      this.container = null;
+   }
 }
-

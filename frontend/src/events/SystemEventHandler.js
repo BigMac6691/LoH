@@ -25,6 +25,7 @@ export class SystemEventHandler
       eventBus.on('system:changePasswordRequest', this.handleChangePasswordRequest.bind(this));
       eventBus.on('system:verifyEmailRequest', this.handleVerifyEmailRequest.bind(this));
       eventBus.on('system:resendVerificationRequest', this.handleResendVerificationRequest.bind(this));
+      eventBus.on('system:systemEventsRequest', this.handleSystemEventsRequest.bind(this));
    }
 
    /**
@@ -394,6 +395,41 @@ export class SystemEventHandler
          });
    }
 
+   /**
+    * Handle system events request event
+    * @param {ApiRequest} event - System events request event
+    */
+   handleSystemEventsRequest(event)
+   {
+      console.log('🔐 SystemEventHandler: Processing system events request');
+
+      if(!(event instanceof ApiRequest))
+         throw new Error('SystemEventHandler: Invalid event type');
+
+      let response = null;
+
+      const { page = 1, limit = 10 } = event.data || {};
+      const queryParams = `?page=${page}&limit=${limit}`;
+
+      RB.fetchGet(`/api/system-events${queryParams}`, event.signal)
+         .then(success =>
+         {
+            console.log('System events request success:', success);
+            response = event.prepareResponse('system:systemEventsResponse', success, 200, null);
+         })
+         .catch(error =>
+         {
+            console.error('System events request error:', error);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:systemEventsResponse', null, status, errorBody);
+         })
+         .finally(() =>
+         {
+            eventBus.emit('system:systemEventsResponse', response);
+         });
+   }
+
    dispose()
    {
       eventBus.off('system:loginRequest', this.handleLoginRequest.bind(this));
@@ -408,5 +444,6 @@ export class SystemEventHandler
       eventBus.off('system:changePasswordRequest', this.handleChangePasswordRequest.bind(this));
       eventBus.off('system:verifyEmailRequest', this.handleVerifyEmailRequest.bind(this));
       eventBus.off('system:resendVerificationRequest', this.handleResendVerificationRequest.bind(this));
+      eventBus.off('system:systemEventsRequest', this.handleSystemEventsRequest.bind(this));
    }
 }

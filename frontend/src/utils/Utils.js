@@ -9,11 +9,12 @@ export class Utils
       div.textContent = text;
       
       return div.innerHTML;
+      // return escaped.replace(/\n/g, '<br>');
    }
 
-   static getUTCTimeString()
+   static getUTCTimeString(date = new Date())
    {
-      return new Date().toISOString().replace('T', ' ');
+      return date.toISOString().replace('T', ' ').replace('Z', ' UTC');
    }
 
    static requireElement(selector)

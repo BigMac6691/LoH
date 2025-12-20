@@ -3,26 +3,35 @@
  * Displays system events/news with pagination and lazy loading
  */
 import { MenuView } from './MenuView.js';
-import { RB } from '../utils/RequestBuilder.js';
+import { eventBus } from '../eventBus.js';
+import { ApiRequest } from '../events/Events.js';
+import { Utils } from '../utils/Utils.js';
 
-export class NewsEventsView extends MenuView {
-  constructor(statusComponent) {
-    super(statusComponent);
-    this.container = null;
-    this.events = [];
-    this.currentPage = 1;
-    this.totalPages = 1;
-    this.loading = false;
-    this.limit = 10; // Events per page
-  }
+export class NewsEventsView extends MenuView
+{
+   constructor(statusComponent)
+   {
+      super(statusComponent);
+      this.container = null;
+      this.events = [];
+      this.currentPage = 1;
+      this.totalPages = 1;
+      this.loading = false;
+      this.limit = 10; // Events per page
+      this.abortControl = null;
 
-  /**
-   * Create and return the news and events view container
-   */
-  create() {
-    this.container = document.createElement('div');
-    this.container.className = 'news-events-view';
-    this.container.innerHTML = `
+      // Register event handlers
+      this.registerEventHandler('system:systemEventsResponse', this.handleSystemEventsResponse.bind(this));
+   }
+
+   /**
+    * Create and return the news and events view container
+    */
+   create()
+   {
+      this.container = document.createElement('div');
+      this.container.className = 'news-events-view';
+      this.container.innerHTML = `
       <div class="view-header">
         <h2>News and Events</h2>
       </div>
@@ -33,170 +42,169 @@ export class NewsEventsView extends MenuView {
         <div class="pagination-container" id="news-pagination-container"></div>
       </div>
     `;
-    
-    this.loadEvents(this.currentPage);
-    this.setupIntersectionObserver();
-    
-    return this.container;
-  }
 
-  /**
-   * Setup intersection observer for lazy loading
-   */
-  setupIntersectionObserver() {
-    // Load next page when user scrolls near bottom
-    const listContainer = this.container?.querySelector('#news-events-list-container');
-    if (!listContainer) return;
+      this.loadEvents(this.currentPage);
+      this.setupIntersectionObserver();
 
-    const options = {
-      root: null,
-      rootMargin: '100px', // Start loading 100px before reaching bottom
-      threshold: 0.1
-    };
+      return this.container;
+   }
 
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting && !this.loading && this.currentPage < this.totalPages) {
-          this.loadNextPage();
-        }
-      });
-    }, options);
+   /**
+    * Setup intersection observer for lazy loading
+    */
+   setupIntersectionObserver()
+   {
+      // Load next page when user scrolls near bottom
+      Utils.requireChild(this.container, '#news-events-list-container');
+      const options = 
+      {
+         root: null,
+         rootMargin: '100px', // Start loading 100px before reaching bottom
+         threshold: 0.1
+      };
 
-    // Observe the pagination container
-    const paginationContainer = this.container?.querySelector('#news-pagination-container');
-    if (paginationContainer) {
-      observer.observe(paginationContainer);
-    }
-  }
+      const observer = new IntersectionObserver((entries) =>
+      {
+         entries.forEach(entry =>
+         {
+            if (entry.isIntersecting && !this.loading && this.currentPage < this.totalPages)
+               this.loadNextPage();
+         });
+      }, options);
 
-  /**
-   * Load events from API
-   */
-  async loadEvents(page = 1, append = false) {
-    if (this.loading) return;
+      // Observe the pagination container
+      const paginationContainer = Utils.requireChild(this.container, '#news-pagination-container');
+      if (paginationContainer)
+         observer.observe(paginationContainer);
+   }
 
-    const listContainer = this.container?.querySelector('#news-events-list-container');
-    if (!listContainer) return;
+   /**
+    * Load events from API via events
+    */
+   loadEvents(page = 1, append = false)
+   {
+      if (this.loading) 
+        return;
+      
+      const listContainer = Utils.requireChild(this.container, '#news-events-list-container');
 
-    try {
       this.loading = true;
+      this.currentPage = page;
+      this.appendMode = append;
 
-      if (!append) {
-        listContainer.innerHTML = '<div class="events-loading">Loading news and events...</div>';
-        this.events = [];
+      if (!append)
+      {
+         listContainer.innerHTML = '<div class="events-loading">Loading news and events...</div>';
+         this.events = [];
       }
 
-      const data = await RB.fetchGet(`/api/system-events?page=${page}&limit=${this.limit}`);
+      // Abort any previous request
+      if (this.abortControl)
+         this.abortControl.abort();
 
-      // Append new events or replace
-      if (append) {
-        this.events = [...this.events, ...(data.events || [])];
-      } else {
-        this.events = data.events || [];
+      this.abortControl = new AbortController();
+
+      // Emit request event
+      eventBus.emit('system:systemEventsRequest', new ApiRequest('system:systemEventsRequest', 
+         { page, limit: this.limit }, 
+         this.abortControl.signal));
+   }
+
+   /**
+    * Handle system events response
+    * @param {ApiResponse} event - System events response event
+    */
+   handleSystemEventsResponse(event)
+   {
+      if (event.isSuccess() && event.data)
+      {
+         const data = event.data;
+
+         // Append new events or replace
+         if (this.appendMode)
+            this.events = [...this.events, ...(data.events || [])];
+         else
+            this.events = data.events || [];
+
+         this.currentPage = data.pagination?.page || this.currentPage;
+         this.totalPages = data.pagination?.totalPages || 1;
+
+         this.renderEvents();
+         this.renderPagination();
       }
+      else if (event.isAborted())
+         this.displayStatusMessage('News and events loading aborted.', 'error');
+      else
+         this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to load news and events', 'error');
 
-      this.currentPage = data.pagination?.page || page;
-      this.totalPages = data.pagination?.totalPages || 1;
-
-      this.renderEvents();
-      this.renderPagination();
-
-    } catch (error) {
-      console.error('Error loading events:', error);
-      this.showError(error.message || 'Failed to load news and events');
-    } finally {
       this.loading = false;
-    }
-  }
+      this.abortControl = null;
+   }
 
-  /**
-   * Load next page (lazy loading)
-   */
-  async loadNextPage() {
-    if (this.currentPage < this.totalPages) {
-      await this.loadEvents(this.currentPage + 1, true); // Append to existing
-    }
-  }
+   /**
+    * Load next page (lazy loading)
+    */
+   loadNextPage()
+   {
+      if (this.currentPage < this.totalPages)
+         this.loadEvents(this.currentPage + 1, true); // Append to existing
+   }
 
-  /**
-   * Render events list
-   */
-  renderEvents() {
-    const listContainer = this.container?.querySelector('#news-events-list-container');
-    if (!listContainer) return;
+   renderEvents()
+   {
+      const listContainer = Utils.requireChild(this.container, '#news-events-list-container');
 
-    if (this.events.length === 0) {
-      listContainer.innerHTML = '<div class="events-empty">No news or events available at this time.</div>';
-      return;
-    }
+      if (this.events.length === 0)
+      {
+         listContainer.innerHTML = '<div class="events-empty">No news or events available at this time.</div>';
+         return;
+      }
 
-    const eventsHtml = this.events.map(event => {
-      const createdDate = new Date(event.created_at);
-      const dateStr = createdDate.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'UTC'
-      }) + ' UTC';
-
-      return `
+      const eventsHtml = this.events.map(event =>
+      {
+         return `
         <div class="news-event-item" data-event-id="${event.id}">
           <div class="news-event-header">
-            <div class="news-event-date">${this.escapeHtml(dateStr)}</div>
-            ${event.creator_name ? `<div class="news-event-creator">by ${this.escapeHtml(event.creator_name)}</div>` : ''}
+            <div class="news-event-date">${Utils.escapeHtml(Utils.getUTCTimeString(new Date(event.created_at)))}</div>
+            ${event.creator_name ? `<div class="news-event-creator">by ${Utils.escapeHtml(event.creator_name)}</div>` : ''}
           </div>
-          <div class="news-event-text">${this.formatEventText(event.text)}</div>
+          <div class="news-event-text">${Utils.escapeHtml(event.text)}</div>
         </div>
       `;
-    }).join('');
+      }).join('');
 
-    listContainer.innerHTML = eventsHtml;
+      listContainer.innerHTML = eventsHtml;
 
-    // Add loading indicator if there are more pages
-    if (this.currentPage < this.totalPages) {
-      const loadingIndicator = document.createElement('div');
-      loadingIndicator.className = 'events-loading-more';
-      loadingIndicator.id = 'loading-more-indicator';
-      loadingIndicator.textContent = 'Loading more...';
-      listContainer.appendChild(loadingIndicator);
-    }
-  }
+      // Add loading indicator if there are more pages
+      if (this.currentPage < this.totalPages)
+      {
+         const loadingIndicator = document.createElement('div');
+         loadingIndicator.className = 'events-loading-more';
+         loadingIndicator.id = 'loading-more-indicator';
+         loadingIndicator.textContent = 'Loading more...';
+         listContainer.appendChild(loadingIndicator);
+      }
+   }
 
-  /**
-   * Format event text (preserve line breaks, escape HTML)
-   */
-  formatEventText(text) {
-    if (!text) return '';
-    
-    // Escape HTML to prevent XSS
-    const div = document.createElement('div');
-    div.textContent = text;
-    const escaped = div.innerHTML;
-    
-    // Convert line breaks to <br>
-    return escaped.replace(/\n/g, '<br>');
-  }
+   /**
+    * Render pagination controls
+    */
+   renderPagination()
+   {
+      const paginationContainer = Utils.requireChild(this.container, '#news-pagination-container');
 
-  /**
-   * Render pagination controls
-   */
-  renderPagination() {
-    const paginationContainer = this.container?.querySelector('#news-pagination-container');
-    if (!paginationContainer) return;
+      // Don't show pagination if lazy loading is enabled and we're not at the last page
+      // Instead, show page info and manual navigation
+      if (this.totalPages <= 1 && this.events.length === 0)
+      {
+         paginationContainer.innerHTML = '';
+         return;
+      }
 
-    // Don't show pagination if lazy loading is enabled and we're not at the last page
-    // Instead, show page info and manual navigation
-    if (this.totalPages <= 1 && this.events.length === 0) {
-      paginationContainer.innerHTML = '';
-      return;
-    }
+      const hasNext = this.currentPage < this.totalPages;
+      const hasPrev = this.currentPage > 1;
 
-    const hasNext = this.currentPage < this.totalPages;
-    const hasPrev = this.currentPage > 1;
-
-    paginationContainer.innerHTML = `
+      paginationContainer.innerHTML = `
       <div class="news-pagination">
         ${hasPrev ? `
           <button class="btn-pagination btn-prev" data-page="${this.currentPage - 1}">
@@ -217,53 +225,38 @@ export class NewsEventsView extends MenuView {
       </div>
     `;
 
-    // Add click handlers
-    paginationContainer.querySelectorAll('.btn-pagination').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const page = parseInt(btn.getAttribute('data-page'));
-        this.loadEvents(page, false); // Don't append, replace
+      // Add click handlers
+      paginationContainer.querySelectorAll('.btn-pagination').forEach(btn =>
+      {
+         btn.addEventListener('click', () =>
+         {
+            const page = parseInt(btn.getAttribute('data-page'));
+            this.loadEvents(page, false); // Don't append, replace
+         });
       });
-    });
-  }
+   }
 
-  /**
-   * Show error message
-   */
-  showError(message) {
-    const listContainer = this.container?.querySelector('#news-events-list-container');
-    if (listContainer) {
-      listContainer.innerHTML = `<div class="events-error">Error: ${this.escapeHtml(message)}</div>`;
-    }
-  }
+   getContainer()
+   {
+      if (!this.container)
+         this.create();
 
-  /**
-   * Escape HTML to prevent XSS
-   */
-  escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
+      return this.container;
+   }
 
-  /**
-   * Get the container element
-   */
-  getContainer() {
-    if (!this.container) {
-      this.create();
-    }
-    return this.container;
-  }
+   dispose()
+   {
+      // Abort any pending requests
+      if (this.abortControl)
+         this.abortControl.abort();
 
-  /**
-   * Clean up
-   */
-  dispose() {
-    if (this.container && this.container.parentNode) {
-      this.container.parentNode.removeChild(this.container);
-    }
-    this.container = null;
-    this.events = [];
-  }
+      this.unregisterEventHandlers();
+
+      if (this.container && this.container.parentNode)
+         this.container.parentNode.removeChild(this.container);
+
+      this.container = null;
+      this.events = [];
+      this.abortControl = null;
+   }
 }
