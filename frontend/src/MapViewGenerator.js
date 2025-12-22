@@ -332,10 +332,10 @@ export class MapViewGenerator
             });
 
             const mesh = new THREE.Mesh(geometry, material);
-            group.add(mesh);
 
             mem.track(mesh, `star-mesh-${star.id}`);
 
+            group.add(mesh);
             group.position.set(star.pos_x, star.pos_y, star.pos_z);
 
             this.starLookup.set(star.id, {group, mesh});
@@ -347,7 +347,6 @@ export class MapViewGenerator
 
       // this.buildWormholes(GSM.wormholes, wormholeRadius);
 
-      // Build sector borders if debug mode is enabled
       if (DEBUG_SHOW_SECTOR_BORDERS)
          this.renderSectorBorders(GSM.gameInfo.map_size);
 
@@ -377,7 +376,6 @@ export class MapViewGenerator
          {
             const wormholeMesh = this.createWormholeMesh(wormhole.star1, wormhole.star2, wormholeRadius);
 
-            // Track the wormhole mesh with MemoryManager
             mem.track(wormholeMesh, `wormhole-${wormhole.star1.id}-${wormhole.star2.id}`);
 
             this.scene.add(wormholeMesh);
@@ -407,15 +405,11 @@ export class MapViewGenerator
 
       // Apply font patch (create 3D labels)
       if (patch.font)
-      {
          this.applyFontPatch(patch.font);
-      }
 
       // Apply rocket patch (create fleet icons)
       if (patch.rocket)
-      {
          this.applyRocketPatch(patch.rocket);
-      }
    }
 
    /**
