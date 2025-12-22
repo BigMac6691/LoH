@@ -2,11 +2,8 @@
  * GameStateManager - Singleton manager for game state
  * Centralizes all game data and handles game:gameLoaded and game:gameRefreshed events
  */
-import
-{
-   eventBus
-}
-from '../eventBus.js';
+import { eventBus } from '../eventBus.js';
+import { ApiEvent } from '../events/Events.js';
 import { ApiError } from '../utils/RequestBuilder.js';
 
 class GameStateManager
@@ -48,30 +45,26 @@ class GameStateManager
    /**
     * Handle game:gameLoaded event - replaces all game state
     * @param {Object} context - Current system context
-    * @param {Object} eventData - Event data containing complete game state
+    * @param {Object} event - Event data containing complete game state
     */
-   handleGameLoaded(context, eventData)
+   handleGameLoaded(event)
    {
       console.log('📦 GameStateManager: Received game:gameLoaded event');
-      console.log('📦 GameStateManager: Event data:', eventData);
+      console.log('📦 GameStateManager: Event data:', event);
       console.log('📦 GameStateManager: Instance:', this);
 
-      if (!eventData.success || !eventData.details || !eventData?.details?.gameData)
+      if (event.isError())
         throw new ApiError('📦 GameStateManager: game:gameLoaded event was not successful or missing details', 500);
 
-      const
-      {
-         gameId,
-         gameData,
-         currentTurn
-      } = eventData.details;
+      const {gameId, currentPlayerId, stars, wormholes, players, gameInfo, turn, starStates, ships, orders, events} = event.data;
 
       // Replace all fields
       this.#gameId = gameId;
-      this.#stars = gameData.stars || null;
-      this.#wormholes = gameData.wormholes || null;
-      this.#players = gameData.players || null;
-      this.#gameInfo = gameData.gameInfo || null;
+      this.#currentPlayerId = currentPlayerId || null;
+      this.#stars = stars || null;
+      this.#wormholes = wormholes || null;
+      this.#players = players || null;
+      this.#gameInfo = gameInfo || null;
 
       // Build star map for fast lookup by star_id
       this.#buildStarMap();
@@ -80,60 +73,41 @@ class GameStateManager
       this.#buildPlayerMap();
 
       // Replace refreshable fields
-      this.#turn = currentTurn || null;
-      this.#state = gameData.starStates || gameData.state || null;
-      this.#ships = gameData.ships || null;
-      this.#orders = gameData.orders || null;
-      this.#events = gameData.events || null;
+      this.#turn = turn || null;
+      this.#state = starStates || null;
+      this.#ships = ships || null;
+      this.#orders = orders || null;
+      this.#events = events || null;
 
-      // Set current player ID if available
-      this.#currentPlayerId = gameData.currentPlayerId || null;
-
-      // Apply state to stars (sets economy and owner_player from state records)
       this.applyState();
 
-      console.log('📦 GameStateManager: Game state fully loaded');
-      console.log('📦 GameStateManager: Game ID:', this.#gameId);
-      console.log('📦 GameStateManager: Stars:', this.#stars?.length || 0);
-      console.log('📦 GameStateManager: Star map size:', this.#starMap.size);
-      console.log('📦 GameStateManager: Wormholes:', this.#wormholes?.length || 0);
-      console.log('📦 GameStateManager: Players:', this.#players?.length || 0);
-      console.log('📦 GameStateManager: Player map size:', this.#playerMap.size);
-      console.log('📦 GameStateManager: Current Turn:', this.#turn?.number || null);
-      console.log('📦 GameStateManager: Orders:', this.#orders?.length || 0);
-      console.log('📦 GameStateManager: Events:', this.#events?.length || 0);
+      eventBus.emit('game:gameReady', new ApiEvent('game:gameReady', {refreshed: false}));
    }
 
    /**
     * Handle game:gameRefreshed event - only updates refreshable fields
     * @param {Object} context - Current system context
-    * @param {Object} eventData - Event data containing refreshed game state
+    * @param {Object} event - Event data containing refreshed game state
     */
-   handleGameRefreshed(context, eventData)
+   handleGameRefreshed(event)
    {
       console.log('📦 GameStateManager: Received game:gameRefreshed event');
-      console.log('📦 GameStateManager: Event data:', eventData);
+      console.log('📦 GameStateManager: Event data:', event);
       console.log('📦 GameStateManager: Instance:', this);
 
-      if (!eventData.success || !eventData.details || !eventData?.details?.turn || !eventData?.details?.state || !eventData?.details?.ships || !eventData?.details?.orders || !eventData?.details?.events)
+      if (!event.success || !event.details || !event?.details?.turn || !event?.details?.state || !event?.details?.ships || !event?.details?.orders || !event?.details?.events)
         throw new ApiError('📦 GameStateManager: game:gameRefreshed event was not successful or missing details', 500);
 
       // Only update refreshable fields (do NOT update gameId, stars, wormholes, players)
-      this.#turn = eventData.details.turn;
+      this.#turn = event.details.turn;
       this.#state = state;
       this.#ships = ships;
       this.#orders = orders;
       this.#events = events;
 
-      // Apply state to stars (updates economy and owner_player from state records)
       this.applyState();
 
-      console.log('📦 GameStateManager: Game state refreshed');
-      console.log('📦 GameStateManager: Current Turn:', this.#turn?.number || null);
-      console.log('📦 GameStateManager: State entries:', this.#state?.length || 0);
-      console.log('📦 GameStateManager: Ships:', this.#ships?.length || 0);
-      console.log('📦 GameStateManager: Orders:', this.#orders?.length || 0);
-      console.log('📦 GameStateManager: Events:', this.#events?.length || 0);
+      eventBus.emit('game:gameReady', new ApiEvent('game:gameReady', {refreshed: true}));
    }
 
    /**
@@ -209,11 +183,10 @@ class GameStateManager
     */
    applyState()
    {
+      console.log('📦 GameStateManager: Applying state');
+
       if (!this.#state || !Array.isArray(this.#state))
-      {
-         console.log('📦 GameStateManager: No state to apply');
-         return;
-      }
+         return eventBus.emit('ui:showStatusMessage', new ApiEvent('ui:showStatusMessage', {message: 'No state to apply', type: 'error'})); // void function
 
       for (const stateRecord of this.#state)
       {
@@ -225,7 +198,7 @@ class GameStateManager
         const player = this.#playerMap.get(stateRecord.owner_player) || null;
             
         star.owner = player;
-        star.color = player.color_hex ? player.color_hex : '#cccccc';
+        star.color = player?.color_hex || '#cccccc';
         star.economy = stateRecord.economy || null;
       }
 
@@ -242,7 +215,7 @@ class GameStateManager
          star.ships.push(ship);
       }
 
-      console.log('📦 GameStateManager: Applied state to stars and ships');
+      eventBus.emit('ui:showStatusMessage', new ApiEvent('ui:showStatusMessage', {message: 'State applied to stars and ships', type: 'success'})); // void function
    }
 
    /**
@@ -344,11 +317,16 @@ class GameStateManager
       return this.#currentPlayerId;
    }
 
+   get stars()
+   {
+      return this.#stars;
+   }
+
    /**
     * Get complete game state
     * @returns {Object} Complete game state object
     */
-   getGameState()
+   get gameState()
    {
       const currentState = 
       {

@@ -83,7 +83,10 @@ export class LoginScreen extends BaseFormScreen
       this.updateViewState(false, event.data?.email);
 
       if (event.isSuccess())
+      {
+         Utils.requireElement('#login-form').reset();
          eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'home'}));
+      }
       else
          this.handleLoginFailure(event);
    }

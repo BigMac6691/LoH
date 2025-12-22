@@ -446,24 +446,17 @@ export class GameRouter
       const { gameId } = req.params;
       
       // TODO: Implement getGame service
-      const { rows } = await pool.query(
-        'SELECT * FROM game WHERE id = $1',
-        [gameId]
-      );
+      const { rows } = await pool.query('SELECT * FROM game WHERE id = $1', [gameId]);
       
       if (rows.length === 0)
-      {
         return res.status(404).json({ error: 'Game not found' });
-      }
       
       res.json(rows[0]);
-    } catch (error)
+    } 
+    catch (error)
     {
       console.error('Error getting game:', error);
-      res.status(500).json({
-        error: 'Failed to get game',
-        details: error.message
-      });
+      res.status(500).json(new ApiResponse('Failed to get game', error.message, 500));
     }
   }
 
@@ -478,60 +471,25 @@ export class GameRouter
       const { gameId } = req.params;
       
       if (!gameId)
-      {
         return res.status(400).json({ error: 'gameId parameter is required' });
-      }
-      
-      // Get stars
-      const { rows: stars } = await pool.query(
-        `SELECT * FROM star WHERE game_id = $1 ORDER BY id`,
-        [gameId]
-      );
-      
-      // Get wormholes
-      const { rows: wormholes } = await pool.query(
-        `SELECT * FROM wormhole WHERE game_id = $1 ORDER BY id`,
-        [gameId]
-      );
-      
-      // Get star states
-      const { rows: starStates } = await pool.query(
-        `SELECT * FROM star_state WHERE game_id = $1 ORDER BY star_id`,
-        [gameId]
-      );
-      
-      // Get ships
-      const { rows: ships } = await pool.query(
-        `SELECT * FROM ship WHERE game_id = $1 ORDER BY id`,
-        [gameId]
-      );
-      
-      // Get players
-      const { rows: players } = await pool.query(
-        `SELECT * FROM game_player WHERE game_id = $1 ORDER BY name`,
-        [gameId]
-      );
-      
-      // Get game info (including map size)
-      const { rows: games } = await pool.query(
-        `SELECT map_size, seed, density_min, density_max FROM game WHERE id = $1`,
-        [gameId]
-      );
-      
-      const gameInfo = games.length > 0 ? games[0] : { map_size: 5, seed: 'default', density_min: 3, density_max: 7 };
-      
+
       // Get current player_id for the authenticated user (if they're a player in this game)
       let currentPlayerId = null;
-      if (req.user && req.user.id) {
-        const { rows: currentPlayerRows } = await pool.query(
-          `SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`,
-          [gameId, req.user.id]
-        );
-        if (currentPlayerRows.length > 0) {
-          currentPlayerId = currentPlayerRows[0].id;
-        }
-      }
-
+      const { rows: currentPlayerRows } = await pool.query(`SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = 'player'`, [gameId, req.user.id]);
+        
+      if (currentPlayerRows.length === 1)
+        currentPlayerId = currentPlayerRows[0].id;
+      else
+        return res.status(400).json({ error: 'Unable to determine current player id' });
+      
+      const { rows: stars } = await pool.query(`SELECT * FROM star WHERE game_id = $1 ORDER BY id`, [gameId]);
+      const { rows: wormholes } = await pool.query(`SELECT * FROM wormhole WHERE game_id = $1 ORDER BY id`, [gameId]);
+      const { rows: starStates } = await pool.query(`SELECT * FROM star_state WHERE game_id = $1 ORDER BY star_id`, [gameId]);
+      const { rows: ships } = await pool.query(`SELECT * FROM ship WHERE game_id = $1 ORDER BY id`, [gameId]);
+      const { rows: players } = await pool.query(`SELECT * FROM game_player WHERE game_id = $1 ORDER BY name`, [gameId]);
+      const { rows: games } = await pool.query(`SELECT map_size, seed, density_min, density_max FROM game WHERE id = $1`, [gameId]);
+      const gameInfo = games.length > 0 ? games[0] : { map_size: 5, seed: 'default', density_min: 3, density_max: 7 };
+      
       // Get current open turn
       const { getOpenTurn } = await import('../repos/turnsRepo.js');
       const { getOrdersForTurn } = await import('../repos/ordersRepo.js');
@@ -541,55 +499,50 @@ export class GameRouter
       
       // Get orders for the current turn (if turn exists)
       let orders = [];
-      if (currentTurn && currentTurn.id) {
+      if (currentTurn && currentTurn.id) 
         orders = await getOrdersForTurn(gameId, currentTurn.id);
-      }
 
       // Get events for the current turn (if turn exists)
       let events = [];
-      if (currentTurn && currentTurn.id) {
+      if (currentTurn && currentTurn.id) 
         events = await getAllTurnEvents(gameId, currentTurn.id);
+
+      let counts = 
+      {
+        stars: stars.length,
+        wormholes: wormholes.length,
+        starStates: starStates.length,
+        ships: ships.length,
+        players: players.length,
+        orders: orders.length,
+        events: events.length
       }
       
       // Log the first few stars to inspect resource values
       console.log('🔍 Game State - Sample Stars with Resource Values:');
-      stars.slice(0, 5).forEach((star, index) => {
-        console.log(`  Star ${index + 1}: ID=${star.star_id}, Name=${star.name}, Resource=${star.resource}`);
-      });
-      console.log(`  Total stars: ${stars.length}`);
-      console.log(`  Game map size: ${gameInfo.map_size}`);
-      console.log(`  Current player ID: ${currentPlayerId || 'none'}`);
-      console.log(`  Current turn: ${currentTurn?.number || 'none'}`);
-      console.log(`  Orders: ${orders.length}, Events: ${events.length}`);
-
+      console.log(`  Counts: ${JSON.stringify(counts)}`);
+      
       res.json({
+        gameId,
+        currentPlayerId,
         stars,
         wormholes,
-        starStates,
-        ships,
         players,
         gameInfo,
-        currentPlayerId, // The player_id for the authenticated user in this game
-        orders, // Orders for the current open turn
-        events, // Events for the current open turn
-        counts: {
-          stars: stars.length,
-          wormholes: wormholes.length,
-          starStates: starStates.length,
-          ships: ships.length,
-          players: players.length,
-          orders: orders.length,
-          events: events.length
-        }
+        // Refreshable fields
+        turn: currentTurn,
+        starStates,
+        ships,
+        orders,
+        events,
+        counts
       });
       
-    } catch (error)
+    } 
+    catch (error)
     {
       console.error('Error getting game state:', error);
-      res.status(500).json({
-        error: 'Failed to get game state',
-        details: error.message
-      });
+      res.status(500).json({error: 'Failed to get game state', details: error.message});
     }
   }
 

@@ -2,9 +2,9 @@
  * WebSocketManager - Manages WebSocket connection for real-time game updates
  * Handles connection, authentication, and game registration
  */
-
 import io from 'socket.io-client';
 import { eventBus } from '../eventBus.js';
+import { gameStateManager as GSM } from './GameStateManager.js';
 
 export class WebSocketManager
 {
@@ -12,15 +12,13 @@ export class WebSocketManager
    {
       this.socket = null;
       this.isConnected = false;
-      this.currentGameId = null;
-      this.currentPlayerId = null;
       this.reconnectAttempts = 0;
       this.maxReconnectAttempts = 5;
       this.reconnectDelay = 1000; // Start with 1 second
    }
 
    /**
-    * Connect to WebSocket server
+    * Connect to WebSocket server, happens after successful login
     */
    connect()
    {
@@ -75,12 +73,7 @@ export class WebSocketManager
          // Authenticate with token
          const token = localStorage.getItem('access_token');
          if (token)
-         {
-            this.socket.emit('authenticate',
-            {
-               token
-            });
-         }
+            this.socket.emit('authenticate', {token});
       });
 
       // Authentication successful
@@ -89,10 +82,8 @@ export class WebSocketManager
          console.log('🔌 WebSocketManager: Authentication successful');
 
          // Re-join current game if we were viewing one
-         if (this.currentGameId && this.currentPlayerId)
-         {
-            this.joinGame(this.currentGameId, this.currentPlayerId);
-         }
+         if (GSM.gameId && GSM.currentPlayerId)
+            this.joinGame(GSM.gameId, GSM.currentPlayerId);
       });
 
       // Authentication failed
@@ -104,7 +95,7 @@ export class WebSocketManager
       // Game joined successfully
       this.socket.on('game:joined', (data) =>
       {
-         console.log('🔌 WebSocketManager: Successfully joined game:', data.gameId);
+         console.log('🔌 WebSocketManager: Successfully joined game:', data);
       });
 
       // Game left successfully
@@ -180,7 +171,7 @@ export class WebSocketManager
     * @param {string} gameId - Game ID
     * @param {string} playerId - Player ID
     */
-   joinGame(gameId, playerId)
+   joinGame()
    {
       if (!this.socket || !this.isConnected)
       {
@@ -188,15 +179,14 @@ export class WebSocketManager
          return;
       }
 
-      this.currentGameId = gameId;
-      this.currentPlayerId = playerId;
-
-      console.log(`🔌 WebSocketManager: Joining game ${gameId} as player ${playerId}`);
-      this.socket.emit('game:join',
+      if (!GSM.gameId || !GSM.currentPlayerId)
       {
-         gameId,
-         playerId
-      });
+         console.warn('🔌 WebSocketManager: Cannot join game - no game or player ID');
+         return;
+      }
+
+      console.log(`🔌 WebSocketManager: Joining game ${GSM.gameId} as player ${GSM.currentPlayerId}`);
+      this.socket.emit('game:join', {gameId: GSM.gameId, playerId: GSM.currentPlayerId});
    }
 
    /**
@@ -205,21 +195,17 @@ export class WebSocketManager
    leaveGame()
    {
       if (!this.socket || !this.isConnected)
-      {
          return;
-      }
 
-      if (this.currentGameId)
+      if (GSM.gameId)
       {
-         console.log(`🔌 WebSocketManager: Leaving game ${this.currentGameId}`);
+         console.log(`🔌 WebSocketManager: Leaving game ${GSM.gameId}`);
          this.socket.emit('game:leave');
-         this.currentGameId = null;
-         this.currentPlayerId = null;
       }
    }
 
    /**
-    * Disconnect from WebSocket server
+    * Disconnect from WebSocket server, happens after logout
     */
    disconnect()
    {

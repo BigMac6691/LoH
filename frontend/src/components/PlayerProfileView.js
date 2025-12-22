@@ -164,7 +164,7 @@ export class PlayerProfileView extends MenuView
    {
       this.setProfileEditDisabled(false);
       
-      if (event.isSuccess() && event.data?.success)
+      if (event.isSuccess())
       {
          this.profileData = event.data.user;
          this.displayStatusMessage('Profile updated successfully!', 'success');
@@ -254,7 +254,7 @@ export class PlayerProfileView extends MenuView
    {
       this.dialog.setDisabled(false);
       
-      if (event.isSuccess() && event.data?.success)
+      if (event.isSuccess())
       {
          this.dialog.close();
 
@@ -343,7 +343,7 @@ export class PlayerProfileView extends MenuView
    {
       this.dialog.setDisabled(false);
       
-      if (event.isSuccess() && event.data?.success)
+      if (event.isSuccess())
       {
          this.dialog.close();
 
@@ -380,7 +380,7 @@ export class PlayerProfileView extends MenuView
     */
    handleResendVerificationResponse(event)
    {
-      if (event.isSuccess() && event.data?.success)
+      if (event.isSuccess())
       {
          const token = event.data.verificationToken || 'Check server logs';
          const message = `Verification token sent! Token: ${token}. Click "Verify Email" to enter this token and verify your email address.`;

@@ -26,6 +26,7 @@ export class SystemEventHandler
       eventBus.on('system:verifyEmailRequest', this.handleVerifyEmailRequest.bind(this));
       eventBus.on('system:resendVerificationRequest', this.handleResendVerificationRequest.bind(this));
       eventBus.on('system:systemEventsRequest', this.handleSystemEventsRequest.bind(this));
+      eventBus.on('system:gamesPlayingRequest', this.handleGamesPlayingRequest.bind(this));
    }
 
    /**
@@ -430,6 +431,38 @@ export class SystemEventHandler
          });
    }
 
+   /**
+    * Handle games playing request event
+    * @param {ApiRequest} event - Games playing request event
+    */
+   handleGamesPlayingRequest(event)
+   {
+      console.log('🔐 SystemEventHandler: Processing games playing request');
+
+      if(!(event instanceof ApiRequest))
+         throw new Error('SystemEventHandler: Invalid event type');
+
+      let response = null;
+
+      RB.fetchGet('/api/games/playing', event.signal)
+         .then(success =>
+         {
+            console.log('Games playing request success:', success);
+            response = event.prepareResponse('system:gamesPlayingResponse', success, 200, null);
+         })
+         .catch(error =>
+         {
+            console.error('Games playing request error:', error);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:gamesPlayingResponse', null, status, errorBody);
+         })
+         .finally(() =>
+         {
+            eventBus.emit('system:gamesPlayingResponse', response);
+         });
+   }
+
    dispose()
    {
       eventBus.off('system:loginRequest', this.handleLoginRequest.bind(this));
@@ -445,5 +478,6 @@ export class SystemEventHandler
       eventBus.off('system:verifyEmailRequest', this.handleVerifyEmailRequest.bind(this));
       eventBus.off('system:resendVerificationRequest', this.handleResendVerificationRequest.bind(this));
       eventBus.off('system:systemEventsRequest', this.handleSystemEventsRequest.bind(this));
+      eventBus.off('system:gamesPlayingRequest', this.handleGamesPlayingRequest.bind(this));
    }
 }

@@ -104,10 +104,9 @@ export class NewsEventsView extends MenuView
 
       this.abortControl = new AbortController();
 
-      // Emit request event
-      eventBus.emit('system:systemEventsRequest', new ApiRequest('system:systemEventsRequest', 
-         { page, limit: this.limit }, 
-         this.abortControl.signal));
+      this.displayStatusMessage('Loading news and events...', 'info');
+
+      eventBus.emit('system:systemEventsRequest', new ApiRequest('system:systemEventsRequest', { page, limit: this.limit }, this.abortControl.signal));
    }
 
    /**

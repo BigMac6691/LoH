@@ -11,6 +11,8 @@ import { OrderSummaryDialog } from './OrderSummaryDialog.js';
 import { ShipSummaryDialog } from './ShipSummaryDialog.js';
 import { webSocketManager } from './services/WebSocketManager.js';
 import { gameStatePoller } from './services/GameStatePoller.js';
+import { gameStateManager as GSM } from './services/GameStateManager.js';
+import { Utils } from './utils/Utils.js';
 
 /**
  * GameView - Manages the ThreeJS game map view and all game-related UI
@@ -19,6 +21,7 @@ export class GameView
 {
    constructor()
    {
+      console.log('🎮 GameView: Constructor called');
       // ThreeJS components
       this.scene = null;
       this.camera = null;
@@ -27,8 +30,6 @@ export class GameView
 
       // Game components
       this.mapGenerator = null;
-
-      
 
       // UI components
       this.devPanel = null;
@@ -43,6 +44,8 @@ export class GameView
 
       // Canvas element
       this.canvas = null;
+
+      this.init();
    }
 
    /**
@@ -50,37 +53,20 @@ export class GameView
     */
    init()
    {
-      // Get canvas element
       this.canvas = document.getElementById('gameCanvas');
       if (!this.canvas)
-      {
-         console.error('GameView: Canvas element not found');
-         return;
-      }
+         return eventBus.emit('ui:showStatusMessage', new ApiEvent('ui:showStatusMessage', {message: 'Canvas element not found', type: 'error'})); // void function
 
-      // Scene setup
       this.scene = new THREE.Scene();
       this.scene.background = new THREE.Color(0x1a1a2e);
 
-      // Camera setup
-      this.camera = new THREE.PerspectiveCamera(
-         75,
-         window.innerWidth / window.innerHeight,
-         0.1,
-         1000
-      );
+      this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       this.camera.position.z = 500;
 
-      // Renderer setup
-      this.renderer = new THREE.WebGLRenderer(
-      {
-         canvas: this.canvas,
-         antialias: true
-      });
+      this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
       this.renderer.setSize(window.innerWidth, window.innerHeight);
       this.renderer.setPixelRatio(window.devicePixelRatio);
 
-      // Add lighting
       const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x999999, 0.3);
       this.scene.add(hemisphereLight);
 
@@ -88,160 +74,106 @@ export class GameView
       directionalLight.position.copy(this.camera.position);
       this.scene.add(directionalLight);
 
-      // Initialize OrbitControls
-      this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+      this.controls = new OrbitControls(this.camera, this.renderer.domElement); // Initialize OrbitControls
       this.controls.enableDamping = true;
       this.controls.dampingFactor = 0.05;
 
-      // Initialize game components
-      this.mapGenerator = new MapViewGenerator(this.scene, this.camera);
-
-      // Initialize event handlers
-      this.systemEventHandler = new SystemEventHandler();
-      this.gameEventHandler = new GameEventHandler();
-      this.orderEventHandler = new OrderEventHandler();
-      this.turnEventHandler = new TurnEventHandler();
-
-      // Initialize dev panel if in dev mode
-      if (DEV_MODE > 0)
+      this.mapGenerator = new MapViewGenerator(this.scene, this.camera); // Initialize game components
+      
+      if (DEV_MODE > 0) // Initialize dev panel if in dev mode
       {
          this.devEventHandler = new DevEventHandler();
          this.devPanel = new DevPanel(this.scene, this.renderer, this.camera, this.mapGenerator);
+         setupDevModeEventListeners(this.playerManager);
       }
 
       // Initialize UI dialogs
-      this.turnEventsPanel = new TurnEventsPanel();
+      this.turnEventsPanel = null; // Created on demand
       this.summaryDialog = null; // Created on demand
       this.orderSummaryDialog = null; // Created on demand
       this.shipSummaryDialog = null; // Created on demand
-
-      // Set up window resize handler
-      this.setupResizeHandler();
-
-      // Set up event listeners
-      this.setupEventListeners();
-
-      // Create top-right buttons
-      this.createButtons();
-
-      // Make mapGenerator available globally for development scenarios
-      window.mapGenerator = this.mapGenerator;
-
-      // Set up dev mode event listeners if needed
-      if (DEV_MODE > 0)
-      {
-         setupDevModeEventListeners(this.playerManager);
-      }
+      
+      this.setupResizeHandler(); // Set up window resize handler
+      this.setupEventListeners(); // Set up event listeners
+      this.createButtons(); // Create top-right buttons
    }
 
-   /**
-    * Show the game view
-    */
    show()
    {
-      if (this.isVisible) return;
+      console.log('🎮 GameView: Showing game view');
+
+      if (this.isVisible) 
+         return;
 
       this.isVisible = true;
 
       // Show canvas
       if (this.canvas)
-      {
          this.canvas.style.display = 'block';
-      }
 
       // Show button container
-      const buttonContainer = document.getElementById('top-right-buttons');
-      if (buttonContainer)
-      {
-         buttonContainer.style.display = 'flex';
-      }
+      Utils.requireElement('#top-right-buttons').style.display = 'flex';
+      this.startAnimation(); // Start animation loop
 
-      // Start animation loop
-      this.startAnimation();
-
-      // Show dev panel if in dev mode
       if (DEV_MODE > 0 && this.devPanel)
-      {
-         this.devPanel.show();
-      }
+         this.devPanel.show(); // Show dev panel if in dev mode
    }
 
-   /**
-    * Hide the game view
-    */
    hide()
    {
-      if (!this.isVisible) return;
+      if (!this.isVisible) 
+         return;
 
       this.isVisible = false;
 
-      // Hide canvas
       if (this.canvas)
-      {
          this.canvas.style.display = 'none';
-      }
 
-      // Hide button container
-      const buttonContainer = document.getElementById('top-right-buttons');
-      if (buttonContainer)
-      {
-         buttonContainer.style.display = 'none';
-      }
+      Utils.requireElement('#top-right-buttons').style.display = 'none';
 
       // Stop animation loop
       this.stopAnimation();
 
       // Hide all dialogs
       if (this.turnEventsPanel)
-      {
          this.turnEventsPanel.hide();
-      }
+      
       if (this.summaryDialog && this.summaryDialog.isOpen())
-      {
          this.summaryDialog.hide();
-      }
+      
       if (this.orderSummaryDialog && this.orderSummaryDialog.isOpen())
-      {
          this.orderSummaryDialog.hide();
-      }
+      
       if (this.shipSummaryDialog && this.shipSummaryDialog.isOpen())
-      {
          this.shipSummaryDialog.hide();
-      }
    }
 
-   /**
-    * Start the animation loop
-    */
    startAnimation()
    {
-      if (this.animationFrameId) return; // Already running
+      console.log('🎮 GameView: Starting animation loop');
+
+      if (this.animationFrameId) 
+         return; // Already running
 
       const animate = () =>
       {
-         if (!this.isVisible) return; // Stop if hidden
+         if (!this.isVisible) 
+            return; // Stop if hidden
 
          this.animationFrameId = requestAnimationFrame(animate);
 
          // Update OrbitControls
          this.controls.update();
-
          this.renderer.render(this.scene, this.camera);
 
          // Render star labels if map generator exists
          if (this.mapGenerator)
-         {
-            // Update star interaction manager
             this.mapGenerator.updateStarInteraction(0.016); // Approximate delta time
-         }
       };
 
       animate();
    }
 
-   /**
-    * Stop the animation loop
-    */
    stopAnimation()
    {
       if (this.animationFrameId)
@@ -251,9 +183,6 @@ export class GameView
       }
    }
 
-   /**
-    * Set up window resize handler
-    */
    setupResizeHandler()
    {
       window.addEventListener('resize', () =>
@@ -276,30 +205,31 @@ export class GameView
     */
    setupEventListeners()
    {
-      // Listen for game start event
-      eventBus.on('game:start', (context, players) =>
-      {
-         console.log('🎮 Game started with players:', players);
-         console.log('🎮 Game context:', context);
-         this.onGameStart(players);
-      });
+      eventBus.on('game:gameReady', this.handleGameReady.bind(this));
    }
 
-   /**
-    * Handle game start
-    */
-   onGameStart(players)
+   handleGameReady(event)
    {
-      console.log('Game started with players:', players);
+      console.log('🎮 GameView: Game ready event received:', event);
 
-      // Update star colors to reflect player ownership
-      if (this.mapGenerator)
-      {
-         this.mapGenerator.updateStarColors(players);
-      }
+      if(event.data.refreshed)
+         this.refreshLoad();
+      else
+         this.initialLoad();
 
-      // Fleet icons are now handled automatically in updateStarGroups()
-      // No need to manually create them here
+   }
+
+   initialLoad()
+   {
+      console.log('🎮 GameView: Initial load');
+
+      this.mapGenerator.buildStaticMap();
+
+   }
+
+   refreshLoad()
+   {
+      console.log('🎮 GameView: Refresh load');
    }
 
    /**
@@ -375,27 +305,20 @@ export class GameView
 
          // Hide any open dialogs
          if (this.summaryDialog && this.summaryDialog.isOpen())
-         {
             this.summaryDialog.hide();
-         }
+         
          if (this.orderSummaryDialog && this.orderSummaryDialog.isOpen())
-         {
             this.orderSummaryDialog.hide();
-         }
+         
          if (this.shipSummaryDialog && this.shipSummaryDialog.isOpen())
-         {
             this.shipSummaryDialog.hide();
-         }
+         
          if (this.turnEventsPanel)
-         {
             this.turnEventsPanel.hide();
-         }
 
          // Clear the map if mapGenerator exists
          if (this.mapGenerator)
-         {
             this.mapGenerator.clearMap();
-         }
 
          // Hide game view
          this.hide();
@@ -407,14 +330,9 @@ export class GameView
       // Add to container
       const container = document.getElementById('top-right-buttons');
       if (container)
-      {
          container.appendChild(homeButton);
-      }
    }
 
-   /**
-    * Create refresh button
-    */
    createRefreshButton()
    {
       const refreshButton = document.createElement('button');
@@ -450,18 +368,13 @@ export class GameView
          }
 
          console.log('🔄 Refresh button clicked - emitting game:startGame event for game', gameId);
-         eventBus.emit('game:startGame',
-         {
-            gameId
-         });
+         eventBus.emit('game:startGame', new ApiEvent('game:startGame', {gameId}));
       });
 
       // Add to container
       const container = document.getElementById('top-right-buttons');
       if (container)
-      {
          container.appendChild(refreshButton);
-      }
    }
 
    /**
@@ -496,22 +409,15 @@ export class GameView
 
          // Show the panel
          if (this.turnEventsPanel)
-         {
             this.turnEventsPanel.show();
-         }
       });
 
       // Add to container
       const container = document.getElementById('top-right-buttons');
       if (container)
-      {
          container.appendChild(eventsButton);
-      }
    }
 
-   /**
-    * Create summary button
-    */
    createSummaryButton()
    {
       const summaryButton = document.createElement('button');
@@ -536,32 +442,20 @@ export class GameView
       summaryButton.addEventListener('click', () =>
       {
          if (!this.summaryDialog)
-         {
             this.summaryDialog = new SummaryDialog();
-            window.summaryDialog = this.summaryDialog;
-         }
 
          if (this.summaryDialog.isOpen())
-         {
             this.summaryDialog.hide();
-         }
          else
-         {
             this.summaryDialog.show();
-         }
       });
 
       // Add to container
       const container = document.getElementById('top-right-buttons');
       if (container)
-      {
          container.appendChild(summaryButton);
-      }
    }
 
-   /**
-    * Create order button
-    */
    createOrderButton()
    {
       const orderButton = document.createElement('button');
@@ -586,32 +480,20 @@ export class GameView
       orderButton.addEventListener('click', () =>
       {
          if (!this.orderSummaryDialog)
-         {
             this.orderSummaryDialog = new OrderSummaryDialog();
-            window.orderSummaryDialog = this.orderSummaryDialog;
-         }
 
          if (this.orderSummaryDialog.isOpen())
-         {
             this.orderSummaryDialog.hide();
-         }
          else
-         {
             this.orderSummaryDialog.show();
-         }
       });
 
       // Add to container
       const container = document.getElementById('top-right-buttons');
       if (container)
-      {
          container.appendChild(orderButton);
-      }
    }
 
-   /**
-    * Create end turn button
-    */
    createEndTurnButton()
    {
       const endTurnButton = document.createElement('button');
@@ -693,7 +575,7 @@ export class GameView
       });
 
       // Listen for turn end error to re-enable button
-      eventBus.on('turn:endTurnError', (context, eventData) =>
+      eventBus.on('turn:endTurnError', (event) =>
       {
          const button = document.getElementById('end-turn-button');
          if (button)
@@ -702,35 +584,33 @@ export class GameView
             button.textContent = '✅ End Turn';
             button.style.opacity = '1';
             button.style.cursor = 'pointer';
-            const errorMessage = eventData?.details?.error || 'Failed to end turn';
+            const errorMessage = event?.details?.error || 'Failed to end turn';
             console.error('✅ End Turn button: Error ending turn:', errorMessage);
             alert(`Error ending turn: ${errorMessage}`);
          }
       });
 
       // Listen for game loaded event to reset button when map is refreshed
-      eventBus.on('game:gameLoaded', (context, eventData) =>
-      {
-         // Only reset if the game was successfully loaded
-         if (eventData?.success !== false)
-         {
-            const button = document.getElementById('end-turn-button');
-            if (button)
-            {
-               button.disabled = false;
-               button.textContent = '✅ End Turn';
-               button.style.opacity = '1';
-               button.style.cursor = 'pointer';
-               console.log('✅ End Turn button: Reset after game refresh');
-            }
+      // eventBus.on('game:gameLoaded', (event) =>
+      // {
+      //    // Only reset if the game was successfully loaded
+      //    if (event.isSuccess())
+      //    {
+      //       const button = document.getElementById('end-turn-button');
+      //       if (button)
+      //       {
+      //          button.disabled = false;
+      //          button.textContent = '✅ End Turn';
+      //          button.style.opacity = '1';
+      //          button.style.cursor = 'pointer';
+      //          console.log('✅ End Turn button: Reset after game refresh');
+      //       }
 
-            // Update poller with new turn number if polling is active
-            if (eventData.details?.currentTurn && gameStatePoller.isPolling)
-            {
-               gameStatePoller.updateTurnNumber(eventData.details.currentTurn.number);
-            }
-         }
-      });
+      //       // Update poller with new turn number if polling is active
+      //       if (gameStateManager.turn && gameStatePoller.isPolling)
+      //          gameStatePoller.updateTurnNumber(event.details.currentTurn.number);
+      //    }
+      // });
 
       // Listen for WebSocket connection failure to start polling
       eventBus.on('websocket:connectionFailed', () =>
@@ -746,14 +626,9 @@ export class GameView
       // Add to container
       const container = document.getElementById('top-right-buttons');
       if (container)
-      {
          container.appendChild(endTurnButton);
-      }
    }
 
-   /**
-    * Create ship summary button
-    */
    createShipSummaryButton()
    {
       const shipSummaryButton = document.createElement('button');
@@ -778,32 +653,20 @@ export class GameView
       shipSummaryButton.addEventListener('click', () =>
       {
          if (!this.shipSummaryDialog)
-         {
             this.shipSummaryDialog = new ShipSummaryDialog();
-            window.shipSummaryDialog = this.shipSummaryDialog;
-         }
 
          if (this.shipSummaryDialog.isOpen())
-         {
             this.shipSummaryDialog.hide();
-         }
          else
-         {
             this.shipSummaryDialog.show();
-         }
       });
 
       // Add to container
       const container = document.getElementById('top-right-buttons');
       if (container)
-      {
          container.appendChild(shipSummaryButton);
-      }
    }
 
-   /**
-    * Get ThreeJS components (for external access if needed)
-    */
    getScene()
    {
       return this.scene;
