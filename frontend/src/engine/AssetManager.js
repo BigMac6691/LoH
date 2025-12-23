@@ -38,9 +38,9 @@ export class AssetManager
       switch (event.data.type)
       {
          case 'font':
-            return this.loadFont(event.data.asset);
+            return this.loadFont(event);
          case 'gltf':
-            return this.loadGLTF(event.data.asset);
+            return this.loadGLTF(event);
          default:
             throw new Error(`Unknown asset type: ${event.data.type}`);
       }
@@ -51,8 +51,9 @@ export class AssetManager
     * @param {string} path - Path relative to /assets/ (e.g., 'models/scene.gltf')
     * @returns {Promise<THREE.Group>} Promise that resolves to the loaded GLTF scene
     */
-   loadGLTF(path)
+   loadGLTF(event)
    {
+      const path = event.data.asset;
       const fullPath = `/assets/${path}`;
 
       if (this.gltfCache.has(fullPath) || this.loadingAssets.has(fullPath))
@@ -67,14 +68,14 @@ export class AssetManager
             this.loadingAssets.delete(fullPath);
             this.loadedAssets.add(fullPath);
 
-            eventBus.emit('system:assetLoaded', new ApiResponse('system:assetLoaded', {type: 'gltf', path: fullPath, asset: gltf}, 200));
+            eventBus.emit('system:assetLoaded', event.prepareResponse('system:assetLoaded', {type: 'gltf', path: fullPath, asset: gltf}, 200));
 
             if (this.loadingAssets.size === 0)
-               eventBus.emit('system:allAssetsLoaded', new ApiResponse('system:allAssetsLoaded', {}, 200));
+               eventBus.emit('system:allAssetsLoaded', event.prepareResponse('system:allAssetsLoaded', {}, 200));
          },
          (progress) =>
          {
-            eventBus.emit('system:assetLoading', new ApiResponse('system:assetLoading', {type: 'gltf', path: fullPath, progress}, 200));
+            eventBus.emit('system:assetLoading', event.prepareResponse('system:assetLoading', {type: 'gltf', path: fullPath, progress}, 200));
          },
          (error) =>
          {
@@ -92,8 +93,9 @@ export class AssetManager
     * @param {string} path - Path relative to /assets/ (e.g., 'fonts/helvetiker.json')
     * @returns {Promise<Object>} Promise that resolves to the loaded font data
     */
-   loadFont(path)
+   loadFont(event)
    {
+      const path = event.data.asset;
       const fullPath = `/assets/${path}`;
 
       if (this.fontCache.has(fullPath) || this.loadingAssets.has(fullPath))
@@ -108,14 +110,14 @@ export class AssetManager
             this.loadingAssets.delete(fullPath);
             this.loadedAssets.add(fullPath);
 
-            eventBus.emit('system:assetLoaded', new ApiResponse('system:assetLoaded', {type: 'font', path: fullPath, asset: font}, 200));
+            eventBus.emit('system:assetLoaded', event.prepareResponse('system:assetLoaded', {type: 'font', path: fullPath, asset: font}, 200));
 
             if (this.loadingAssets.size === 0)
-               eventBus.emit('system:allAssetsLoaded', new ApiResponse('system:allAssetsLoaded', {}, 200));
+               eventBus.emit('system:allAssetsLoaded', event.prepareResponse('system:allAssetsLoaded', {}, 200));
          },
          (progress) =>
          {
-            eventBus.emit('system:assetLoading', new ApiResponse('system:assetLoading', {type: 'font', path: fullPath, progress}, 200));
+            eventBus.emit('system:assetLoading', event.prepareResponse('system:assetLoading', {type: 'font', path: fullPath, progress}, 200));
          },
          (error) =>
          {

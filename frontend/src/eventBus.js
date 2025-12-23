@@ -58,7 +58,10 @@ export class EventBus
    emit(event, data = null)
    {
       if (!this.listeners.has(event)) 
-        return;
+      {
+         console.warn(`EventBus: Event ${event} not found`);
+         return;
+      }
 
       const listeners = this.listeners.get(event);
       const toRemove = [];

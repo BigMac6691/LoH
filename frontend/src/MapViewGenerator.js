@@ -3,7 +3,6 @@ import { MapModel, Economy, Ship } from '@loh/shared';
 import { StarInteractionManager } from './StarInteractionManager.js';
 import { RadialMenu } from './RadialMenu.js';
 import { createStarLabel3D } from './scene/createStarLabel3D.js';
-import { assetManager } from './engine/AssetManager.js';
 import { mem } from './engine/MemoryManager.js';
 import { eventBus } from './eventBus.js';
 import { VictoryDialog } from './VictoryDialog.js';
@@ -26,7 +25,6 @@ export class MapViewGenerator
       this.scene = scene;
       this.camera = camera;
       this.stars = [];
-      this.wormholes = [];
       this.sectorBorders = [];
       this.mapModel = null;
       this.mapSize = 0; // Track map size for label visibility calculations
@@ -34,37 +32,28 @@ export class MapViewGenerator
       this.radialMenu = null;
       this.font = null; // Will be loaded via AssetManager
       this.rocketModel = null; // Will be loaded via AssetManager
+      this.wormholes = new Map(); // Lookup for efficient wormhole access by ID, contains THREE.Mesh objects
       this.starLookup = new Map(); // Lookup for efficient star access by ID, contains THREE.Group objects
       this.victoryDialog = new VictoryDialog();
       this.defeatDialog = new DefeatDialog();
+
+      // consider having GameView extend MenuView to use the registerEventHandler
+      // GameView then listens for system:assetLoaded and calls and passes the asset to the appropriate handler in this class
+      eventBus.on('system:assetLoaded', this.handleAssetLoaded.bind(this));
    }
 
    /**
     * Handle individual asset loaded event
-    * @param {Object} detail - Event detail { type, path, asset }
+    * @param {Object} event - Event detail { type, path, asset }
     */
-   onAssetLoaded(detail)
+   handleAssetLoaded(event)
    {
-      const { type, path, asset } = detail;
-      console.log(`🎨 Asset loaded: type=${type}, path=${path}`);
+      console.log(`🎨 Asset loaded: `, event);
 
-      // Build patch object from the loaded asset
-      const patch = {};
-
-      if (type === 'font' || (path && path.includes('font')))
-      {
-         patch.font = asset;
-         this.font = asset; // Store font reference
-      }
-      else if (path && path.includes('rocket'))
-      {
-         patch.rocket = asset;
-         this.rocketModel = asset; // Store rocket model reference
-      }
-
-      // Apply the patch if we have a map loaded
-      if (Object.keys(patch).length > 0)
-         this.applyAssetsPatch(patch);
+      if (event.data.type === 'font')
+         this.buildStarLabels(event.data.asset);
+      else if (event.data.type === 'gltf')
+         this.buildFleetIcons(event.data.asset);
    }
 
    /**
@@ -72,20 +61,11 @@ export class MapViewGenerator
     * @param {Object} context - Current system context
     * @param {Object} event - Event data containing game state
     */
-   async handleGameLoaded(event)
+   handleGameLoaded(event)
    {
       console.log('🎨 MapViewGenerator: Game loaded event received:', event);
 
          this.clearMap();
-
-         // TODO construct the map model from the game info
-         this.mapModel = new MapModel(gameInfo.seed);
-
-
-         // Generate the map from the loaded game data
-         await this.generateMapFromModel();
-
-         console.log('🎨 MapViewGenerator: Game map rendered successfully');
 
          // Check for victory/defeat conditions
          this.checkVictoryConditions(event.details.gameData);
@@ -99,12 +79,7 @@ export class MapViewGenerator
    {
       console.log('🎨 MapViewGenerator: Applying current state to map:', gameData);
 
-      const
-      {
-         players,
-         ships,
-         starStates
-      } = gameData;
+      const { players, ships, starStates } = gameData;
 
       if (!players || !ships || !starStates)
       {
@@ -191,24 +166,8 @@ export class MapViewGenerator
 
       // Position camera to fit the entire map
       this.positionCameraToFitMap();
-
-      const starCount = this.mapModel.getStars().length;
-      const wormholeCount = this.mapModel.getWormholes().length;
-      console.log(`Map generated from model: ${starCount} stars, ${wormholeCount} wormholes`);
    }
 
-   /**
-    * Set the font for 3D labels
-    * @param {Object} font - Loaded font data from AssetManager
-    */
-   setFont(font)
-   {
-      this.font = font;
-   }
-
-   /**
-    * Clear the current map
-    */
    clearMap()
    {
       // Use MemoryManager to dispose all tracked objects
@@ -274,8 +233,7 @@ export class MapViewGenerator
     */
    calculateScalingFactors()
    {
-      const canvasSize = 2;
-      const starRadius = canvasSize * STAR_RADIUS_PERCENT;
+      const starRadius = 2 * STAR_RADIUS_PERCENT;
       const wormholeRadius = starRadius * WORMHOLE_RADIUS_PERCENT;
 
       return { starRadius, wormholeRadius };
@@ -300,21 +258,30 @@ export class MapViewGenerator
     */
    buildStaticMap()
    {
-      console.log('Building static map with model:', this.mapModel);
-
       const { starRadius, wormholeRadius } = this.calculateScalingFactors();
 
-      // Build stars - base meshes only
-      for(const star of GSM.stars)
-      {
-         let group = this.starLookup.get(star.star_id);
+      this.buildStars(starRadius);
+      this.buildWormholes(wormholeRadius);
 
-         if (!group)
+      if (DEBUG_SHOW_SECTOR_BORDERS)
+         this.renderSectorBorders(GSM.gameInfo.map_size);
+
+      if (this.font)
+         this.buildStarLabels(this.font);
+   }
+
+   buildStars(starRadius)
+   {
+      for (const star of GSM.stars)
+      {
+         if (this.starLookup.has(star.star_id))
+            continue;
+         else
          {
-            group = new THREE.Group();
+            const group = new THREE.Group();
             group.userData = 
             {
-               starId: star.id,
+               starId: star.star_id,
                starRadius: star.owner ? starRadius * 1.25 : starRadius,
                labelMesh: null,
                fleetIcon: null
@@ -339,114 +306,88 @@ export class MapViewGenerator
             group.position.set(star.pos_x, star.pos_y, star.pos_z);
 
             this.starLookup.set(star.id, {group, mesh});
+            this.scene.add(group);
          }
-
-         if (!this.scene.children.includes(group))
-            this.scene.add(group); // this is where the star is added to the map
       }
-
-      // this.buildWormholes(GSM.wormholes, wormholeRadius);
-
-      if (DEBUG_SHOW_SECTOR_BORDERS)
-         this.renderSectorBorders(GSM.gameInfo.map_size);
-
-      // Check if font is already loaded and apply 3D labels
-      if (this.font)
-         this.applyAssetsPatch({ font: this.font });
-      else
-         console.log('🎨 Font not yet loaded, will apply 3D labels when asset loads');
    }
 
    /**
     * Build wormholes (extracted from buildStaticMap for clarity)
-    * @param {Array} wormholes - Array of wormhole data
-    * @param {number} wormholeRadius - Radius for wormhole meshes
+    * @param {number} radius - Radius for wormhole meshes
     */
-   buildWormholes(wormholes, wormholeRadius)
+   buildWormholes(radius)
    {
-      wormholes.forEach(wormhole =>
+      for (const wormhole of GSM.wormholes)
       {
-         // Check if this wormhole already exists
-         const existingWormhole = this.wormholes.find(w =>
-            (w.star1 === wormhole.star1 && w.star2 === wormhole.star2) ||
-            (w.star1 === wormhole.star2 && w.star2 === wormhole.star1)
+         const star1 = GSM.getStarByStarId(wormhole.star_a_id);
+         const star2 = GSM.getStarByStarId(wormhole.star_b_id);
+
+         if (this.wormholes.has(wormhole.wormhole_id))
+            continue;
+         else
+         {
+            const distance = this.getDistance(star1, star2);
+
+            const geometry = new THREE.CylinderGeometry(radius, radius, distance, 8);
+            const material = new THREE.MeshBasicMaterial(
+            {
+               color: 0x444444,
+               transparent: true,
+               opacity: 0.6
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+
+            // Position and orient the wormhole
+            const midPoint = 
+            {
+               x: (star1.pos_x + star2.pos_x) / 2,
+               y: (star1.pos_y + star2.pos_y) / 2,
+               z: (star1.pos_z + star2.pos_z) / 2
+            };
+
+            mesh.position.set(midPoint.x, midPoint.y, midPoint.z);
+
+            // Orient cylinder to point from star1 to star2
+            const direction = new THREE.Vector3(
+               star2.pos_x - star1.pos_x,
+               star2.pos_y - star1.pos_y,
+               star2.pos_z - star1.pos_z
+            );
+
+            const up = new THREE.Vector3(0, 1, 0);
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromUnitVectors(up, direction.normalize());
+            mesh.setRotationFromQuaternion(quaternion);
+
+            mem.track(mesh, `wormhole-${star1.id}-${star2.id}`);
+
+            this.wormholes.set(wormhole.wormhole_id, mesh);
+            this.scene.add(mesh); // this is where the wormhole is added to the map
+         }
+      }
+   }
+
+   /**
+    * This is the initial build of the star labels, it should only be called once after the font is loaded
+    */
+   buildStarLabels(asset)
+   {
+      console.log('🎨 MapViewGenerator: Building star labels...');
+      this.font = asset;
+      
+      this.starLookup.values().forEach(starView =>
+      {
+         const labelMesh = createStarLabel3D(
+            GSM.getStarByStarId(starView.group.userData.starId).name,
+            starView.group.userData.starRadius,
+            this.font
          );
 
-         if (!existingWormhole)
-         {
-            const wormholeMesh = this.createWormholeMesh(wormhole.star1, wormhole.star2, wormholeRadius);
+         mem.track(labelMesh, `star-label-${starView.group.userData.starId}`);
 
-            mem.track(wormholeMesh, `wormhole-${wormhole.star1.id}-${wormhole.star2.id}`);
-
-            this.scene.add(wormholeMesh);
-            this.wormholes.push(
-            {
-               mesh: wormholeMesh,
-               star1: wormhole.star1,
-               star2: wormhole.star2
-            });
-         }
-      });
-   }
-
-   /**
-    * Apply assets patch to add labels and fleet icons based on loaded assets
-    * @param {Object} patch - Asset patch object { font?, rocket? }
-    */
-   applyAssetsPatch(patch)
-   {
-      if (!this.mapModel || !this.starLookup)
-      {
-         console.warn('⚠️ Cannot apply assets patch: no map model loaded');
-         return;
-      }
-
-      console.log('🎨 Applying assets patch:', Object.keys(patch));
-
-      // Apply font patch (create 3D labels)
-      if (patch.font)
-         this.applyFontPatch(patch.font);
-
-      // Apply rocket patch (create fleet icons)
-      if (patch.rocket)
-         this.applyRocketPatch(patch.rocket);
-   }
-
-   /**
-    * Apply font patch to create 3D labels for stars that need them
-    * @param {Object} font - Loaded font resource
-    */
-   applyFontPatch(font)
-   {
-      // return;
-      this.stars.forEach(star =>
-      {
-         if (star.group && !star.group.userData.labelMesh)
-         {
-            const starRadius = star.group.userData.starRadius;
-
-            try
-            {
-               const labelMesh = createStarLabel3D(
-                  star.getName ? star.getName() : `Star ${star.id}`,
-                  starRadius,
-                  font
-               );
-
-               // Track the new label mesh with MemoryManager
-               mem.track(labelMesh, `star-label-${star.id}`);
-
-               // Store reference in userData
-               star.group.userData.labelMesh = labelMesh;
-               star.group.add(labelMesh);
-
-               // console.log(`📝 Added 3D label to ${star.getName ? star.getName() : `Star ${star.id}`}`);
-            }
-            catch (error)
-            {
-               console.warn('⚠️ Failed to create 3D label:', error.message);
-            }
-         }
+         starView.group.userData.labelMesh = labelMesh;
+         starView.group.add(labelMesh);
       });
    }
 
@@ -454,15 +395,12 @@ export class MapViewGenerator
     * Apply rocket patch to create fleet icons for stars with ships
     * @param {Object} rocket - Loaded GLTF resource
     */
-   applyRocketPatch(rocket)
+   buildFleetIcons(asset)
    {
-      // Store the rocket model reference
-      this.rocketModel = rocket;
+      console.log('🎨 MapViewGenerator: Building fleet icons...');
+      this.rocketModel = asset;
 
-      // Create fleet icons for all stars that have ships
-      this.stars.forEach(star => { this.updateFleetIconForStar(star); });
-
-      console.log('🚀 Rocket model loaded, fleet icons will be created dynamically');
+      this.starLookup.values().forEach(starView => { this.updateFleetIconForStar(starView); });
    }
 
    /**
@@ -491,52 +429,6 @@ export class MapViewGenerator
    }
 
    /**
-    * Create a wormhole mesh between two stars
-    * @param {Object} star1 - First star
-    * @param {Object} star2 - Second star
-    * @param {number} radius - Wormhole radius
-    * @returns {THREE.Mesh} Wormhole mesh
-    */
-   createWormholeMesh(star1, star2, radius)
-   {
-      const distance = this.getDistance(star1, star2);
-
-      // Create cylinder geometry for wormhole
-      const geometry = new THREE.CylinderGeometry(radius, radius, distance, 8);
-      const material = new THREE.MeshBasicMaterial(
-      {
-         color: 0x444444,
-         transparent: true,
-         opacity: 0.6
-      });
-
-      const wormhole = new THREE.Mesh(geometry, material);
-
-      // Position and orient the wormhole
-      const midPoint = {
-         x: (star1.getX() + star2.getX()) / 2,
-         y: (star1.getY() + star2.getY()) / 2,
-         z: (star1.getZ() + star2.getZ()) / 2
-      };
-
-      wormhole.position.set(midPoint.x, midPoint.y, midPoint.z);
-
-      // Orient cylinder to point from star1 to star2
-      const direction = new THREE.Vector3(
-         star2.getX() - star1.getX(),
-         star2.getY() - star1.getY(),
-         star2.getZ() - star1.getZ()
-      );
-
-      const up = new THREE.Vector3(0, 1, 0);
-      const quaternion = new THREE.Quaternion();
-      quaternion.setFromUnitVectors(up, direction.normalize());
-      wormhole.setRotationFromQuaternion(quaternion);
-
-      return wormhole;
-   }
-
-   /**
     * Calculate distance between two stars
     * @param {Object} star1 - First star
     * @param {Object} star2 - Second star
@@ -545,9 +437,9 @@ export class MapViewGenerator
    getDistance(star1, star2)
    {
       return Math.sqrt(
-         Math.pow(star1.getX() - star2.getX(), 2) +
-         Math.pow(star1.getY() - star2.getY(), 2) +
-         Math.pow(star1.getZ() - star2.getZ(), 2)
+         Math.pow(star1.pos_x - star2.pos_x, 2) +
+         Math.pow(star1.pos_y - star2.pos_y, 2) +
+         Math.pow(star1.pos_z - star2.pos_z, 2)
       );
    }
 
@@ -567,13 +459,6 @@ export class MapViewGenerator
             star.mesh.material.shininess = 50;
             star.mesh.material.emissive = new THREE.Color(0x000000);
             star.mesh.material.emissiveIntensity = 0;
-
-            // Remove glow mesh if it exists
-            if (star.glowMesh)
-            {
-               star.mesh.remove(star.glowMesh);
-               star.glowMesh = null;
-            }
 
             // Reset size to normal
             star.mesh.scale.set(1, 1, 1);
@@ -598,28 +483,6 @@ export class MapViewGenerator
             star.mesh.scale.set(1.25, 1.25, 1.25);
          }
       });
-
-      // CSS2D label color updates no longer needed - using 3D labels
-      // this.updateLabelColors(players);
-   }
-
-   /**
-    * Initialize the CSS2D label renderer
-    */
-   initializeLabelRenderer()
-   {
-      if (!this.labelRenderer)
-      {
-         this.labelRenderer = new CSS2DRenderer();
-         this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
-         this.labelRenderer.domElement.style.position = 'absolute';
-         this.labelRenderer.domElement.style.top = '0px';
-         this.labelRenderer.domElement.style.pointerEvents = 'none';
-         this.labelRenderer.domElement.style.zIndex = '1000';
-
-         // Add the label renderer to the DOM
-         document.body.appendChild(this.labelRenderer.domElement);
-      }
    }
 
    /**
@@ -644,35 +507,27 @@ export class MapViewGenerator
     * Update fleet icon for a specific star based on ship presence
     * @param {Object} star - Star object
     */
-   updateFleetIconForStar(star)
+   updateFleetIconForStar(starView)
    {
-      if (!star.group) return;
-
-      const hasShips = star.hasShips();
-      const hasIcon = star.group.userData.fleetIcon;
+      const hasShips = GSM.getStarByStarId(starView.group.userData.starId).ships.length > 0;
+      const hasIcon = starView.group.userData.fleetIcon;
 
       if (hasShips && !hasIcon)
       {
-         // Need to create fleet icon - but only if we have the rocket model
          if (this.rocketModel)
-            this.createFleetIconForStar(star);
+            this.createFleetIconForStar(starView);
       }
       else if (!hasShips && hasIcon)
-      {
-         // Need to remove fleet icon
-         this.removeFleetIconFromStar(star);
-      }
+         this.removeFleetIconFromStar(starView);
    }
 
    /**
     * Create a fleet icon for a specific star
     * @param {Object} star - Star object
     */
-   createFleetIconForStar(star)
+   createFleetIconForStar(starView)
    {
-      if (!star.group || !this.rocketModel) return;
-
-      const starRadius = star.group.userData.starRadius;
+      const starRadius = starView.group.userData.starRadius;
 
       try
       {
@@ -693,13 +548,13 @@ export class MapViewGenerator
          fleetIcon.position.set(iconOffset, -starRadius, 0);
 
          // Track the new fleet icon with MemoryManager
-         mem.track(fleetIcon, `fleet-icon-${star.id}`);
+         mem.track(fleetIcon, `fleet-icon-${starView.group.userData.starId}`);
 
          // Store reference in userData
-         star.group.userData.fleetIcon = fleetIcon;
-         star.group.add(fleetIcon);
+         starView.group.userData.fleetIcon = fleetIcon;
+         starView.group.add(fleetIcon);
 
-         console.log(`🚀 Created fleet icon for ${star.getName ? star.getName() : `Star ${star.id}`} (scale: ${scale.toFixed(3)})`);
+         console.log(`🚀 Created fleet icon for ${GSM.getStarByStarId(starView.group.userData.starId).name} (scale: ${scale.toFixed(3)})`);
       }
       catch (error)
       {
@@ -711,22 +566,22 @@ export class MapViewGenerator
     * Remove fleet icon from a specific star
     * @param {Object} star - Star object
     */
-   removeFleetIconFromStar(star)
+   removeFleetIconFromStar(starView)
    {
-      if (!star.group || !star.group.userData.fleetIcon) return;
+      if (!starView.group || !starView.group.userData.fleetIcon) return;
 
-      const fleetIcon = star.group.userData.fleetIcon;
+      const fleetIcon = starView.group.userData.fleetIcon;
 
       // Remove from group
-      star.group.remove(fleetIcon);
+      starView.group.remove(fleetIcon);
 
       // Dispose via MemoryManager
       mem.dispose(fleetIcon);
 
       // Clear reference
-      star.group.userData.fleetIcon = null;
+      starView.group.userData.fleetIcon = null;
 
-      console.log(`🚀 Removed fleet icon from ${star.getName ? star.getName() : `Star ${star.id}`}`);
+      console.log(`🚀 Removed fleet icon from ${GSM.getStarByStarId(starView.group.userData.starId).name}`);
    }
 
    /**
@@ -734,7 +589,8 @@ export class MapViewGenerator
     */
    updateLabelVisibility()
    {
-      if (!this.labelRenderer || !this.mapModel) return;
+      if (!this.mapModel) 
+         return;
 
       // Calculate map center
       const mapCenter = new THREE.Vector3(0, 0, 0);
@@ -749,94 +605,29 @@ export class MapViewGenerator
          {
             // Show labels by adding them back to scene if not already there
             if (!this.scene.children.includes(label))
-            {
                this.scene.add(label);
-            }
          }
          else
          {
             // Hide labels by removing them from scene
             if (this.scene.children.includes(label))
-            {
                this.scene.remove(label);
-            }
          }
       });
    }
 
-   /**
-    * Update label colors based on player ownership
-    * @param {Array} players - Array of player objects
-    */
-   updateLabelColors(players)
-   {
-      // Reset all labels to default style
-      this.starLabels.forEach(label =>
-      {
-         if (label.element)
-         {
-            label.element.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-            label.element.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-            label.element.style.color = 'white';
-            label.element.style.fontWeight = 'normal';
-         }
-      });
-
-      // Update labels for ALL owned stars (not just main player stars)
-      this.stars.forEach(star =>
-      {
-         if (star.isOwned && star.isOwned())
-         {
-            // Find the label for this star
-            const starLabel = this.starLabels.find(label =>
-            {
-               const labelText = label.element.textContent;
-               const starName = star.getName ? star.getName() : `Star ${star.id}`;
-               return labelText === starName;
-            });
-
-            if (starLabel && starLabel.element)
-            {
-               // Update label with owner color
-               starLabel.element.style.backgroundColor = star.color + 'CC'; // Add transparency
-               starLabel.element.style.borderColor = star.color;
-               starLabel.element.style.color = 'white';
-               starLabel.element.style.fontWeight = 'bold';
-            }
-         }
-      });
-   }
-
-   /**
-    * Handle window resize for label renderer
-    */
-   onWindowResize()
-   {
-      if (this.labelRenderer)
-      {
-         this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
-      }
-   }
-
-   /**
-    * Initialize star interaction system
-    */
    async initializeStarInteraction()
    {
       if (this.starInteractionManager)
-      {
          this.starInteractionManager.dispose();
-      }
 
       const stars = this.mapModel.getStars();
 
       this.starInteractionManager = new StarInteractionManager(this.scene, this.camera, stars);
 
-      // Create radial menu instance
       if (this.radialMenu)
-      {
          this.radialMenu.dispose();
-      }
+
       this.radialMenu = new RadialMenu(this.scene, this.camera);
    }
 
@@ -847,14 +638,10 @@ export class MapViewGenerator
    updateStarInteraction(deltaTime)
    {
       if (this.starInteractionManager)
-      {
          this.starInteractionManager.update(deltaTime);
-      }
 
       if (this.radialMenu)
-      {
          this.radialMenu.update(deltaTime);
-      }
 
       // Update star groups to face camera
       this.updateStarGroups();
@@ -866,14 +653,10 @@ export class MapViewGenerator
    onStarInteractionResize()
    {
       if (this.starInteractionManager)
-      {
          this.starInteractionManager.onWindowResize();
-      }
 
       if (this.radialMenu)
-      {
          this.radialMenu.onWindowResize();
-      }
    }
 
    /**
@@ -882,36 +665,13 @@ export class MapViewGenerator
     */
    checkVictoryConditions(gameData)
    {
-      if (!gameData || !gameData.players)
-      {
-         return;
-      }
+      console.log('🎨 MapViewGenerator: Checking victory/defeat conditions for player', GSM.currentPlayerId);
 
-      const currentPlayerId = eventBus.getContext().playerId; // Use playerId, not user (user is user_id)
-      if (!currentPlayerId)
-      {
-         return;
-      }
-
-      console.log('🎨 MapViewGenerator: Checking victory/defeat conditions for player', currentPlayerId);
-
-      // Find current player in the players list
-      const currentPlayer = gameData.players.find(p => p.id === currentPlayerId);
-      if (!currentPlayer)
-      {
-         return;
-      }
-
-      // Check status
+      const currentPlayer = gameData.players.find(p => p.id === GSM.currentPlayerId);
+ 
       if (currentPlayer.status === 'winner')
-      {
-         console.log('🏆 MapViewGenerator: Showing victory dialog for player', currentPlayer);
          this.victoryDialog.show(currentPlayer);
-      }
       else if (currentPlayer.status === 'lost')
-      {
-         console.log('💀 MapViewGenerator: Showing defeat dialog for player', currentPlayer);
          this.defeatDialog.show(currentPlayer);
-      }
    }
 }

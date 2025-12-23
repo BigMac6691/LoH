@@ -55,7 +55,7 @@ export class GameView
    {
       this.canvas = document.getElementById('gameCanvas');
       if (!this.canvas)
-         return eventBus.emit('ui:showStatusMessage', new ApiEvent('ui:showStatusMessage', {message: 'Canvas element not found', type: 'error'})); // void function
+         return eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Canvas element not found', type: 'error'})); // void function
 
       this.scene = new THREE.Scene();
       this.scene.background = new THREE.Color(0x1a1a2e);
@@ -224,6 +224,8 @@ export class GameView
       console.log('🎮 GameView: Initial load');
 
       this.mapGenerator.buildStaticMap();
+      this.mapGenerator.buildFleetIcons(this.mapGenerator.rocketModel);
+      this.mapGenerator.positionCameraToFitMap();
 
    }
 
@@ -613,20 +615,10 @@ export class GameView
       // });
 
       // Listen for WebSocket connection failure to start polling
-      eventBus.on('websocket:connectionFailed', () =>
-      {
-         const context = eventBus.getContext();
-         if (context.gameId)
-         {
-            console.log('🔄 WebSocket connection failed, starting polling fallback');
-            // Poller will be started when game loads, but we can also start it here if needed
-         }
-      });
+      eventBus.on('websocket:connectionFailed', () => { console.log('🔄 WebSocket connection failed, starting polling fallback'); });
 
       // Add to container
-      const container = document.getElementById('top-right-buttons');
-      if (container)
-         container.appendChild(endTurnButton);
+      Utils.requireElement('#top-right-buttons').appendChild(endTurnButton);
    }
 
    createShipSummaryButton()

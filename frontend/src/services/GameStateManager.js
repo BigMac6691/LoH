@@ -186,7 +186,7 @@ class GameStateManager
       console.log('📦 GameStateManager: Applying state');
 
       if (!this.#state || !Array.isArray(this.#state))
-         return eventBus.emit('ui:showStatusMessage', new ApiEvent('ui:showStatusMessage', {message: 'No state to apply', type: 'error'})); // void function
+         return eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'No state to apply', type: 'error'})); // void function
 
       for (const stateRecord of this.#state)
       {
@@ -195,11 +195,11 @@ class GameStateManager
          if (!star)
             throw new ApiError(`📦 GameStateManager: Star not found for star_id: ${stateRecord.star_id}`, 404);
 
-        const player = this.#playerMap.get(stateRecord.owner_player) || null;
-            
-        star.owner = player;
-        star.color = player?.color_hex || '#cccccc';
-        star.economy = stateRecord.economy || null;
+         const player = this.#playerMap.get(stateRecord.owner_player) || null;
+
+         star.owner = player;
+         star.color = player?.color_hex || '#cccccc';
+         star.economy = stateRecord.economy || null;
       }
 
       for(const star of this.#stars)
@@ -215,7 +215,7 @@ class GameStateManager
          star.ships.push(ship);
       }
 
-      eventBus.emit('ui:showStatusMessage', new ApiEvent('ui:showStatusMessage', {message: 'State applied to stars and ships', type: 'success'})); // void function
+      eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'State applied to stars and ships', type: 'success'})); // void function
    }
 
    /**
