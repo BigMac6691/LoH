@@ -5,8 +5,6 @@ import { MenuView } from './MenuView.js';
 import { eventBus } from '../eventBus.js';
 import { ApiEvent, ApiRequest } from '../events/Events.js';
 import { Utils } from '../utils/Utils.js';
-import { webSocketManager } from '../services/WebSocketManager.js';
-import { gameStateManager as GSM } from '../services/GameStateManager.js';
 
 export class GamesPlayingList extends MenuView
 {
@@ -18,7 +16,6 @@ export class GamesPlayingList extends MenuView
       this.abortControl = null;
 
       this.registerEventHandler('system:gamesPlayingResponse', this.handleGamesPlayingResponse.bind(this));
-      this.registerEventHandler('game:gameLoaded', this.handleGameLoaded.bind(this));
    }
 
    create()
@@ -111,30 +108,6 @@ export class GamesPlayingList extends MenuView
       this.displayStatusMessage('Loading game...', 'info');
 
       eventBus.emit('game:loadGame', new ApiRequest('game:loadGame', {gameId}));
-   }
-
-   /**
-    * Handle game loaded event
-    * @param {Object} context - Current system context
-    * @param {Object} event - Event data from game:gameLoaded event
-    */
-   handleGameLoaded(event)
-   {
-      console.log('🎮 GamesPlayingList: Game loaded event received:', event, GSM);
-
-      if (event.isSuccess())
-      {
-         this.displayStatusMessage('Game loaded successfully', 'success');
-
-         if (webSocketManager.isWebSocketConnected())
-            webSocketManager.joinGame();
-         else
-            this.displayStatusMessage('WebSocket not connected... unable to get game state updates automatically.', 'warning');
-
-         eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'game'}));
-      }
-      else
-         this.displayStatusMessage(`Error: ${event.message || 'Failed to load game'}`, 'error');
    }
 
    getContainer()

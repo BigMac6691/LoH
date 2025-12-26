@@ -2,6 +2,7 @@
  * TurnEventHandler - Handles turn-related events
  * Manages end of turn processing and turn state changes
  */
+import { gameStateManager as GSM } from '../services/GameStateManager.js';
 import
 {
    eventBus
@@ -27,66 +28,22 @@ export class TurnEventHandler
 
    /**
     * Handle end turn requests
-    * @param {Object} context - Current context
-    * @param {Object} eventData - Event data containing turn information
+    * @param {Object} event - Event data containing turn information
     */
-   async handleEndTurn(context, eventData)
+   async handleEndTurn(event)
    {
-      console.log('🔄 TurnEventHandler: Handling end turn request:', eventData);
-      console.log('🔄 TurnEventHandler: Context:', context);
+      console.log('🔄 TurnEventHandler: Handling end turn request:', event);
 
       try
       {
-         // Validate required data
-         if (!eventData.details)
-         {
-            throw new Error('Missing event details');
-         }
-
-         const
-         {
-            gameId
-         } = context;
-
-         if (!gameId)
-         {
-            throw new Error('Missing required parameter: gameId');
-         }
-
          // Make the backend call to end the turn (playerId is derived from authenticated user on backend)
-         const result = await RB.fetchPost('/api/turns/end-turn', {
-            gameId
-         });
+         const result = await RB.fetchPost('/api/turns/end-turn', { gameId: GSM.gameId });
          console.log('🔄 TurnEventHandler: Turn ended successfully:', result);
-
-         // Emit success event
-         eventBus.emit('turn:endTurnSuccess',
-         {
-            success: true,
-            details:
-            {
-               eventType: 'turn:endTurnSuccess',
-               gameId,
-               result
-            }
-         });
 
       }
       catch (error)
       {
          console.error('🔄 TurnEventHandler: Error ending turn:', error);
-
-         // Emit error event
-         eventBus.emit('turn:endTurnError',
-         {
-            success: false,
-            details:
-            {
-               eventType: 'turn:endTurnError',
-               error: error.message,
-               originalEventData: eventData
-            }
-         });
       }
    }
 }

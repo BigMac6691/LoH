@@ -30,7 +30,7 @@ class GameStateManager
    constructor()
    {
       // Set up event listeners
-      this.setupEventListeners();
+      // this.setupEventListeners();
    }
 
    /**
@@ -38,8 +38,8 @@ class GameStateManager
     */
    setupEventListeners()
    {
-      eventBus.on('game:gameLoaded', this.handleGameLoaded.bind(this));
-      eventBus.on('game:gameRefreshed', this.handleGameRefreshed.bind(this));
+      // eventBus.on('game:gameLoaded', this.handleGameLoaded.bind(this));
+      // eventBus.on('game:gameRefreshed', this.handleGameRefreshed.bind(this));
    }
 
    /**
@@ -95,12 +95,14 @@ class GameStateManager
       console.log('📦 GameStateManager: Event data:', event);
       console.log('📦 GameStateManager: Instance:', this);
 
-      if (!event.success || !event.details || !event?.details?.turn || !event?.details?.state || !event?.details?.ships || !event?.details?.orders || !event?.details?.events)
+      if (event.isError())
         throw new ApiError('📦 GameStateManager: game:gameRefreshed event was not successful or missing details', 500);
 
+      const { turn, starStates, ships, orders, events } = event.data;
+
       // Only update refreshable fields (do NOT update gameId, stars, wormholes, players)
-      this.#turn = event.details.turn;
-      this.#state = state;
+      this.#turn = turn;
+      this.#state = starStates;
       this.#ships = ships;
       this.#orders = orders;
       this.#events = events;
@@ -315,6 +317,11 @@ class GameStateManager
    get currentPlayerId()
    {
       return this.#currentPlayerId;
+   }
+
+   get currentPlayer()
+   {
+      return this.#playerMap.get(this.#currentPlayerId) || null;
    }
 
    get stars()

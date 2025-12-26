@@ -1,4 +1,6 @@
 import { UIController } from './UIController.js';
+import { GameController } from './services/GameController.js';
+import { GameSession } from './services/GameSession.js';
 import { ApiEvent, ApiRequest } from './events/Events.js';
 import { eventBus } from './eventBus.js';
 import { SystemEventHandler } from './events/SystemEventHandler.js';
@@ -43,6 +45,8 @@ const systemEventHandler = new SystemEventHandler();
 const gameEventHandler = new GameEventHandler();
 const orderEventHandler = new OrderEventHandler();
 const turnEventHandler = new TurnEventHandler();
+
+const controller = new GameController(eventBus, gameEventHandler, GameSession);
 
 // Start loading assets immediately (before DOM ready)
 eventBus.emit('system:loadAsset', new ApiRequest('system:loadAsset', {type: "font", asset: 'fonts/helvetiker_regular.typeface.json'}));

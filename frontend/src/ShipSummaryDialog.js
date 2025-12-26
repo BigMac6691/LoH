@@ -45,20 +45,6 @@ export class ShipSummaryDialog extends BaseDialog
     */
    setupEventListeners()
    {
-      // Listen for game loaded event to get current turn
-      eventBus.on('game:gameLoaded', (context, eventData) =>
-      {
-         if (eventData.success && eventData.details)
-         {
-            this.currentGameId = eventData.details.gameId;
-            this.currentPlayerId = context?.playerId || eventBus.getContext()?.playerId; // Use playerId, not user (user is user_id)
-            if (eventData.details.currentTurn)
-            {
-               this.currentTurnId = eventData.details.currentTurn.id;
-            }
-         }
-      });
-
       // Listen for order updates
       eventBus.on('order:build.submitSuccess', () => this.refreshData());
       eventBus.on('order:move.submitSuccess', () => this.refreshData());

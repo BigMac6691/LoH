@@ -10,19 +10,6 @@ export class GameEventHandler
 {
    constructor()
    {
-      // Set up event listeners
-      this.setupEventListeners();
-   }
-
-   setupEventListeners()
-   {
-      eventBus.on('game:render', this.handleGameRender.bind(this));
-      eventBus.on('game:createGame', this.handleCreateGame.bind(this));
-      eventBus.on('game:addPlayer', this.handleAddPlayer.bind(this));
-      eventBus.on('game:loadGame', this.handleLoadGame.bind(this));
-      eventBus.on('game:generateMap', this.handleGenerateMap.bind(this));
-      eventBus.on('game:placePlayers', this.handlePlacePlayers.bind(this));
-      eventBus.on('game:startGame', this.handleStartGame.bind(this));
    }
 
    /**

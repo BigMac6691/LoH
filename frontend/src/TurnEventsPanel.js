@@ -24,9 +24,6 @@ export class TurnEventsPanel extends BaseDialog
     
     // Create the panel
     this.createPanel();
-    
-    // Setup event listeners
-    this.setupEventListeners();
   }
 
   /**
@@ -157,45 +154,6 @@ export class TurnEventsPanel extends BaseDialog
 
     // Setup drag functionality
     this.setupDragHandlers(this.header);
-  }
-
-  /**
-   * Setup event listeners
-   */
-  setupEventListeners()
-  {
-    console.log('📝 TurnEventsPanel: Setting up event listeners');
-    // Listen for game start event to get game and player info
-    eventBus.on('game:startGame', this.handleGameStart.bind(this));
-    
-    // Listen for game loaded event to get current turn
-    eventBus.on('game:gameLoaded', this.handleGameLoaded.bind(this));
-    console.log(eventBus.listeners);
-  }
-
-  /**
-   * Handle game start event - extract game and player info
-   */
-  handleGameStart(context, eventData)
-  {
-    // Extract game and player info from context
-    this.currentGame = { id: eventBus.getContext().gameId };
-    this.currentPlayer = { id: eventBus.getContext().playerId }; // Use playerId, not user (user is user_id)
-    console.log('📝 TurnEventsPanel: Game start - Game:', this.currentGame?.id, 'Player:', this.currentPlayer?.id);
-  }
-
-  /**
-   * Handle game loaded event - extract current turn
-   */
-  handleGameLoaded(context, eventData)
-  {
-    if (eventData.success && eventData.details)
-    {
-      this.currentGame = { id: eventData.details.gameId };
-      this.currentPlayer = { id: eventBus.getContext().playerId }; // Use playerId, not user (user is user_id)
-      this.currentTurn = eventData.details.currentTurn;
-      console.log('📝 TurnEventsPanel: Game loaded - Game:', this.currentGame?.id, 'Player:', this.currentPlayer?.id, 'Turn:', this.currentTurn?.number);
-    }
   }
 
   /**

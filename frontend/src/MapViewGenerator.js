@@ -36,24 +36,6 @@ export class MapViewGenerator
       this.starLookup = new Map(); // Lookup for efficient star access by ID, contains THREE.Group objects
       this.victoryDialog = new VictoryDialog();
       this.defeatDialog = new DefeatDialog();
-
-      // consider having GameView extend MenuView to use the registerEventHandler
-      // GameView then listens for system:assetLoaded and calls and passes the asset to the appropriate handler in this class
-      eventBus.on('system:assetLoaded', this.handleAssetLoaded.bind(this));
-   }
-
-   /**
-    * Handle individual asset loaded event
-    * @param {Object} event - Event detail { type, path, asset }
-    */
-   handleAssetLoaded(event)
-   {
-      console.log(`🎨 Asset loaded: `, event);
-
-      if (event.data.type === 'font')
-         this.buildStarLabels(event.data.asset);
-      else if (event.data.type === 'gltf')
-         this.buildFleetIcons(event.data.asset);
    }
 
    /**
@@ -252,10 +234,6 @@ export class MapViewGenerator
       this.camera.updateMatrixWorld();
    }
 
-   /**
-    * Build static map components (stars, wormholes, sectors) - no labels or fleet icons
-    * @param {Object} model - Map model data structure
-    */
    buildStaticMap()
    {
       const { starRadius, wormholeRadius } = this.calculateScalingFactors();
@@ -267,7 +245,7 @@ export class MapViewGenerator
          this.renderSectorBorders(GSM.gameInfo.map_size);
 
       if (this.font)
-         this.buildStarLabels(this.font);
+         this.buildStarLabels();
    }
 
    buildStars(starRadius)
@@ -305,7 +283,7 @@ export class MapViewGenerator
             group.add(mesh);
             group.position.set(star.pos_x, star.pos_y, star.pos_z);
 
-            this.starLookup.set(star.id, {group, mesh});
+            this.starLookup.set(star.star_id, {group, mesh});  // mesh is the star, group are things attached to the star like labels and icons
             this.scene.add(group);
          }
       }
@@ -371,36 +349,31 @@ export class MapViewGenerator
    /**
     * This is the initial build of the star labels, it should only be called once after the font is loaded
     */
-   buildStarLabels(asset)
+   buildStarLabels()
    {
-      console.log('🎨 MapViewGenerator: Building star labels...');
-      this.font = asset;
-      
-      this.starLookup.values().forEach(starView =>
+      for(const [starId, starView] of this.starLookup.entries())
       {
          const labelMesh = createStarLabel3D(
-            GSM.getStarByStarId(starView.group.userData.starId).name,
+            GSM.getStarByStarId(starId).name,
             starView.group.userData.starRadius,
             this.font
          );
 
-         mem.track(labelMesh, `star-label-${starView.group.userData.starId}`);
+         mem.track(labelMesh, `star-label-${starId}`);
 
          starView.group.userData.labelMesh = labelMesh;
          starView.group.add(labelMesh);
-      });
+      }
    }
 
    /**
     * Apply rocket patch to create fleet icons for stars with ships
     * @param {Object} rocket - Loaded GLTF resource
     */
-   buildFleetIcons(asset)
+   updateFleetIcons()
    {
-      console.log('🎨 MapViewGenerator: Building fleet icons...');
-      this.rocketModel = asset;
-
-      this.starLookup.values().forEach(starView => { this.updateFleetIconForStar(starView); });
+      for(const starView of this.starLookup.values())
+         this.updateFleetIconForStar(starView);
    }
 
    /**
@@ -528,38 +501,27 @@ export class MapViewGenerator
    createFleetIconForStar(starView)
    {
       const starRadius = starView.group.userData.starRadius;
+      const fleetIcon = this.rocketModel.scene.clone();
 
-      try
-      {
-         // Clone the GLTF scene
-         const fleetIcon = this.rocketModel.scene.clone();
+      // Calculate the bounding box to determine the model's size
+      const bbox = new THREE.Box3().setFromObject(fleetIcon);
+      const modelHeight = bbox.max.y - bbox.min.y;
 
-         // Calculate the bounding box to determine the model's size
-         const bbox = new THREE.Box3().setFromObject(fleetIcon);
-         const modelHeight = bbox.max.y - bbox.min.y;
+      // Scale the fleet icon to about 2/3 the height of the star
+      const targetHeight = starRadius * 2;
+      const scale = targetHeight / modelHeight;
+      fleetIcon.scale.set(scale, scale, scale);
 
-         // Scale the fleet icon to about 2/3 the height of the star
-         const targetHeight = starRadius * 2;
-         const scale = targetHeight / modelHeight;
-         fleetIcon.scale.set(scale, scale, scale);
+      // Position to the right of the star (similar to label positioning)
+      const iconOffset = starRadius + (targetHeight * 0.7); // Offset to the right
+      fleetIcon.position.set(iconOffset, -starRadius, 0);
 
-         // Position to the right of the star (similar to label positioning)
-         const iconOffset = starRadius + (targetHeight * 0.7); // Offset to the right
-         fleetIcon.position.set(iconOffset, -starRadius, 0);
+      // Track the new fleet icon with MemoryManager
+      mem.track(fleetIcon, `fleet-icon-${starView.group.userData.starId}`);
 
-         // Track the new fleet icon with MemoryManager
-         mem.track(fleetIcon, `fleet-icon-${starView.group.userData.starId}`);
-
-         // Store reference in userData
-         starView.group.userData.fleetIcon = fleetIcon;
-         starView.group.add(fleetIcon);
-
-         console.log(`🚀 Created fleet icon for ${GSM.getStarByStarId(starView.group.userData.starId).name} (scale: ${scale.toFixed(3)})`);
-      }
-      catch (error)
-      {
-         console.warn('⚠️ Failed to create fleet icon:', error.message);
-      }
+      // Store reference in userData
+      starView.group.userData.fleetIcon = fleetIcon;
+      starView.group.add(fleetIcon);
    }
 
    /**
@@ -568,7 +530,8 @@ export class MapViewGenerator
     */
    removeFleetIconFromStar(starView)
    {
-      if (!starView.group || !starView.group.userData.fleetIcon) return;
+      if (!starView.group || !starView.group.userData.fleetIcon) 
+         return;
 
       const fleetIcon = starView.group.userData.fleetIcon;
 
@@ -582,38 +545,6 @@ export class MapViewGenerator
       starView.group.userData.fleetIcon = null;
 
       console.log(`🚀 Removed fleet icon from ${GSM.getStarByStarId(starView.group.userData.starId).name}`);
-   }
-
-   /**
-    * Update label visibility based on camera distance
-    */
-   updateLabelVisibility()
-   {
-      if (!this.mapModel) 
-         return;
-
-      // Calculate map center
-      const mapCenter = new THREE.Vector3(0, 0, 0);
-      const cameraDistance = this.camera.position.distanceTo(mapCenter);
-      const visibilityThreshold = this.mapSize * LABEL_VISIBILITY_THRESHOLD;
-      const shouldShowLabels = cameraDistance <= visibilityThreshold;
-
-      this.starLabels.forEach(label =>
-      {
-         // Remove or add labels from scene based on visibility
-         if (shouldShowLabels)
-         {
-            // Show labels by adding them back to scene if not already there
-            if (!this.scene.children.includes(label))
-               this.scene.add(label);
-         }
-         else
-         {
-            // Hide labels by removing them from scene
-            if (this.scene.children.includes(label))
-               this.scene.remove(label);
-         }
-      });
    }
 
    async initializeStarInteraction()

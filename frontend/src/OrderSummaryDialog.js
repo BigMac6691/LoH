@@ -44,27 +44,6 @@ export class OrderSummaryDialog extends BaseDialog
       ];
 
       this.createDialog();
-      this.setupEventListeners();
-   }
-
-   /**
-    * Setup event listeners
-    */
-   setupEventListeners()
-   {
-      // Listen for game loaded event to get current turn
-      eventBus.on('game:gameLoaded', (context, eventData) =>
-      {
-         if (eventData.success && eventData.details)
-         {
-            this.currentGameId = eventData.details.gameId;
-            this.currentPlayerId = context?.playerId || eventBus.getContext()?.playerId; // Use playerId, not user (user is user_id)
-            if (eventData.details.currentTurn)
-            {
-               this.currentTurnId = eventData.details.currentTurn.id;
-            }
-         }
-      });
    }
 
    /**
@@ -1108,21 +1087,15 @@ export class OrderSummaryDialog extends BaseDialog
          {
             const result = await RB.fetchGet(`/api/games/${this.currentGameId}/turn/open`);
             if (result.success && result.turn)
-            {
                this.currentTurnId = result.turn.id;
-            }
          }
          catch (error)
          {
             // 404 is acceptable - no open turn exists
             if (error instanceof ApiError && error.status === 404)
-            {
                console.warn('📋 OrderSummaryDialog: No open turn found');
-            }
             else
-            {
                console.error('📋 OrderSummaryDialog: Failed to get current turn', error);
-            }
          }
       }
 
