@@ -11,7 +11,8 @@ export class LoginScreen extends BaseFormScreen
    constructor()
    {
       super('login');
-      this.registerEventHandler('system:loginResponse', this.handleLoginResponse);
+      this.registerEventHandler('system:loginSuccess', this.handleLoginSuccess);
+      this.registerEventHandler('system:loginFailure', this.handleLoginFailure);
       this.createLoginScreen();
    }
 
@@ -78,21 +79,18 @@ export class LoginScreen extends BaseFormScreen
       eventBus.emit('system:loginRequest', new ApiRequest('system:loginRequest', {email, password}));
    }
 
-   handleLoginResponse(event)
+   handleLoginSuccess(event)
    {
       this.updateViewState(false, event.data?.email);
 
-      if (event.isSuccess())
-      {
-         Utils.requireElement('#login-form').reset();
-         eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'home'}));
-      }
-      else
-         this.handleLoginFailure(event);
+      Utils.requireElement('#login-form').reset();
+      eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'home'}));
    }
 
    handleLoginFailure(event)
    {
+      this.updateViewState(false, event.data?.email);
+      
       const error = event.error;
       const email = event.data?.email;
 

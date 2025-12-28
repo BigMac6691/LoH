@@ -5,28 +5,27 @@
 import { eventBus }from '../eventBus.js';
 import { ApiEvent, ApiRequest, ApiResponse } from './Events.js';
 import { RB, ApiError } from '../utils/RequestBuilder.js';
-import { webSocketManager } from '../services/WebSocketManager.js';
+import { EventRegister } from '../EventRegister.js';
 
 export class SystemEventHandler
 {
    constructor()
    {
-      this.userLoggedIn = false;
+      this.eventRegister = new EventRegister();
 
-      eventBus.on('system:loginRequest', this.handleLoginRequest.bind(this));
-      eventBus.on('system:loginResponse', this.handleLoginResponse.bind(this)); // not a request
-      eventBus.on('system:registerRequest', this.handleRegisterRequest.bind(this));
-      eventBus.on('system:recoverRequest', this.handleRecoverRequest.bind(this));
-      eventBus.on('system:resetPasswordRequest', this.handleResetPasswordRequest.bind(this));
-      eventBus.on('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this)); // not a request
-      eventBus.on('system:logoutRequest', this.handleLogoutRequest.bind(this));
-      eventBus.on('system:profileRequest', this.handleProfileRequest.bind(this));
-      eventBus.on('system:updateProfileRequest', this.handleUpdateProfileRequest.bind(this));
-      eventBus.on('system:changePasswordRequest', this.handleChangePasswordRequest.bind(this));
-      eventBus.on('system:verifyEmailRequest', this.handleVerifyEmailRequest.bind(this));
-      eventBus.on('system:resendVerificationRequest', this.handleResendVerificationRequest.bind(this));
-      eventBus.on('system:systemEventsRequest', this.handleSystemEventsRequest.bind(this));
-      eventBus.on('system:gamesPlayingRequest', this.handleGamesPlayingRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:registerRequest', this.handleRegisterRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:recoverRequest', this.handleRecoverRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:resetPasswordRequest', this.handleResetPasswordRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this)); // not a request
+      this.eventRegister.registerEventHandler('system:profileRequest', this.handleProfileRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:updateProfileRequest', this.handleUpdateProfileRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:changePasswordRequest', this.handleChangePasswordRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:verifyEmailRequest', this.handleVerifyEmailRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:resendVerificationRequest', this.handleResendVerificationRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:systemEventsRequest', this.handleSystemEventsRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:gamesPlayingRequest', this.handleGamesPlayingRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:gamesAvailableRequest', this.handleGamesAvailableRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:joinGameRequest', this.handleJoinGameRequest.bind(this));
    }
 
    /**
@@ -37,116 +36,7 @@ export class SystemEventHandler
    {
       console.log('🔐 SystemEventHandler: All assets loaded:', event, event.data);
 
-      if (!this.userLoggedIn)
-         eventBus.emit('system:systemReady', new ApiEvent('system:systemReady'));
-   }
-
-   /**
-    * Handle login response to track login status
-    * @param {ApiResponse} event - Login response event
-    */
-   handleLoginResponse(event)
-   {
-      if(!(event instanceof ApiResponse))
-         throw new Error('SystemEventHandler: Invalid event type');
-
-      if (event.isSuccess())
-      {
-         webSocketManager.connect();
-         this.userLoggedIn = true;
-      }
-   }
-
-   /**
-    * Handle user login event
-    * @param {Object} event - User data from login
-    */
-   handleLoginRequest(event)
-   {
-      console.log('🔐 SystemEventHandler: Processing login for user:', event);
-
-      if(!(event instanceof ApiRequest))
-         throw new Error('SystemEventHandler: Invalid event type');
-
-      let response = null;
-
-      // Attempt login via API - move this to SystemEventHandler
-      RB.fetchPostUnauthenticated('/api/auth/login', {...event.data}, event.signal)
-         .then(success =>
-         {
-            console.log('Login success:', success);
-
-            response = event.prepareResponse('system:loginResponse', {email: event.data.email}, 200);
-
-            // Store JWT tokens if provided
-            if (success.accessToken)
-               localStorage.setItem('access_token', success.accessToken);
-
-            if (success.refreshToken)
-               localStorage.setItem('refresh_token', success.refreshToken);
-
-            // Store user info (user_id is not stored - backend extracts it from JWT token)
-            if (success.user)
-            {
-               localStorage.setItem('user_email', success.user.email);
-
-               if (success.user.displayName)
-                  localStorage.setItem('user_display_name', success.user.displayName);
-
-               if (success.user.role)
-                  localStorage.setItem('user_role', success.user.role);
-
-               if (success.user.emailVerified !== undefined)
-                  localStorage.setItem('user_email_verified', success.user.emailVerified.toString());
-            }
-
-            this.userLoggedIn = true;
-         })
-         .catch(error =>
-         {
-            console.error('Login error:', error);
-
-            response = event.prepareResponse('system:loginResponse', {email: event.data.email}, 401, error.body);
-         })
-         .finally(() =>
-         {
-            console.log('Login finally', response);
-
-            setTimeout(() => { eventBus.emit('system:loginResponse', response); }, 1000); // simulate network delay
-
-            // eventBus.emit('system:loginResponse', response);
-         });
-   }
-
-   handleLogoutRequest(event)
-   {
-      console.log('🔐 SystemEventHandler: Processing logout for user:', event);
-
-      if(!(event instanceof ApiRequest))
-         throw new Error('SystemEventHandler: Invalid event type');
-
-      const refreshToken = localStorage.getItem('refresh_token');
-
-      if (refreshToken)
-         RB.fetchPost('/api/auth/logout', {refreshToken}, event.signal)
-            .then(success =>
-            {
-               console.log('Logout success:', success);
-               eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Logout successful!', type: 'success'}));
-            })
-            .catch(error =>
-            {
-               console.error('Logout error:', error);
-               eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Logout failed!', type: 'error'}));
-            })
-            .finally(() =>
-            {
-               this.userLoggedIn = false;
-
-               localStorage.clear();
-               webSocketManager.disconnect();
-               eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'splash'}));
-            });
+      eventBus.emit('system:systemReady', new ApiEvent('system:systemReady'));
    }
 
    /**
@@ -463,21 +353,88 @@ export class SystemEventHandler
          });
    }
 
+   /**
+    * Handle games available request event
+    * @param {ApiRequest} event - Games available request event
+    */
+   handleGamesAvailableRequest(event)
+   {
+      console.log('🔐 SystemEventHandler: Processing games available request');
+
+      if(!(event instanceof ApiRequest))
+         throw new Error('SystemEventHandler: Invalid event type');
+
+      let response = null;
+
+      RB.fetchGet('/api/games/available', event.signal)
+         .then(success =>
+         {
+            console.log('Games available request success:', success);
+            response = event.prepareResponse('system:gamesAvailableResponse', success, 200, null);
+         })
+         .catch(error =>
+         {
+            console.error('Games available request error:', error);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:gamesAvailableResponse', null, status, errorBody);
+         })
+         .finally(() =>
+         {
+            eventBus.emit('system:gamesAvailableResponse', response);
+         });
+   }
+
+   /**
+    * Handle join game request event
+    * @param {ApiRequest} event - Join game request event
+    */
+   handleJoinGameRequest(event)
+   {
+      console.log('🔐 SystemEventHandler: Processing join game request');
+
+      if(!(event instanceof ApiRequest))
+         throw new Error('SystemEventHandler: Invalid event type');
+
+      const { gameId, countryName } = event.data || {};
+
+      if (!gameId)
+      {
+         const errorResponse = event.prepareResponse('system:joinGameResponse', null, 400, {message: 'Game ID is required'});
+         eventBus.emit('system:joinGameResponse', errorResponse);
+         return;
+      }
+
+      if (!countryName || !countryName.trim())
+      {
+         const errorResponse = event.prepareResponse('system:joinGameResponse', null, 400, {message: 'Country name is required'});
+         eventBus.emit('system:joinGameResponse', errorResponse);
+         return;
+      }
+
+      let response = null;
+
+      RB.fetchPost(`/api/games/${gameId}/join`, {countryName: countryName.trim()}, event.signal)
+         .then(success =>
+         {
+            console.log('Join game request success:', success);
+            response = event.prepareResponse('system:joinGameResponse', success, 200, null);
+         })
+         .catch(error =>
+         {
+            console.error('Join game request error:', error);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:joinGameResponse', null, status, errorBody);
+         })
+         .finally(() =>
+         {
+            eventBus.emit('system:joinGameResponse', response);
+         });
+   }
+
    dispose()
    {
-      eventBus.off('system:loginRequest', this.handleLoginRequest.bind(this));
-      eventBus.off('system:loginResponse', this.handleLoginResponse.bind(this));
-      eventBus.off('system:registerRequest', this.handleRegisterRequest.bind(this));
-      eventBus.off('system:recoverRequest', this.handleRecoverRequest.bind(this));
-      eventBus.off('system:resetPasswordRequest', this.handleResetPasswordRequest.bind(this));
-      eventBus.off('system:allAssetsLoaded', this.handleAllAssetsLoaded.bind(this));
-      eventBus.off('system:logoutRequest', this.handleLogoutRequest.bind(this));
-      eventBus.off('system:profileRequest', this.handleProfileRequest.bind(this));
-      eventBus.off('system:updateProfileRequest', this.handleUpdateProfileRequest.bind(this));
-      eventBus.off('system:changePasswordRequest', this.handleChangePasswordRequest.bind(this));
-      eventBus.off('system:verifyEmailRequest', this.handleVerifyEmailRequest.bind(this));
-      eventBus.off('system:resendVerificationRequest', this.handleResendVerificationRequest.bind(this));
-      eventBus.off('system:systemEventsRequest', this.handleSystemEventsRequest.bind(this));
-      eventBus.off('system:gamesPlayingRequest', this.handleGamesPlayingRequest.bind(this));
+      this.eventRegister.unregisterEventHandlers();
    }
 }

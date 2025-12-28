@@ -23,77 +23,106 @@
 import { eventBus } from '../eventBus.js';
 import { tokenStore } from './TokenStore.js';
 import { webSocketManager } from './WebSocketManager.js';
-import { ApiResponse } from '../events/Events.js';
+import { ApiRequest, ApiEvent } from '../events/Events.js';
+import { EventRegister } from '../EventRegister.js';
+import { RB } from '../utils/RequestBuilder.js';
 
 export class SessionController
 {
    constructor()
    {
-      /**
-       * Track bound handlers for cleanup
-       */
-      this.boundHandlers = new Map();
+      this.eventRegister = new EventRegister();
 
-      this.setupEventListeners();
+      this.eventRegister.registerEventHandler('system:loginRequest', this.handleLoginRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:logoutRequest', this.handleLogoutRequest.bind(this));
+
+      this._handleWebSocketConnected = this.handleWebSocketConnected.bind(this);
+      webSocketManager.addConnectionListener(this._handleWebSocketConnected);
    }
 
    /**
-    * Set up event listeners for authentication lifecycle
+    * Handle user login event
+    * @param {Object} event - User data from login
     */
-   setupEventListeners()
+   handleLoginRequest(event)
    {
-      // Listen for login success
-      this.boundHandlers.set('system:loginResponse', this.handleLoginResponse.bind(this));
-      eventBus.on('system:loginResponse', this.boundHandlers.get('system:loginResponse'));
+      console.log('🔐 SessionController: Processing login for user:', event);
 
-      // Listen for logout request
-      this.boundHandlers.set('system:logoutRequest', this.handleLogoutRequest.bind(this));
-      eventBus.on('system:logoutRequest', this.boundHandlers.get('system:logoutRequest'));
+      if (!(event instanceof ApiRequest))
+         throw new Error('SessionController: Invalid event type');
 
-      // Listen for WebSocket connection state changes
-      this.boundHandlers.set('websocket:connected', this.handleWebSocketConnected.bind(this));
-      eventBus.on('websocket:connected', this.boundHandlers.get('websocket:connected'));
+      let response = null;
+
+      // Attempt login via API - move this to SystemEventHandler
+      RB.fetchPostUnauthenticated('/api/auth/login', {...event.data}, event.signal)
+         .then(success =>
+         {
+            console.log('Login success:', success);
+
+            response = event.prepareResponse('system:loginSuccess', {email: event.data.email}, 200, null);
+
+            tokenStore.setTokens({ accessToken: success.accessToken, refreshToken: success.refreshToken, expiresAt: success.expiresAt });
+            webSocketManager.connect(); // WebSocketManager will connect, and when it does, we'll authenticate
+            
+            if (success.user) // Store user info (user_id is not stored - backend extracts it from JWT token)
+            {
+               localStorage.setItem('user_email', success.user.email);
+               localStorage.setItem('user_display_name', success.user.displayName);
+               localStorage.setItem('user_role', success.user.role || 'visitor');
+               localStorage.setItem('user_email_verified', success.user.emailVerified?.toString() || 'false');
+            }
+         })
+         .catch(error =>
+         {
+            console.error('Login error:', error);
+
+            response = event.prepareResponse('system:loginFailure', {email: event.data.email}, 401, error.body);
+         })
+         .finally(() =>
+         {
+            console.log('Login finally', response);
+
+            setTimeout(() =>
+            {
+               eventBus.emit(response.type, response);
+            }, 1000); // simulate network delay
+
+            // eventBus.emit(response.type, response);
+         });
    }
 
    /**
-    * Handle login response - store token and initiate WebSocket connection
-    * @param {ApiResponse} event - Login response event
-    */
-   handleLoginResponse(event)
-   {
-      // Only process successful logins
-      if (!(event instanceof ApiResponse) || !event.isSuccess())
-         return;
-
-      // Extract token from localStorage (SystemEventHandler stores it there)
-      // We read from localStorage here because SystemEventHandler hasn't been refactored yet
-      // In the future, SystemEventHandler could emit the token in the event
-      const token = localStorage.getItem('access_token');
-      if (!token)
-      {
-         console.warn('🔐 SessionController: No access token found after login');
-         return;
-      }
-
-      // Store token in TokenStore
-      tokenStore.setToken(token);
-
-      // Initiate WebSocket connection
-      // WebSocketManager will connect, and when it does, we'll authenticate
-      webSocketManager.connect();
-   }
-
-   /**
-    * Handle logout request - clear token and disconnect WebSocket
+    * Handle logout request - clear tokens and disconnect WebSocket
     * @param {Object} event - Logout request event
     */
    handleLogoutRequest(event)
    {
-      // Clear token from TokenStore
-      tokenStore.clearToken();
+      console.log('🔐 SystemEventHandler: Processing logout for user:', event);
 
-      // Disconnect WebSocket
-      webSocketManager.disconnect();
+      if(!(event instanceof ApiRequest))
+         throw new Error('SystemEventHandler: Invalid event type');
+
+      const refreshToken = tokenStore.getRefreshToken();
+
+      if (refreshToken)
+         RB.fetchPost('/api/auth/logout', {refreshToken}, event.signal)
+            .then(success =>
+            {
+               console.log('Logout success:', success);
+               eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Logout successful!', type: 'success'}));
+            })
+            .catch(error =>
+            {
+               console.error('Logout error:', error);
+               eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Logout failed!', type: 'error'}));
+            })
+            .finally(() =>
+            {
+               localStorage.clear();
+               tokenStore.clear();
+               webSocketManager.disconnect();
+               eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'splash'}));
+            });
    }
 
    /**
@@ -103,7 +132,7 @@ export class SessionController
    handleWebSocketConnected()
    {
       // Get token from TokenStore
-      const token = tokenStore.getToken();
+      const token = tokenStore.getAccessToken();
       if (!token)
       {
          console.warn('🔐 SessionController: No token available for WebSocket authentication');
@@ -112,7 +141,7 @@ export class SessionController
 
       // Send authentication message to WebSocket
       // This is the ONLY place that sends the authenticate message
-      webSocketManager.send('authenticate', {token});
+      webSocketManager.send('authenticate', { token });
    }
 
    /**
@@ -120,12 +149,7 @@ export class SessionController
     */
    dispose()
    {
-      for (const [eventType, handler] of this.boundHandlers)
-      {
-         eventBus.off(eventType, handler);
-      }
-
-      this.boundHandlers.clear();
+      this.eventRegister.unregisterEventHandlers();
+      webSocketManager.removeConnectionListener(this._handleWebSocketConnected);
    }
 }
-

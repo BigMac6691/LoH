@@ -2,6 +2,8 @@
  * ApiError - Custom error class for API request failures
  * Includes response status, statusText, and parsed error body
  */
+import { tokenStore } from '../services/TokenStore.js';
+
 export class ApiError extends Error
 {
    constructor(message, status, statusText, body = null)
@@ -29,7 +31,7 @@ export class RB
       const headers =
       {
          'Content-Type': 'application/json',
-         'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`
+         'Authorization': `Bearer ${tokenStore.getAccessToken() || ''}`
       };
 
       return headers;
@@ -43,7 +45,7 @@ export class RB
   {
       const headers =
       {
-         'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+         'Authorization': `Bearer ${tokenStore.getAccessToken() || ''}`,
       };
 
      return headers;

@@ -387,6 +387,7 @@ export class GameRouter
         return res.json({
           success: true,
           message: 'Successfully joined game',
+          gameId,
           player: {
             id: result.id,
             name: result.name,
@@ -409,7 +410,9 @@ export class GameRouter
       res.json({
         success: true,
         message: 'Successfully joined game',
-        player: {
+        gameId,
+        player: 
+        {
           id: result.id,
           name: result.name,
           colorHex: result.color_hex

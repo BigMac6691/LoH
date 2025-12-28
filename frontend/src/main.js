@@ -8,6 +8,7 @@ import { GameEventHandler } from './events/GameEventHandler.js';
 import { OrderEventHandler } from './events/OrderEventHandler.js';
 import { TurnEventHandler } from './events/TurnEventHandler.js';
 import { getGameStateManager } from './services/GameStateManager.js';
+import { SessionController } from './services/SessionController.js';
 
 // Global handler for runtime errors (e.g., undefined variable, throw new Error)
 window.onerror = function (message, source, lineno, colno, error) 
@@ -39,6 +40,7 @@ const loadingScreen =
   hide: () => { document.getElementById('loading').style.display = 'none';  }
 };
 
+const sessionController = new SessionController();
 const uiController = new UIController('loading', loadingScreen);
 
 const systemEventHandler = new SystemEventHandler();

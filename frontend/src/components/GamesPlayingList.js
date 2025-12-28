@@ -105,9 +105,9 @@ export class GamesPlayingList extends MenuView
       if (!gameId) 
          return;
 
-      this.displayStatusMessage('Loading game...', 'info');
+      this.displayStatusMessage('Loading game...' + gameId, 'info');
 
-      eventBus.emit('game:loadGame', new ApiRequest('game:loadGame', {gameId}));
+      eventBus.emit('game:requestInitial', new ApiRequest('game:requestInitial', {gameId}));
    }
 
    getContainer()

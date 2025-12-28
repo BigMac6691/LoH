@@ -25,6 +25,7 @@
  */
 import io from 'socket.io-client';
 import { eventBus } from '../eventBus.js';
+import { ApiEvent } from '../events/Events.js';
 
 export class WebSocketManager
 {
@@ -108,44 +109,40 @@ export class WebSocketManager
       // Connection established
       this.socket.on('connect', () =>
       {
-         console.log('🔌 WebSocketManager: Connected to server');
          this.reconnectAttempts = 0;
          this.reconnectDelay = 1000;
 
          // Notify connection listeners
          this.notifyConnectionListeners('connected');
+         eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Connected to server for turn updates', type: 'success'}));
       });
 
       // Disconnected
       this.socket.on('disconnect', (reason) =>
       {
-         console.log('🔌 WebSocketManager: Disconnected:', reason);
-
-         // Notify connection listeners
          this.notifyConnectionListeners('disconnected', reason);
 
          // If it was an unexpected disconnect, attempt reconnection
          if (reason === 'io server disconnect') // Server disconnected, reconnect manually
             this.socket.connect();
+
+         eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Disconnected from server for turn updates', type: 'warning'}));
       });
 
       // Reconnection attempt
       this.socket.on('reconnect_attempt', (attemptNumber) =>
       {
-         console.log(`🔌 WebSocketManager: Reconnection attempt ${attemptNumber}`);
          this.reconnectAttempts = attemptNumber;
 
-         // Notify connection listeners
          this.notifyConnectionListeners('reconnecting', attemptNumber);
+         eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: `Reconnecting to server for turn updates (attempt ${attemptNumber})`, type: 'warning'}));
       });
 
       // Reconnection failed
       this.socket.on('reconnect_failed', () =>
       {
-         console.error('🔌 WebSocketManager: Reconnection failed after maximum attempts');
-
-         // Notify connection listeners
          this.notifyConnectionListeners('connectionFailed');
+         eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Failed to reconnect to server for turn updates', type: 'error'}));
       });
    }
 
@@ -159,7 +156,6 @@ export class WebSocketManager
          throw new Error('WebSocketManager: Listener must be a function');
 
       this.messageListeners.add(listener);
-      console.log(`🔌 WebSocketManager: Added message listener (${this.messageListeners.size} total)`);
    }
 
    /**
@@ -168,8 +164,7 @@ export class WebSocketManager
     */
    removeMessageListener(listener)
    {
-      if (this.messageListeners.delete(listener))
-         console.log(`🔌 WebSocketManager: Removed message listener (${this.messageListeners.size} remaining)`);
+      this.messageListeners.delete(listener)
    }
 
    /**
@@ -203,11 +198,6 @@ export class WebSocketManager
     */
    notifyConnectionListeners(state, data = null)
    {
-      // Emit on eventBus for backward compatibility and for SessionController
-      // This allows SessionController to listen via eventBus without direct coupling
-      eventBus.emit(`websocket:${state}`, data);
-
-      // Also notify direct listeners
       this.connectionListeners.forEach(listener =>
       {
          try
@@ -260,7 +250,6 @@ export class WebSocketManager
       {
          this.socket.disconnect();
          this.socket = null;
-         this.socket?.connected = false;
          
          // Clear all listeners to prevent memory leaks
          this.messageListeners.clear();

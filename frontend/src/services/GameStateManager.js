@@ -1,6 +1,6 @@
 /**
  * GameStateManager - Singleton manager for game state
- * Centralizes all game data and handles game:gameLoaded and game:gameRefreshed events
+ * Centralizes all game data and handles game:initialApplied and game:refreshApplied events
  */
 import { eventBus } from '../eventBus.js';
 import { ApiEvent } from '../events/Events.js';
@@ -43,18 +43,18 @@ class GameStateManager
    }
 
    /**
-    * Handle game:gameLoaded event - replaces all game state
+    * Handle game:initialApplied event - replaces all game state
     * @param {Object} context - Current system context
     * @param {Object} event - Event data containing complete game state
     */
-   handleGameLoaded(event)
+   applyInitial(event)
    {
-      console.log('📦 GameStateManager: Received game:gameLoaded event');
+      console.log('📦 GameStateManager: Received game:initialApplied event');
       console.log('📦 GameStateManager: Event data:', event);
       console.log('📦 GameStateManager: Instance:', this);
 
       if (event.isError())
-        throw new ApiError('📦 GameStateManager: game:gameLoaded event was not successful or missing details', 500);
+        throw new ApiError('📦 GameStateManager: game:initialApplied event was not successful or missing details', 500);
 
       const {gameId, currentPlayerId, stars, wormholes, players, gameInfo, turn, starStates, ships, orders, events} = event.data;
 
@@ -81,22 +81,22 @@ class GameStateManager
 
       this.applyState();
 
-      eventBus.emit('game:gameReady', new ApiEvent('game:gameReady', {refreshed: false}));
+      eventBus.emit('game:initialApplied', new ApiEvent('game:initialApplied', {refreshed: false}));
    }
 
    /**
-    * Handle game:gameRefreshed event - only updates refreshable fields
+    * Handle game:refreshApplied event - only updates refreshable fields
     * @param {Object} context - Current system context
     * @param {Object} event - Event data containing refreshed game state
     */
-   handleGameRefreshed(event)
+   applyRefresh(event)
    {
-      console.log('📦 GameStateManager: Received game:gameRefreshed event');
+      console.log('📦 GameStateManager: Received game:refreshApplied event');
       console.log('📦 GameStateManager: Event data:', event);
       console.log('📦 GameStateManager: Instance:', this);
 
       if (event.isError())
-        throw new ApiError('📦 GameStateManager: game:gameRefreshed event was not successful or missing details', 500);
+        throw new ApiError('📦 GameStateManager: game:refreshApplied event was not successful or missing details', 500);
 
       const { turn, starStates, ships, orders, events } = event.data;
 
@@ -109,7 +109,7 @@ class GameStateManager
 
       this.applyState();
 
-      eventBus.emit('game:gameReady', new ApiEvent('game:gameReady', {refreshed: true}));
+      eventBus.emit('game:refreshApplied', new ApiEvent('game:refreshApplied', {refreshed: true}));
    }
 
    /**

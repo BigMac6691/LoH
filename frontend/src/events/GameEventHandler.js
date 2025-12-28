@@ -13,20 +13,6 @@ export class GameEventHandler
    }
 
    /**
-    * Handle game render event
-    * @param {Object} context - Current system context
-    * @param {Object} gameData - Game data to render
-    */
-   handleGameRender(context, gameData)
-   {
-      console.log('🎨 GameEventHandler: Rendering game:', gameData);
-      console.log('🎨 GameEventHandler: Context:', context);
-
-      // TODO: Implement game rendering logic
-      // This will handle the actual game state rendering
-   }
-
-   /**
     * Handle create game event
     * Can be used for:
     * 1. Creating a new game (requires ownerId, seed, mapSize, etc.)
@@ -50,17 +36,7 @@ export class GameEventHandler
 
          // Otherwise, create a new game record
          // Validate required parameters
-         const
-         {
-            ownerId,
-            seed,
-            mapSize,
-            densityMin,
-            densityMax,
-            title,
-            description,
-            status
-         } = gameData;
+         const { ownerId, seed, mapSize, densityMin, densityMax, title, description, status } = gameData;
 
          if (!ownerId || !seed || !mapSize || densityMin === undefined || densityMax === undefined || !title || !description || !status)
          {
@@ -78,18 +54,7 @@ export class GameEventHandler
          }
 
          // Call the backend API to create the game
-         const result = await RB.fetchPost('/api/games',
-         {
-            ownerId,
-            seed,
-            mapSize,
-            densityMin,
-            densityMax,
-            title,
-            description,
-            status,
-            params: gameData.params
-         });
+         const result = await RB.fetchPost('/api/games', {ownerId, seed, mapSize, densityMin, densityMax, title, description, status, params: gameData.params});
          console.log('🎮 GameEventHandler: Game created successfully:', result);
 
          // Emit success event with standardized format
@@ -110,17 +75,10 @@ export class GameEventHandler
          console.error('🎮 GameEventHandler: Error creating game:', error);
 
          // Extract error data from ApiError if available
-         const errorData = error instanceof ApiError ? (error.body ||
-         {
-            error: error.message
-         }) :
-         {
-            error: error.message
-         };
+         const errorData = error instanceof ApiError ? (error.body || {error: error.message}) : {error: error.message};
 
          // Emit error event with standardized format
-         eventBus.emit('game:gameCreated',
-         {
+         eventBus.emit('game:gameCreated', {
             success: false,
             error: 'api_error',
             message: errorData.error || error.message || 'Failed to create game',
@@ -152,14 +110,12 @@ export class GameEventHandler
 
          // Step 1: Generate map
          console.log('🎮 GameEventHandler: Step 1 - Generating map...');
-         const mapResult = await RB.fetchPost(`/api/games/${gameId}/generate-map`,
-         {});
+         const mapResult = await RB.fetchPost(`/api/games/${gameId}/generate-map`, {});
          console.log('🎮 GameEventHandler: Map generated successfully:', mapResult);
 
          // Step 2: Place players
          console.log('🎮 GameEventHandler: Step 2 - Placing players...');
-         const placeResult = await RB.fetchPost(`/api/games/${gameId}/place-players`,
-         {});
+         const placeResult = await RB.fetchPost(`/api/games/${gameId}/place-players`, {});
          console.log('🎮 GameEventHandler: Players placed successfully:', placeResult);
 
          // Emit success event
@@ -180,20 +136,8 @@ export class GameEventHandler
       catch (error)
       {
          console.error('🎮 GameEventHandler: Error creating game world:', error);
-         const errorData = error instanceof ApiError ? (error.body ||
-         {
-            error: error.message
-         }) :
-         {
-            error: error.message
-         };
-         eventBus.emit('game:gameCreated',
-         {
-            success: false,
-            error: 'api_error',
-            message: errorData.error || error.message || 'Failed to create game world',
-            details: errorData.details
-         });
+         const errorData = error instanceof ApiError ? (error.body || { error: error.message }) : { error: error.message };
+         eventBus.emit('game:gameCreated', { success: false, error: 'api_error', message: errorData.error || error.message || 'Failed to create game world', details: errorData.details });
       }
    }
 
@@ -210,15 +154,7 @@ export class GameEventHandler
       try
       {
          // Validate required parameters
-         const
-         {
-            gameId,
-            userId,
-            name,
-            color_hex,
-            country_name,
-            meta
-         } = playerData;
+         const { gameId, userId, name, color_hex, country_name, meta } = playerData;
 
          if (!gameId || !name || !color_hex)
          {
@@ -236,8 +172,7 @@ export class GameEventHandler
          }
 
          // Parse meta if it's a string (from DevEventHandler)
-         let metaData = meta ||
-         {};
+         let metaData = meta || {};
          if (typeof meta === 'string')
          {
             try
@@ -252,15 +187,7 @@ export class GameEventHandler
          }
 
          // Call the backend API to add the player
-         const result = await RB.fetchPost('/api/games/players',
-         {
-            gameId,
-            userId,
-            name,
-            colorHex: color_hex,
-            countryName: country_name,
-            meta: metaData
-         });
+         const result = await RB.fetchPost('/api/games/players', {gameId, userId, name, colorHex: color_hex, countryName: country_name, meta: metaData});
          console.log('🎮 GameEventHandler: Player added successfully:', result);
 
          // Emit success event with standardized format
@@ -280,13 +207,7 @@ export class GameEventHandler
       catch (error)
       {
          console.error('🎮 GameEventHandler: Error adding player:', error);
-         const errorData = error instanceof ApiError ? (error.body ||
-         {
-            error: error.message
-         }) :
-         {
-            error: error.message
-         };
+         const errorData = error instanceof ApiError ? (error.body || { error: error.message }) : { error: error.message };
 
          // Emit error event with standardized format
          eventBus.emit('game:playerAdded',
@@ -300,11 +221,11 @@ export class GameEventHandler
    }
 
    /**
-    * Handle load game event - loads complete game state and emits gameLoaded event
+    * Handle request initial load event - loads complete game state and emits gameLoaded event
     * @param {Object} context - Current system context
     * @param {Object} event - Event data containing gameId
     */
-   handleLoadGame(event)
+   requestInitialLoad(event)
    {
       console.log('🎮 GameEventHandler: Loading game with data:', event);
 
@@ -314,7 +235,7 @@ export class GameEventHandler
       {
          console.error('🎮 GameEventHandler: Missing gameId in loadGame data');
 
-         eventBus.emit('game:gameLoaded', event.prepareResponse('game:gameLoaded', null, 400, 'Missing game id'));
+         eventBus.emit('game:initialLoaded', event.prepareResponse('game:initialLoaded', null, 400, 'Missing game id'));
          return;
       }
 
@@ -325,16 +246,16 @@ export class GameEventHandler
          .then(success =>
          {
             console.log('🎮 GameEventHandler: Game state loaded successfully:', success);
-            response = event.prepareResponse('game:gameLoaded', success, 200, null);
+            response = event.prepareResponse('game:initialLoaded', success, 200, null);
          })
          .catch(error =>
          {
             console.error('🎮 GameEventHandler: Error loading game state:', error);
-            response = event.prepareResponse('game:gameLoaded', null, 500, error);
+            response = event.prepareResponse('game:initialLoaded', null, 500, error);
          })
          .finally(() =>
          {
-            eventBus.emit('game:gameLoaded', response);
+            eventBus.emit('game:initialLoaded', response);
          });
    }
 
@@ -540,19 +461,5 @@ export class GameEventHandler
             gameId: gameId
          }
       });
-   }
-
-   /**
-    * Clean up event listeners
-    */
-   dispose()
-   {
-      eventBus.off('game:render', this.handleGameRender.bind(this));
-      eventBus.off('game:createGame', this.handleCreateGame.bind(this));
-      eventBus.off('game:addPlayer', this.handleAddPlayer.bind(this));
-      eventBus.off('game:loadGame', this.handleLoadGame.bind(this));
-      eventBus.off('game:generateMap', this.handleGenerateMap.bind(this));
-      eventBus.off('game:placePlayers', this.handlePlacePlayers.bind(this));
-      eventBus.off('game:startGame', this.handleStartGame.bind(this));
    }
 }

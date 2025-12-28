@@ -8,7 +8,7 @@
  * - Acts as the guard layer that prevents stale async operations from executing
  * 
  * How it uses GameSession:
- * - Creates a new GameSession when a game is loaded (game:loadGame event)
+ * - Creates a new GameSession when a game is loaded (game:requestInitial or game:requestRefresh event)
  * - Disposes the previous GameSession when switching games
  * - Uses session guard methods (runIfValid, runAsync, isValid) to validate operations
  * - GameSession acts as a validation token, not an event handler itself
@@ -22,6 +22,7 @@
 import { gameStateManager as GSM } from './GameStateManager';
 import { webSocketManager } from './WebSocketManager';
 import { ApiEvent, ApiRequest, ApiResponse } from '../events/Events.js';
+import { EventRegister } from '../EventRegister.js';
 
 export class GameController
 {
@@ -55,7 +56,7 @@ export class GameController
       /**
        * Track bound handlers for cleanup
        */
-      this.boundHandlers = new Map();
+      this.eventRegister = new EventRegister();
 
       this.setupEventListeners();
    }
@@ -65,48 +66,43 @@ export class GameController
     */
    setupEventListeners()
    {
-      // Special handler: game:loadGame creates/disposes session
-      this.boundHandlers.set('game:loadGame', this.handleLoadGame.bind(this));
-      this.eventBus.on('game:loadGame', this.boundHandlers.get('game:loadGame'));
-
-      // Handler for game loaded confirmation (emitted by GameEventHandler)
-      this.boundHandlers.set('game:gameLoaded', this.handleGameLoaded.bind(this));
-      this.eventBus.on('game:gameLoaded', this.boundHandlers.get('game:gameLoaded'));
+      this.eventRegister.registerEventHandler('game:requestInitial', this.handleRequestInitial.bind(this));
+      this.eventRegister.registerEventHandler('game:initialLoaded', this.handleInitialLoaded.bind(this));
+      this.eventRegister.registerEventHandler('game:initialApplied', this.handleInitialApplied.bind(this));
+      this.eventRegister.registerEventHandler('game:requestRefresh', this.handleRequestRefresh.bind(this));
+      this.eventRegister.registerEventHandler('game:refreshLoaded', this.handleRefreshLoaded.bind(this));
+      this.eventRegister.registerEventHandler('game:refreshApplied', this.handleRefreshApplied.bind(this));
 
       //////////////////////////////////////////////
       // Generic handler for all other game:* events
       //////////////////////////////////////////////
-      this.boundHandlers.set('game:gameReady', this.handleGameEvent.bind(this));
-      this.eventBus.on('game:gameReady', this.boundHandlers.get('game:gameReady'));
 
+      // this.boundHandlers.set('game:render', this.handleGameEvent.bind(this));
+      // this.eventBus.on('game:render', this.boundHandlers.get('game:render'));
 
+      // this.boundHandlers.set('game:createGame', this.handleGameEvent.bind(this));
+      // this.eventBus.on('game:createGame', this.boundHandlers.get('game:createGame'));
 
-      this.boundHandlers.set('game:render', this.handleGameEvent.bind(this));
-      this.eventBus.on('game:render', this.boundHandlers.get('game:render'));
+      // this.boundHandlers.set('game:addPlayer', this.handleGameEvent.bind(this));
+      // this.eventBus.on('game:addPlayer', this.boundHandlers.get('game:addPlayer'));
 
-      this.boundHandlers.set('game:createGame', this.handleGameEvent.bind(this));
-      this.eventBus.on('game:createGame', this.boundHandlers.get('game:createGame'));
+      // this.boundHandlers.set('game:generateMap', this.handleGameEvent.bind(this));
+      // this.eventBus.on('game:generateMap', this.boundHandlers.get('game:generateMap'));
 
-      this.boundHandlers.set('game:addPlayer', this.handleGameEvent.bind(this));
-      this.eventBus.on('game:addPlayer', this.boundHandlers.get('game:addPlayer'));
+      // this.boundHandlers.set('game:placePlayers', this.handleGameEvent.bind(this));
+      // this.eventBus.on('game:placePlayers', this.boundHandlers.get('game:placePlayers'));
 
-      this.boundHandlers.set('game:generateMap', this.handleGameEvent.bind(this));
-      this.eventBus.on('game:generateMap', this.boundHandlers.get('game:generateMap'));
-
-      this.boundHandlers.set('game:placePlayers', this.handleGameEvent.bind(this));
-      this.eventBus.on('game:placePlayers', this.boundHandlers.get('game:placePlayers'));
-
-      this.boundHandlers.set('game:startGame', this.handleGameEvent.bind(this));
-      this.eventBus.on('game:startGame', this.boundHandlers.get('game:startGame'));
+      // this.boundHandlers.set('game:startGame', this.handleGameEvent.bind(this));
+      // this.eventBus.on('game:startGame', this.boundHandlers.get('game:startGame'));
    }
 
    /**
-    * Handle game:loadGame event - creates new session and forwards to GameEventHandler
+    * Handle game:requestInitial event - creates new session and forwards to GameEventHandler
     * @param {ApiRequest} event - Load game event with gameId in data
     */
-   handleLoadGame(event)
+   handleRequestInitial(event)
    {
-      console.log('🎮 GameController: Handling load game event:', event);
+      console.log('🎮 GameController: Handling request initial load event:', event);
 
       // Dispose existing session if any (switching games)
       if (this.currentSession)
@@ -125,25 +121,66 @@ export class GameController
 
       // Forward to GameEventHandler (it handles the actual loading logic)
       // Session is created first so any async operations in handleLoadGame can use it
-      this.gameEventHandler.handleLoadGame(event);
+      this.gameEventHandler.requestInitialLoad(event);
    }
 
    /**
-    * Handle game:gameLoaded event - validates session after game is loaded
+    * Handle game:initialLoaded event - validates session after game is loaded
     * This event is emitted BY GameEventHandler after loading completes
-    * @param {ApiResponse} event - Game loaded response event
+    * @param {ApiResponse} event - Initial loaded response event
     */
-   handleGameLoaded(event)
+   handleInitialLoaded(event)
    {
+      console.log('🎮 GameController: Handling initial loaded event:', event);
       // Validate session exists and is still valid
       // If session was disposed during loading, ignore the result
       if (!this.currentSession || !this.currentSession.isValid())
-         return; // Session invalid, ignore loaded game data
+         return; // Session invalid, ignore initial loaded game data
 
-      // Session is valid - game loaded successfully
+      // Session is valid - initial loaded successfully
       // No forwarding needed - this is a result event, not a request
       // Other components (GameStateManager, GameView) will handle this event
-      GSM.handleGameLoaded(event);
+      GSM.applyInitial(event);
+   }
+
+   handleInitialApplied(event)
+   {
+      console.log('🎮 GameController: Handling initial applied event:', event);
+      // Validate session exists and is still valid
+      // If session was disposed during initial application, ignore the result
+      if (!this.currentSession || !this.currentSession.isValid())
+         return; // Session invalid, ignore initial applied game data
+
+      // Session is valid - initial applied successfully
+      // No forwarding needed - this is a result event, not a request
+      // Other components (GameStateManager, GameView) will handle this event
+      this.eventBus.emit('game:initialReady', event);
+      this.eventBus.emit('ui:showScreen', new ApiEvent('ui:showScreen', {targetScreen: 'game'}));
+   }
+
+   handleRequestRefresh(event)
+   {
+      console.log('🎮 GameController: Handling request refresh event:', event);
+   }
+
+   handleRefreshLoaded(event)
+   {
+      console.log('🎮 GameController: Handling refresh loaded event:', event);
+   
+   }
+
+   handleRefreshApplied(event)
+   {
+      console.log('🎮 GameController: Handling refresh applied event:', event);
+      // Validate session exists and is still valid
+      // If session was disposed during refresh application, ignore the result
+      if (!this.currentSession || !this.currentSession.isValid())
+         return; // Session invalid, ignore refresh loaded game data
+
+      // Session is valid - refresh loaded successfully
+      // No forwarding needed - this is a result event, not a request
+      // Other components (GameStateManager, GameView) will handle this event
+      this.eventBus.emit('game:refreshReady', event);
    }
 
    /**
@@ -153,6 +190,7 @@ export class GameController
     */
    handleGameEvent(event)
    {
+      console.log('🎮 GameController: Handling game event:', event);
       // Guard: Check session exists and is valid
       if (!this.currentSession || !this.currentSession.isValid())
          return; // No active session or session disposed, ignore event
@@ -178,7 +216,7 @@ export class GameController
                  const gameId = this.currentSession.getGameId();
                  const playerId = GSM.currentPlayerId;
                  if (gameId && playerId)
-                    webSocketManager.joinGame(gameId, playerId);
+                    webSocketManager.send('game:join', {gameId, playerId});
               }
 
             //   this.gameEventHandler.handleGameReady(null, event?.data || event);
@@ -270,11 +308,9 @@ export class GameController
          this.currentSession = null;
       }
 
-      // Remove all event listeners
-      for (const [eventType, handler] of this.boundHandlers)
-         this.eventBus.off(eventType, handler);
-
-      this.boundHandlers.clear();
+      // Remove all event listeners0
+      this.eventRegister.unregisterEventHandlers();
+      this.eventRegister = null;
    }
 }
 

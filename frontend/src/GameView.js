@@ -24,10 +24,8 @@ export class GameView extends MenuView
       super();
 
       this.registerEventHandler('system:assetLoaded', this.handleAssetLoaded.bind(this));
-      // this.registerEventHandler('game:gameReady', this.handleGameReady.bind(this));
-
-      // Listen for WebSocket connection failure to start polling
-      // eventBus.on('websocket:connectionFailed', () => { console.log('🔄 WebSocket connection failed, starting polling fallback'); });
+      this.registerEventHandler('game:initialReady', this.handleInitialReady.bind(this));
+      this.registerEventHandler('game:refreshReady', this.handleRefreshReady.bind(this));
 
       // ThreeJS components
       this.scene = null;
@@ -200,16 +198,6 @@ export class GameView extends MenuView
       });
    }
 
-   handleGameReady(event)
-   {
-      console.log('🎮 GameView: Game ready event received:', event);
-
-      if(event.data.refreshed)
-         this.refreshLoad();
-      else
-         this.initialLoad();
-   }
-
    handleAssetLoaded(event)
    {
       console.log('🎮 GameView: Asset loaded event received:', event);
@@ -226,22 +214,20 @@ export class GameView extends MenuView
       }
    }
 
-   initialLoad()
+   handleInitialReady(event)
    {
-      console.log('🎮 GameView: Initial load');
+      console.log('🎮 GameView: Initial ready event received:', event);
 
       this.mapGenerator.buildStaticMap();
       this.mapGenerator.updateFleetIcons();
       this.mapGenerator.positionCameraToFitMap();
 
-      console.log('🎮 GameView: Current player:', GSM, GSM.currentPlayer, GSM.currentPlayerId, GSM.playersMap);
-
       Utils.requireChild(this.topRightButtons,'#end-turn-button').disabled = GSM.currentPlayer.status !== 'active';
    }
 
-   refreshLoad()
+   handleRefreshReady(event)
    {
-      console.log('🎮 GameView: Refresh load');
+      console.log('🎮 GameView: Refresh ready event received:', event);
       
       // Re-enable all buttons
       Utils.requireChild(this.topRightButtons,'fieldset').disabled = false;
