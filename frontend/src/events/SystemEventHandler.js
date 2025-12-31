@@ -26,6 +26,7 @@ export class SystemEventHandler
       this.eventRegister.registerEventHandler('system:gamesPlayingRequest', this.handleGamesPlayingRequest.bind(this));
       this.eventRegister.registerEventHandler('system:gamesAvailableRequest', this.handleGamesAvailableRequest.bind(this));
       this.eventRegister.registerEventHandler('system:joinGameRequest', this.handleJoinGameRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:createGameRequest', this.handleCreateGameRequest.bind(this));
    }
 
    /**
@@ -430,6 +431,61 @@ export class SystemEventHandler
          .finally(() =>
          {
             eventBus.emit('system:joinGameResponse', response);
+         });
+   }
+
+   /**
+    * Handle create game request event
+    * @param {ApiRequest} event - Create game request event
+    */
+   handleCreateGameRequest(event)
+   {
+      console.log('🔐 SystemEventHandler: Processing create game request');
+
+      if(!(event instanceof ApiRequest))
+         throw new Error('SystemEventHandler: Invalid event type');
+
+      const { seed, mapSize, densityMin, densityMax, title, description, maxPlayers } = event.data || {};
+
+      if (!title || !title.trim())
+      {
+         const errorResponse = event.prepareResponse('system:createGameResponse', null, 400, {message: 'Title is required'});
+         eventBus.emit('system:createGameResponse', errorResponse);
+         return;
+      }
+
+      if (!description || !description.trim())
+      {
+         const errorResponse = event.prepareResponse('system:createGameResponse', null, 400, {message: 'Description is required'});
+         eventBus.emit('system:createGameResponse', errorResponse);
+         return;
+      }
+
+      if (!seed || !seed.trim())
+      {
+         const errorResponse = event.prepareResponse('system:createGameResponse', null, 400, {message: 'Seed is required'});
+         eventBus.emit('system:createGameResponse', errorResponse);
+         return;
+      }
+
+      let response = null;
+
+      RB.fetchPost('/api/games', {seed, mapSize, densityMin, densityMax, title, description, maxPlayers, status: 'lobby', params: {}}, event.signal)
+         .then(success =>
+         {
+            console.log('Create game request success:', success);
+            response = event.prepareResponse('system:createGameResponse', success, 200, null);
+         })
+         .catch(error =>
+         {
+            console.error('Create game request error:', error);
+            const status = event.signal?.aborted ? 499 : 400;
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:createGameResponse', null, status, errorBody);
+         })
+         .finally(() =>
+         {
+            eventBus.emit('system:createGameResponse', response);
          });
    }
 
