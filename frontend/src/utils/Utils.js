@@ -37,6 +37,16 @@ export class Utils
       return element;
    }
 
+   static requireChildren(parent, selector)
+   {
+      const elements = parent.querySelectorAll(selector);
+
+      if (elements.length === 0)
+         throw new Error(`Utils: Children elements not found: ${selector} inside ${parent.tagName}.${parent.className} with id ${parent.id}`);
+
+      return elements;
+   }
+
    /**
     * Validate email address
     * @param {string} email - Email to validate

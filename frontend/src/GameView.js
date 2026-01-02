@@ -189,12 +189,8 @@ export class GameView extends MenuView
          this.camera.updateProjectionMatrix();
          this.renderer.setSize(window.innerWidth, window.innerHeight);
 
-         // Update label renderer size
          if (this.mapGenerator)
-         {
-            this.mapGenerator.onWindowResize();
             this.mapGenerator.onStarInteractionResize();
-         }
       });
    }
 

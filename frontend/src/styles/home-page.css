@@ -181,7 +181,7 @@
 /* Main Content Area */
 .home-main-content {
   flex: 1;
-  padding: 30px;
+  padding: 10px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -341,7 +341,7 @@
   background: rgba(0, 0, 0, 0.5);
   border: 2px solid var(--border-primary, #00ff88);
   border-radius: 12px;
-  padding: 20px;
+  padding: 10px;
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
 }
@@ -1314,16 +1314,68 @@
   flex-direction: column;
   gap: 20px;
   height: 100%;
+  overflow: hidden;
+}
+
+.manage-games-view .view-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.manage-games-split-container {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.manage-games-left-panel {
+  flex: 0 0 350px;
+  display: flex;
+  flex-direction: column;
+  min-width: max(350px, 35%);
   overflow-y: auto;
-  padding: 20px;
+}
+
+.manage-games-right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.manage-games-fixed-section {
+  flex-shrink: 0;
+}
+
+.manage-games-scrollable-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.manage-games-scrollable-section .players-list-container {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .manage-games-section {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--border-primary, #00ff88);
   border-radius: 12px;
-  padding: 20px;
+  padding: 10px;
   backdrop-filter: blur(10px);
+  flex-shrink: 0;
 }
 
 .manage-games-section h3 {
@@ -1341,6 +1393,16 @@
   gap: 15px;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+}
+
+/* Games List Container in Manage Games View */
+.manage-games-view .games-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  flex: 1;
+  min-height: 200px;
   overflow-y: auto;
 }
 

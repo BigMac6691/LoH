@@ -123,19 +123,15 @@ export class CreateGameView extends MenuView
       if (!seed)
          return this.displayStatusMessage('Seed is required', 'error'); // void function
 
-      // Abort any pending create request
       if (this.abortControl)
          this.abortControl.abort();
 
       this.abortControl = new AbortController();
 
-      // Disable form during submission
       this.setFormDisabled(true);
       this.displayStatusMessage('Creating game...', 'info');
 
-      setTimeout(() => {
-         eventBus.emit('system:createGameRequest', new ApiRequest('system:createGameRequest', {seed, mapSize, densityMin, densityMax, title, description, maxPlayers}, this.abortControl.signal));
-      }, 10000);
+      eventBus.emit('system:createGameRequest', new ApiRequest('system:createGameRequest', {seed, mapSize, densityMin, densityMax, title, description, maxPlayers}, this.abortControl.signal));
    }
 
    /**
@@ -146,10 +142,7 @@ export class CreateGameView extends MenuView
    {
       console.log('🔐 CreateGameView: Handling create game response', event);
 
-      // Re-enable form
       this.setFormDisabled(false);
-      this.createBtn.disabled = false;
-      this.createBtn.textContent = 'Create Game';
 
       if (event.isSuccess())
       {

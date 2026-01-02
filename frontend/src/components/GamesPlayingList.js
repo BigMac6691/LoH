@@ -14,8 +14,10 @@ export class GamesPlayingList extends MenuView
       this.container = null;
       this.games = [];
       this.abortControl = null;
+      this.currentPage = 1;
+      this.totalPages = 1;
 
-      this.registerEventHandler('system:gamesPlayingResponse', this.handleGamesPlayingResponse.bind(this));
+      this.registerEventHandler('system:listGamesResponse', this.handleListGamesResponse.bind(this));
    }
 
    create()
@@ -30,15 +32,28 @@ export class GamesPlayingList extends MenuView
         <div class="games-list-container">
           <div class="games-loading">Loading games...</div>
         </div>
+        <div class="pagination-controls">
+          <button class="pagination-btn" id="prev-page-btn" disabled>Previous</button>
+          <span class="pagination-info" id="page-info">Page 1 of 1</span>
+          <button class="pagination-btn" id="next-page-btn" disabled>Next</button>
+        </div>
       </div>
       `;
 
+      this.setupEventListeners();
       this.loadGames();
 
       return this.container;
    }
 
-   loadGames()
+   setupEventListeners()
+   {
+      // Pagination
+      Utils.requireChild(this.container, '#prev-page-btn').addEventListener('click', () => this.changePage(-1));
+      Utils.requireChild(this.container, '#next-page-btn').addEventListener('click', () => this.changePage(1));
+   }
+
+   loadGames(page = 1)
    {
       Utils.requireChild(this.container, '.games-list-container').innerHTML = '<div class="games-loading">Loading games...</div>';
 
@@ -49,19 +64,27 @@ export class GamesPlayingList extends MenuView
 
       this.displayStatusMessage('Loading games...', 'info');
 
-      eventBus.emit('system:gamesPlayingRequest', new ApiRequest('system:gamesPlayingRequest', null, this.abortControl.signal));
+      eventBus.emit('system:listGamesRequest', new ApiRequest('system:listGamesRequest', {filter: 'playing', context: 'GamesPlayingList', page, limit: 5}, this.abortControl.signal));
    }
 
    /**
-    * Handle games playing response
-    * @param {ApiResponse} event - Games playing response event
+    * Handle list games response
+    * @param {ApiResponse} event - List games response event
     */
-   handleGamesPlayingResponse(event)
+   handleListGamesResponse(event)
    {
+      // Only process responses for this component
+      if (event.data?.context !== 'GamesPlayingList')
+         return;
+
       if (event.isSuccess() && event.data)
       {
          this.games = event.data.games || [];
+         this.currentPage = event.data.pagination?.page || 1;
+         this.totalPages = event.data.pagination?.totalPages || 1;
+
          this.renderGames();
+         this.updatePaginationControls();
       }
       else if (event.isAborted())
          this.displayStatusMessage('Games loading aborted.', 'error');
@@ -118,9 +141,33 @@ export class GamesPlayingList extends MenuView
       return this.container;
    }
 
+   changePage(delta)
+   {
+      const newPage = this.currentPage + delta;
+
+      if (newPage >= 1 && newPage <= this.totalPages)
+         this.loadGames(newPage);
+   }
+
+   updatePaginationControls()
+   {
+      const prevBtn = this.container.querySelector('#prev-page-btn');
+      const nextBtn = this.container.querySelector('#next-page-btn');
+      const pageInfo = this.container.querySelector('#page-info');
+
+      if (prevBtn) 
+        prevBtn.disabled = this.currentPage <= 1;
+
+      if (nextBtn) 
+        nextBtn.disabled = this.currentPage >= this.totalPages;
+
+      if (pageInfo) 
+        pageInfo.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
+   }
+
    refresh()
    {
-      this.loadGames();
+      this.loadGames(this.currentPage);
    }
 
    dispose()
@@ -137,6 +184,8 @@ export class GamesPlayingList extends MenuView
       this.container = null;
       this.games = [];
       this.abortControl = null;
+      this.currentPage = 1;
+      this.totalPages = 1;
    }
 }
 

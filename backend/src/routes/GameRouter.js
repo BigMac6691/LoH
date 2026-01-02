@@ -23,15 +23,11 @@ export class GameRouter
     // GET /api/games - List all games (authenticated users only)
     this.router.get('/', authenticate, this.listGames.bind(this));
     
-    // GET /api/games/playing - Get games where current user is a player
-    this.router.get('/playing', authenticate, this.getGamesPlaying.bind(this));
-    
-    // GET /api/games/available - Get games available for current user to join
-    this.router.get('/available', authenticate, this.getGamesAvailable.bind(this));
+    // GET /api/games/list - Unified games list endpoint (supports filter parameter)
+    // Supports filters: 'playing', 'available', 'manage', 'all'
+    this.router.get('/list', authenticate, this.listGamesUnified.bind(this));
     
     // Game management endpoints (sponsor, admin, owner only) - MUST be before /:gameId route
-    // GET /api/games/manage - List games for management (filtered by role)
-    this.router.get('/manage', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.getManageGames.bind(this));
     
     // POST /api/games/:gameId/ai-players - Add an AI player to a game (sponsor, admin, owner only)
     this.router.post('/:gameId/ai-players', authenticate, requireRole(['sponsor', 'admin', 'owner']), this.addAIPlayer.bind(this));
@@ -166,27 +162,99 @@ export class GameRouter
   }
 
   /**
-   * GET /api/games/playing
-   * Get games where current user is a player
-   * Query params: userId (will use JWT in Phase 1)
+   * GET /api/games/list
+   * Unified games list endpoint with filter parameter
+   * Query params:
+   *   - filter: 'playing' | 'available' | 'manage' | 'all' (default: 'all')
+   *   - page: page number (default: 1)
+   *   - limit: items per page (default: 5 for development)
+   * 
+   * Replaces the old endpoints:
+   *   - /api/games/playing (use filter=playing)
+   *   - /api/games/available (use filter=available)
+   *   - /api/games/manage (use filter=manage)
    */
-  async getGamesPlaying(req, res)
+  async listGamesUnified(req, res)
   {
     try
     {
-      // Use authenticated user ID from JWT
       const userId = req.user.id;
+      const userRole = req.user.role;
+      const filter = req.query.filter || 'all'; // 'playing', 'available', 'manage', 'all'
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 5; // Development: default to 5
+      const offset = (page - 1) * limit;
 
-      // Get games where user is a player (excluding AI players), with owner info and latest turn
-      const { rows } = await pool.query(
-        `SELECT 
+      // Validate filter
+      if (!['playing', 'available', 'manage', 'all'].includes(filter)) {
+        return res.status(400).json({
+          error: 'Invalid filter. Must be one of: playing, available, manage, all'
+        });
+      }
+
+      // Validate manage filter requires appropriate role
+      if (filter === 'manage' && !['sponsor', 'admin', 'owner'].includes(userRole)) {
+        return res.status(403).json({
+          error: 'Insufficient permissions. Manage filter requires sponsor, admin, or owner role.'
+        });
+      }
+
+      // Build WHERE clause based on filter
+      let whereConditions = [];
+      let queryParams = [];
+
+      // userId is always first parameter (used in LEFT JOIN for gp_user)
+      queryParams.push(userId);
+
+      if (filter === 'playing') {
+        // User is a player (must have matching game_player record)
+        whereConditions.push(`gp_user.id IS NOT NULL`);
+      } else if (filter === 'available') {
+        // User is NOT a player, status is lobby, not full
+        whereConditions.push(`gp_user.id IS NULL`);
+        whereConditions.push(`g.status = 'lobby'`);
+        whereConditions.push(`COALESCE(gpc.player_count, 0) < g.max_players`);
+      } else if (filter === 'manage') {
+        // Role-based filtering
+        if (userRole === 'sponsor') {
+          // For sponsor, owner_id check uses $2 (userId is at $1 for LEFT JOIN)
+          whereConditions.push(`g.owner_id = $2`);
+          queryParams.push(userId); // Add userId again for owner_id check
+        }
+        // admin/owner see all (no additional WHERE condition)
+      } else { // 'all'
+        // No filter - return all games user has access to
+        // For now, same as manage for admin/owner, but could be expanded
+      }
+
+      // Build the WHERE clause string
+      const whereClause = whereConditions.length > 0 
+        ? `WHERE ${whereConditions.join(' AND ')}`
+        : '';
+
+      // Calculate parameter indices for limit/offset
+      // paramIndex is currently pointing to the last WHERE parameter
+      // limit is next, offset is after that
+      const limitParamIndex = queryParams.length + 1;
+      const offsetParamIndex = queryParams.length + 2;
+
+      // Main query with all columns needed for all use cases
+      const query = `
+        WITH game_player_counts AS (
+          SELECT 
+            game_id,
+            COUNT(*) as player_count
+          FROM game_player
+          GROUP BY game_id
+        )
+        SELECT 
           g.*,
           u.display_name as owner_display_name,
           COALESCE(gt.number, 0) as current_turn_number,
-          gp.status as player_status
+          COALESCE(gpc.player_count, 0) as player_count,
+          gp_user.status as player_status
         FROM game g
-        INNER JOIN game_player gp ON g.id = gp.game_id
-        LEFT JOIN app_user u ON g.owner_id = u.id
+        INNER JOIN app_user u ON g.owner_id = u.id
         LEFT JOIN LATERAL (
           SELECT number 
           FROM game_turn 
@@ -194,70 +262,58 @@ export class GameRouter
           ORDER BY number DESC 
           LIMIT 1
         ) gt ON true
-        WHERE gp.user_id = $1 AND gp.type = 'player'
-        ORDER BY g.created_at DESC`,
-        [userId]
-      );
+        LEFT JOIN game_player_counts gpc ON g.id = gpc.game_id
+        LEFT JOIN game_player gp_user ON g.id = gp_user.game_id 
+          AND gp_user.user_id = $1 
+          AND gp_user.type = 'player'
+        ${whereClause}
+        ORDER BY g.created_at DESC
+        LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
+      `;
 
-      res.json({
-        success: true,
-        games: rows
-      });
-    }
-    catch (error)
-    {
-      console.error('Error getting games playing:', error);
-      res.status(500).json({
-        error: 'Failed to get games playing',
-        details: error.message
-      });
-    }
-  }
+      // Add limit and offset to params
+      queryParams.push(limit, offset);
 
-  /**
-   * GET /api/games/available
-   * Get games available for current user to join
-   * Query params: userId (will use JWT in Phase 1)
-   */
-  async getGamesAvailable(req, res)
-  {
-    try
-    {
-      // Use authenticated user ID from JWT
-      const userId = req.user.id;
-
-      // Get games where user is NOT a player, with player count (including AI) and owner info
-      // Only return games with status 'lobby' (not 'running')
-      const { rows } = await pool.query(
-        `SELECT 
-          g.*,
-          u.display_name as owner_display_name,
-          COALESCE(player_counts.player_count, 0) as player_count
-        FROM game g
-        LEFT JOIN app_user u ON g.owner_id = u.id
-        LEFT JOIN LATERAL (
-          SELECT COUNT(*) as player_count
+      // Count query for pagination
+      const countQuery = `
+        WITH game_player_counts AS (
+          SELECT 
+            game_id,
+            COUNT(*) as player_count
           FROM game_player
-          WHERE game_id = g.id
-        ) player_counts ON true
-        LEFT JOIN game_player gp ON g.id = gp.game_id AND gp.user_id = $1 AND gp.type = 'player'
-        WHERE gp.user_id IS NULL
-          AND g.status = 'lobby'
-          AND COALESCE(player_counts.player_count, 0) < g.max_players
-        ORDER BY g.created_at DESC`,
-        [userId]
-      );
+          GROUP BY game_id
+        )
+        SELECT COUNT(*) as total
+        FROM game g
+        LEFT JOIN game_player_counts gpc ON g.id = gpc.game_id
+        LEFT JOIN game_player gp_user ON g.id = gp_user.game_id 
+          AND gp_user.user_id = $1 
+          AND gp_user.type = 'player'
+        ${whereClause}
+      `;
+
+      // Count query uses same params except limit/offset
+      const countParams = queryParams.slice(0, -2);
+
+      const { rows: games } = await pool.query(query, queryParams);
+      const { rows: countRows } = await pool.query(countQuery, countParams);
+      const total = parseInt(countRows[0].total);
 
       res.json({
         success: true,
-        games: rows
+        games,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
       });
-    }
-    catch (error)
+    } catch (error)
     {
-      console.error('Error getting games available:', error);
+      console.error('Error listing games (unified):', error);
       res.status(500).json({
-        error: 'Failed to get games available',
+        error: 'Failed to list games',
         details: error.message
       });
     }
@@ -1011,110 +1067,6 @@ export class GameRouter
       console.error('Error getting turns:', error);
       res.status(500).json({
         error: 'Failed to get turns',
-        details: error.message
-      });
-    }
-  }
-
-  /**
-   * GET /api/games/manage
-   * List games for management (filtered by role)
-   * - sponsor: only games they created
-   * - admin/owner: all games
-   */
-  async getManageGames(req, res)
-  {
-    try
-    {
-      const userId = req.user.id;
-      const userRole = req.user.role;
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 10;
-      const offset = (page - 1) * limit;
-
-      let query;
-      let queryParams;
-
-      if (userRole === 'sponsor') {
-        // Sponsors only see their own games
-        query = `
-          SELECT 
-            g.*,
-            u.display_name as owner_display_name,
-            COALESCE(gt.number, 0) as current_turn_number,
-            COUNT(gp.id) as player_count
-          FROM game g
-          LEFT JOIN app_user u ON g.owner_id = u.id
-          LEFT JOIN LATERAL (
-            SELECT number 
-            FROM game_turn 
-            WHERE game_id = g.id 
-            ORDER BY number DESC 
-            LIMIT 1
-          ) gt ON true
-          LEFT JOIN game_player gp ON g.id = gp.game_id
-          WHERE g.owner_id = $1
-          GROUP BY g.id, u.display_name, gt.number
-          ORDER BY g.created_at DESC
-          LIMIT $2 OFFSET $3
-        `;
-        queryParams = [userId, limit, offset];
-      } else {
-        // Admin/owner see all games
-        query = `
-          SELECT 
-            g.*,
-            u.display_name as owner_display_name,
-            COALESCE(gt.number, 0) as current_turn_number,
-            COUNT(gp.id) as player_count
-          FROM game g
-          LEFT JOIN app_user u ON g.owner_id = u.id
-          LEFT JOIN LATERAL (
-            SELECT number 
-            FROM game_turn 
-            WHERE game_id = g.id 
-            ORDER BY number DESC 
-            LIMIT 1
-          ) gt ON true
-          LEFT JOIN game_player gp ON g.id = gp.game_id
-          GROUP BY g.id, u.display_name, gt.number
-          ORDER BY g.created_at DESC
-          LIMIT $1 OFFSET $2
-        `;
-        queryParams = [limit, offset];
-      }
-
-      const { rows: games } = await pool.query(query, queryParams);
-
-      // Get total count for pagination
-      let countQuery;
-      let countParams;
-      if (userRole === 'sponsor') {
-        countQuery = `SELECT COUNT(*) as total FROM game WHERE owner_id = $1`;
-        countParams = [userId];
-      } else {
-        countQuery = `SELECT COUNT(*) as total FROM game`;
-        countParams = [];
-      }
-      const { rows: countRows } = await pool.query(countQuery, countParams);
-      const total = parseInt(countRows[0].total);
-
-      res.json({
-        success: true,
-        games,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit)
-        }
-      });
-    }
-    catch (error)
-    {
-      console.error('Error getting manage games:', error);
-      res.status(500).json({
-        error: 'Failed to get manage games',
         details: error.message
       });
     }

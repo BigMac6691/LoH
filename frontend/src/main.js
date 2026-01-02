@@ -61,4 +61,6 @@ document.addEventListener('DOMContentLoaded', () =>
 
    // Initialize GameStateManager singleton (starts listening to events)
    getGameStateManager();
+
+   console.log('🔍 Main: DOMContentLoaded', eventBus.listeners);
 });
