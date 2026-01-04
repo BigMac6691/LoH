@@ -15,8 +15,9 @@ import { AIConfigFormBuilder } from './AIConfigFormBuilder.js';
 import { eventBus } from '../eventBus.js';
 import { MenuView } from './MenuView.js';
 import { Utils } from '../utils/Utils.js';
-import { ApiRequest } from '../events/Events.js';
+import { ApiRequest, ApiEvent } from '../events/Events.js';
 import { Dialog } from './Dialog.js';
+import { PromptDialog } from './PromptDialog.js';
 
 export class ManageGamesView extends MenuView
 {
@@ -32,14 +33,15 @@ export class ManageGamesView extends MenuView
       this.totalPages = 1;
       this.userRole = localStorage.getItem('user_role');
       this.abortControl = null;
-      this.pendingGameReselectId = null;
       this.pendingAIDialogElement = null;
       this.dialog = null;
 
       // Register event handlers
       this.registerEventHandler('system:listGamesResponse', this.handleListGamesResponse.bind(this));
-      this.registerEventHandler('system:manageGamePlayersResponse', this.handleManageGamePlayersResponse.bind(this));
+      this.registerEventHandler('system:listGamePlayersResponse', this.handleListGamePlayersResponse.bind(this));
+      this.registerEventHandler('system:startGameResponse', this.handleStartGameResponse.bind(this));
       this.registerEventHandler('system:updateGameStatusResponse', this.handleUpdateGameStatusResponse.bind(this));
+      this.registerEventHandler('system:substatusUpdated', this.handleSubstatusUpdated.bind(this));
       this.registerEventHandler('system:endPlayerTurnResponse', this.handleEndPlayerTurnResponse.bind(this));
       this.registerEventHandler('system:updatePlayerStatusResponse', this.handleUpdatePlayerStatusResponse.bind(this));
       this.registerEventHandler('system:updatePlayerMetaResponse', this.handleUpdatePlayerMetaResponse.bind(this));
@@ -82,7 +84,6 @@ export class ManageGamesView extends MenuView
 
    loadGames(page = 1)
    {
-      console.log('🔐 ManageGamesView: Loading games for page', page);
       const listContainer = Utils.requireChild(this.container, '.games-list-container');
       listContainer.innerHTML = '<div class="games-loading">Loading games...</div>';
 
@@ -115,18 +116,6 @@ export class ManageGamesView extends MenuView
          this.displayStatusMessage(`Loaded ${this.games.length} games`, 'success');
          this.renderGames();
          this.updatePaginationControls();
-
-         // Re-select game if pending (e.g., after status update)
-         if (this.pendingGameReselectId)
-         {
-            const gameId = this.pendingGameReselectId;
-            this.pendingGameReselectId = null;
-            this.selectGame(gameId);
-            this.updateGameControlButtons(); // select above also updates the control buttons if there is a selected game
-
-            if (this.selectedPlayer) // Update player control buttons in case a player is selected
-               this.updatePlayerControlButtons();
-         }
       }
       else if (event.isAborted())
          this.displayStatusMessage('Games loading aborted.', 'error');
@@ -161,78 +150,100 @@ export class ManageGamesView extends MenuView
       this.container.querySelectorAll('.game-card').forEach(card => card.getAttribute('data-game-id') === gameId ? card.classList.add('selected') : card.classList.remove('selected'));
       this.updateGameControlButtons();
       this.loadPlayers(gameId);
+
       this.selectedPlayer = null;
       this.updatePlayerControlButtons();
    }
 
    updateGameControlButtons()
    {
-      const startBtn = this.container.querySelector('#start-game-btn');
+      this.container.querySelector('#start-game-btn').disabled = !this.canStartGame().allowed;
+      this.container.querySelector('#finish-game-btn').disabled = !this.canFinishGame().allowed;
+      this.container.querySelector('#add-ai-player-btn').disabled = !this.canAddAIPlayer().allowed;
+
+      const pauseUnpause = this.canPauseUnpauseGame();
       const pauseBtn = this.container.querySelector('#pause-unpause-btn');
+      pauseBtn.disabled = !pauseUnpause.allowed;
+      pauseBtn.textContent = pauseUnpause.label;
+
+      const freezeUnfreeze = this.canFreezeUnfreezeGame();
       const freezeBtn = this.container.querySelector('#freeze-unfreeze-btn');
-      const finishBtn = this.container.querySelector('#finish-game-btn');
-      const addAIBtn = this.container.querySelector('#add-ai-player-btn');
+      freezeBtn.disabled = !freezeUnfreeze.allowed;
+      freezeBtn.textContent = freezeUnfreeze.label;
+   }
 
-      if (!this.selectedGame)
-      {
-         // No game selected - show default text and disable all buttons
-         startBtn.disabled = true;
-         pauseBtn.disabled = true;
-         pauseBtn.textContent = 'Pause';
-         freezeBtn.disabled = true;
-         freezeBtn.textContent = 'Freeze';
-         finishBtn.disabled = true;
-         addAIBtn.disabled = true;
+   canStartGame()
+   {
+      let message = '';
 
-         return;
-      }
+      if(!this.selectedGame)
+        message = 'No game selected';
+      else if(this.selectedGame.status !== 'lobby' && this.selectedGame.status !== 'error')
+        message = 'Game status is not lobby or error';
+      else if(this.selectedGame.player_count < this.selectedGame.max_players)
+        message = 'Room for more players';
 
-      const status = this.selectedGame.status;
-      const playerCount = this.selectedGame.player_count || 0;
-      const maxPlayers = this.selectedGame.max_players || 6;
-      const allPlayersAdded = playerCount >= maxPlayers;
+      return { allowed: message === '', message };
+   }
 
-      // If status is 'lobby', disable all buttons except Start and Add AI Player
-      if (status === 'lobby')
-      {
-         // Start: only enabled when all players have been added
-         startBtn.disabled = !allPlayersAdded;
+   canPauseUnpauseGame()
+   {
+      let message = '';
+      let label = 'Pause';
 
-         // All other buttons disabled in lobby
-         pauseBtn.disabled = true;
-         pauseBtn.textContent = 'Pause';
-         freezeBtn.disabled = true;
-         freezeBtn.textContent = 'Freeze';
-         finishBtn.disabled = true;
+      if(!this.selectedGame)
+        message = 'No game selected';
+      else if(this.selectedGame.status !== 'running' && this.selectedGame.status !== 'paused')
+        message = 'Game is not running nor paused';
+      else if(this.selectedGame.status === 'paused')
+        label = 'Unpause';
 
-         // Add AI Player: enabled in lobby if not at max players
-         addAIBtn.disabled = allPlayersAdded;
+      return { allowed: message === '', message, label };
+   }
 
-         return;
-      }
+   canFreezeUnfreezeGame()
+   {
+      let message = '';
+      let label = 'Freeze';
 
-      // For non-lobby statuses, normal behavior
-      // Start: disabled (only available in lobby)
-      startBtn.disabled = true;
+      if(!this.selectedGame)
+        message = 'No game selected';
+      else if(this.selectedGame.status !== 'running' && this.selectedGame.status !== 'paused' && this.selectedGame.status !== 'frozen')
+        message = 'Game is not running nor paused nor frozen';
+      else if(this.selectedGame.status === 'frozen')
+        label = 'Unfreeze';
 
-      // Pause/Unpause: only if status is 'running' or 'paused'
-      pauseBtn.disabled = status !== 'running' && status !== 'paused';
-      pauseBtn.textContent = status === 'paused' ? 'Unpause' : 'Pause';
+      return { allowed: message === '', message, label };
+   }
 
-      // Freeze/Unfreeze: can change from any status except 'finished'
-      freezeBtn.disabled = status === 'finished';
-      freezeBtn.textContent = status === 'frozen' ? 'Unfreeze' : 'Freeze';
+   canFinishGame()
+   {
+      let message = '';
 
-      // Finish: can change from any status except 'finished'
-      finishBtn.disabled = status === 'finished';
+      if(!this.selectedGame)
+        message = 'No game selected';
+      else if(this.selectedGame.status === 'finished')
+        message = 'Game is already finished';
 
-      // Add AI Player: disabled when not in lobby
-      addAIBtn.disabled = true;
+      return { allowed: message === '', message };
+   }
+
+   canAddAIPlayer()
+   {
+      let message = '';
+
+      if(!this.selectedGame)
+        message = 'No game selected';
+      else if(this.selectedGame.status !== 'lobby')
+        message = 'Game is not in lobby';
+      else if(this.selectedGame.player_count >= this.selectedGame.max_players)
+        message = 'Game is full';
+
+      return { allowed: message === '', message };
    }
 
    loadPlayers(gameId)
    {
-      console.log('🔐 ManageGamesView: Loading players for game', gameId);
       Utils.requireChild(this.container, '.players-list-container').innerHTML = '<div class="players-loading">Loading players...</div>';
 
       if (this.abortControl)
@@ -242,17 +253,15 @@ export class ManageGamesView extends MenuView
 
       this.displayStatusMessage('Loading players...', 'info');
 
-      eventBus.emit('system:manageGamePlayersRequest', new ApiRequest('system:manageGamePlayersRequest', {gameId}, this.abortControl.signal));
+      eventBus.emit('system:listGamePlayersRequest', new ApiRequest('system:listGamePlayersRequest', {gameId}, this.abortControl.signal));
    }
 
    /**
-    * Handle manage game players response
-    * @param {ApiResponse} event - Manage game players response event
+    * Handle list game players response
+    * @param {ApiResponse} event - List game players response event
     */
-   handleManageGamePlayersResponse(event)
+   handleListGamePlayersResponse(event)
    {
-      console.log('🔐 ManageGamesView: Handling manage game players response', event);
-
       const playersContainer = Utils.requireChild(this.container, '.players-list-container');
 
       if (event.isSuccess() && event.data)
@@ -261,6 +270,7 @@ export class ManageGamesView extends MenuView
          this.displayStatusMessage(`Loaded ${this.players.length} players`, 'success');
          this.renderPlayers();
          this.updateGameControlButtons();
+         this.updatePlayerControlButtons();
       }
       else if (event.isAborted())
       {
@@ -301,149 +311,293 @@ export class ManageGamesView extends MenuView
 
    updatePlayerControlButtons()
    {
-      if (!this.selectedPlayer)
-      {
-         Utils.requireChildren(this.container, '.player-controls .control-btn').forEach(btn => btn.disabled = true);
-         return;
-      }
-
-      const playerStatus = this.selectedPlayer.status;
-      const isActive = playerStatus === 'active';
-      const isEjected = playerStatus === 'ejected';
-      const isSuspended = playerStatus === 'suspended';
-
-      const gameStatus = this.selectedGame.status;
-      const isLobby = gameStatus === 'lobby';
-      const isRunning = gameStatus === 'running';
-
-      // End Turn: Only enabled when game is running and player is not ejected
-      Utils.requireChild(this.container, '#end-turn-btn').disabled = !isRunning || isEjected;
-
-      // Reset Status: Disabled if game is lobby or player is ejected or active
-      Utils.requireChild(this.container, '#reset-status-btn').disabled = isLobby || isEjected || isActive;
-
-      // Suspend: Disabled if game is lobby or player is ejected or suspended
-      Utils.requireChild(this.container, '#suspend-btn').disabled = isLobby || isEjected || isSuspended;
-
-      // Eject: Always enabled unless player is already ejected
-      Utils.requireChild(this.container, '#eject-btn').disabled = isEjected;
-
-      // Edit Meta: Disabled if player is ejected
-      Utils.requireChild(this.container, '#edit-meta-btn').disabled = isEjected;
+      Utils.requireChild(this.container, '#end-turn-btn').disabled = !this.canEndPlayerTurn().allowed;
+      Utils.requireChild(this.container, '#reset-status-btn').disabled = !this.canResetPlayerStatus().allowed;
+      Utils.requireChild(this.container, '#suspend-btn').disabled = !this.canSuspendPlayer().allowed;
+      Utils.requireChild(this.container, '#eject-btn').disabled = !this.canEjectPlayer().allowed;
+      Utils.requireChild(this.container, '#edit-meta-btn').disabled = !this.canEditPlayerMeta().allowed;
    }
 
-   /**
-    * Game control actions
-    */
+   canEndPlayerTurn()
+   {
+      let message = '';
+
+      if(!this.selectedGame)
+        message = 'No game selected';
+      else if(!this.selectedPlayer)
+        message = 'No player selected';
+      else if(this.selectedPlayer.status === 'ejected')
+        message = 'Player is ejected';
+      else if(this.selectedGame.status !== 'running')
+        message = 'Game is not running';
+
+      return { allowed: message === '', message };
+   }
+
+   canResetPlayerStatus()
+   {
+      let message = '';
+
+      if(!this.selectedGame)
+        message = 'No game selected';
+      else if(!this.selectedPlayer)
+        message = 'No player selected';
+      else if(this.selectedPlayer.status === 'ejected')
+        message = 'Player is ejected';
+      else if(this.selectedPlayer.status === 'active')
+        message = 'Player is already active';
+      else if(this.selectedGame.status !== 'running')
+        message = 'Game is not running';
+
+      return { allowed: message === '', message };
+   }
+
+   canSuspendPlayer()
+   {
+      let message = '';
+
+      if(!this.selectedGame)
+        message = 'No game selected';
+      else if(!this.selectedPlayer)
+        message = 'No player selected';
+      else if(this.selectedPlayer.status === 'ejected')
+        message = 'Player is ejected';
+      else if(this.selectedPlayer.status === 'suspended')
+        message = 'Player is already suspended';
+      else if(this.selectedGame.status !== 'running')
+        message = 'Game is not running';
+
+      return { allowed: message === '', message };
+   }
+
+   canEjectPlayer()
+   {
+      let message = '';
+
+      if(!this.selectedGame)
+        message = 'No game selected';
+      else if(!this.selectedPlayer)
+        message = 'No player selected';
+      else if(this.selectedPlayer.status === 'ejected')
+        message = 'Player is ejected';
+
+      return { allowed: message === '', message };
+   }
+
+   canEditPlayerMeta()
+   {
+      let message = '';
+
+      if(!this.selectedGame)
+        message = 'No game selected';
+      else if(!this.selectedPlayer)
+        message = 'No player selected';
+      else if(this.selectedPlayer.status === 'ejected')
+        message = 'Player is ejected';
+
+      return { allowed: message === '', message };
+   }
+
    startGame()
    {
-      if (!this.selectedGame || this.selectedGame.status !== 'lobby') 
-        return;
-
-      // Store the gameId we're creating (generating map/placing players) for the response handler
-      this.pendingCreateGameId = this.selectedGame.id;
-
-      // Disable the start button to prevent multiple clicks
-      const startBtn = this.container.querySelector('#start-game-btn');
-      if (startBtn)
+      const { allowed, message } = this.canStartGame();
+      
+      if (allowed)
       {
-         startBtn.disabled = true;
-         startBtn.textContent = 'Creating Game...';
-      }
+        if (this.abortControl)
+           this.abortControl.abort();
 
-      // Emit event to create the game (generate map, place players) via GameEventHandler
-      eventBus.emit('game:createGame',
-      {
-         gameId: this.selectedGame.id
-      });
-   }
+        this.abortControl = new AbortController();
 
-   /**
-    * Handle game created event (response from GameEventHandler after map generation and player placement)
-    * @param {Object} context - Event bus context
-    * @param {Object} eventData - Event data with success status and details
-    */
-   handleGameCreated(context, eventData)
-   {
-      // Only handle if this is for the game we're creating
-      if (!this.pendingCreateGameId) 
-        return;
+        this.displayStatusMessage('Starting game...', 'info');
 
-      // Check if this event is for our game (either by gameId in details or if it's a general success)
-      const eventGameId = eventData.details?.gameId;
-      if (eventGameId && eventGameId !== this.pendingCreateGameId)
-      {
-         // This event is for a different game, ignore it
-         return;
-      }
-
-      if (eventData.success)
-      {
-         // Game created successfully (map generated, players placed), update the UI
-         const gameId = this.pendingCreateGameId;
-         this.pendingCreateGameId = null;
-
-         // Update game status to 'running' via event
-         this.updateGameStatus('running');
+        eventBus.emit('system:startGameRequest', new ApiRequest('system:startGameRequest', {gameId: this.selectedGame.id}, this.abortControl.signal));
       }
       else
       {
-         // Game creation failed
-         this.pendingCreateGameId = null;
-
-         // Re-enable the start button
-         const startBtn = this.container.querySelector('#start-game-btn');
-         if (startBtn)
-         {
-            startBtn.disabled = false;
-            startBtn.textContent = 'Start';
-         }
-
-         // Show error message
-         this.displayStatusMessage(`Error creating game: ${eventData.message || eventData.error || 'Failed to create game'}`, 'error');
+        this.displayStatusMessage(message, 'warning');
+        this.updateGameControlButtons();
+        this.updatePlayerControlButtons();
       }
    }
 
-   pauseUnpauseGame()
+   async pauseUnpauseGame()
    {
-      if (!this.selectedGame || !(this.selectedGame.status === 'running' || this.selectedGame.status === 'paused')) 
-        return;
+      const { allowed, message } = this.canPauseUnpauseGame();
+      
+      if (allowed)
+      {
+        if (this.selectedGame.status === 'paused')
+          this.updateGameStatus(this.selectedGame.id, 'running');
+        else
+        {
+          const dialog = new PromptDialog(
+          {
+            title: 'Pause Game',
+            message: 'Please provide a reason for pausing this game:',
+            placeholder: 'Enter pause reason...',
+            okText: 'Pause',
+            cancelText: 'Cancel'
+         });
+   
+         const reason = await dialog.show();
 
-      this.updateGameStatus(this.selectedGame.status === 'paused' ? 'running' : 'paused');
+         if (reason === null || reason.trim() === '')
+            return this.displayStatusMessage('Pausing was cancelled', 'info');
+         else
+            this.updateGameStatus(this.selectedGame.id, 'paused', reason.trim());
+        }
+      }
+      else
+      {
+         this.displayStatusMessage(message, 'warning');
+         this.updateGameControlButtons();
+         this.updatePlayerControlButtons();
+      }
    }
 
-   freezeUnfreezeGame()
+   async freezeUnfreezeGame()
    {
-      if (!this.selectedGame || !(this.selectedGame.status === 'running' || this.selectedGame.status === 'paused' || this.selectedGame.status === 'frozen')) 
-        return;
+      const { allowed, message } = this.canFreezeUnfreezeGame();
+      
+      if (allowed)
+      {
+         if (this.selectedGame.status === 'paused')
+            this.updateGameStatus(this.selectedGame.id, 'running');
+         else
+         {
+            const dialog = new PromptDialog(
+            {
+               title: 'Freeze Game',
+               message: 'Please provide a reason for freezing this game:',
+               placeholder: 'Enter freeze reason...',
+               okText: 'Freeze',
+               cancelText: 'Cancel'
+            });
 
-      this.updateGameStatus(this.selectedGame.status === 'frozen' ? 'running' : 'frozen');
+            const reason = await dialog.show();
+
+            if (reason === null || reason.trim() === '')
+               return this.displayStatusMessage('Freezing was cancelled', 'info');
+            else
+               this.updateGameStatus(this.selectedGame.id, 'frozen', reason.trim());
+         }
+      }
+      else
+      {
+        this.displayStatusMessage(message, 'warning');
+        this.updateGameControlButtons();
+        this.updatePlayerControlButtons();
+      }
    }
 
    finishGame()
    {
-      if (!this.selectedGame || this.selectedGame.status === 'finished') 
-        return;
-
-      if (!confirm('Are you sure you want to finish this game? This action cannot be undone.'))
-        return;
-
-      this.updateGameStatus('finished');
+      const { allowed, message } = this.canFinishGame();
+      
+      if (allowed)
+      {
+        if (confirm('Are you sure you want to finish this game? This action cannot be undone.'))
+          this.updateGameStatus(this.selectedGame.id, 'finished');
+      }
+      else
+      {
+        this.displayStatusMessage(message, 'warning');
+        this.updateGameControlButtons();
+        this.updatePlayerControlButtons();
+      }
    }
 
-   updateGameStatus(newStatus)
+   updateGameStatus(gameId, newStatus, statusReason = null)
    {
-      if (!this.selectedGame) 
-         return;
-
       if (this.abortControl)
          this.abortControl.abort();
 
       this.abortControl = new AbortController();
 
-      this.displayStatusMessage('Updating game status...' + newStatus, 'info');
+      this.displayStatusMessage(`Updating game status to ${newStatus}${statusReason ? ` (${statusReason})` : ''}...`, 'info');
 
-      eventBus.emit('system:updateGameStatusRequest', new ApiRequest('system:updateGameStatusRequest', {gameId: this.selectedGame.id, status: newStatus}, this.abortControl.signal));
+      eventBus.emit('system:updateGameStatusRequest', new ApiRequest('system:updateGameStatusRequest', 
+      {
+         gameId: gameId, 
+         status: newStatus,
+         statusReason: statusReason
+      }, this.abortControl.signal));
+   }
+
+   /**
+    * Handle start game response
+    * @param {ApiResponse} event - Start game response event
+    */
+   handleStartGameResponse(event)
+   {
+      if (event.isAborted())
+      {
+         this.displayStatusMessage('Start game aborted.', 'error');
+         this.abortControl = null;
+         return;
+      }
+
+      if (!event.isSuccess())
+      {
+         this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to start game', 'error');
+         this.updateGameControlButtons();
+         this.updatePlayerControlButtons();
+         this.abortControl = null;
+         return;
+      }
+
+      // Success - the updateGameStatusResponse will handle the UI update
+      this.abortControl = null;
+   }
+
+   /**
+    * Handle substatus updated event (from WebSocket or eventBus)
+    * @param {ApiEvent|Object} event - Substatus update event
+    */
+   handleSubstatusUpdated(event)
+   {
+      // Handle both ApiEvent and plain object formats
+      const eventData = event?.data || event;
+      const { gameId, status, substatus, statusReason } = eventData;
+
+      if (!gameId)
+         return;
+
+      // Update the game in our list if we have it
+      const gameIndex = this.games.findIndex(game => game.id === gameId);
+      if (gameIndex !== -1)
+      {
+         this.games[gameIndex].status = status;
+         this.games[gameIndex].substatus = substatus;
+         this.games[gameIndex].status_reason = statusReason;
+
+         // If this is the selected game, update it too
+         if (this.selectedGame && this.selectedGame.id === gameId)
+         {
+            this.selectedGame.status = status;
+            this.selectedGame.substatus = substatus;
+            this.selectedGame.status_reason = statusReason;
+            this.updateGameControlButtons();
+            this.updatePlayerControlButtons();
+         }
+
+         this.renderGames();
+      }
+
+      // Emit ui:statusMessage with substatus text
+      if (substatus)
+      {
+         const substatusMessages = 
+         {
+            'generating_map': 'Generating map...',
+            'placing_players': 'Placing players...',
+            'creating_turn': 'Creating first turn...'
+         };
+         const message = substatusMessages[substatus] || `Game creation: ${substatus}`;
+
+         this.displayStatusMessage(message, 'info');
+      }
    }
 
    /**
@@ -452,13 +606,12 @@ export class ManageGamesView extends MenuView
     */
    handleUpdateGameStatusResponse(event)
    {
-      console.log('🔐 ManageGamesView: Handling update game status response', event);
-
       if (event.isSuccess())
       {
          const updatedGame = event.data?.game;
          const gameId = updatedGame?.id;
          const newStatus = updatedGame?.status;
+         const substatus = updatedGame?.substatus;
          
          if (!gameId || !newStatus)
          {
@@ -472,9 +625,20 @@ export class ManageGamesView extends MenuView
          if (gameIndex !== -1)
          {
             this.games[gameIndex].status = newStatus;
+            if (substatus !== undefined)
+               this.games[gameIndex].substatus = substatus;
+
             this.updateGameControlButtons();
+            this.updatePlayerControlButtons();
             this.renderGames();
-            this.displayStatusMessage(`Game status updated to ${newStatus}`, 'success');
+
+            // Post status message based on new status
+            if (newStatus === 'creating')
+               this.displayStatusMessage('Game creation started...', 'info');
+            else if (newStatus === 'error')
+               this.displayStatusMessage('Game creation failed. You can try starting again.', 'error');
+            else
+               this.displayStatusMessage(`Game status updated to ${newStatus}`, 'success');
          }
          else
             this.displayStatusMessage('Game not found in list of loaded games', 'error');
@@ -487,19 +651,13 @@ export class ManageGamesView extends MenuView
       this.abortControl = null;
    }
 
-   /**
-    * Player control actions
-    */
    endPlayerTurn()
    {
       if (!this.selectedGame || !this.selectedPlayer) 
         return;
 
       if (this.selectedPlayer.status === 'ejected')
-      {
-         this.displayStatusMessage('Player is ejected and cannot end turn', 'error');
-         return;
-      }
+         return this.displayStatusMessage('Player is ejected and cannot end turn', 'error');
 
       if (this.abortControl)
          this.abortControl.abort();
@@ -517,6 +675,8 @@ export class ManageGamesView extends MenuView
     */
    handleEndPlayerTurnResponse(event)
    {
+      console.log('🔐 ManageGamesView: Handling end player turn response', event);
+
       if (event.isSuccess())
       {
          this.displayStatusMessage('Player turn ended successfully', 'success');
@@ -525,10 +685,7 @@ export class ManageGamesView extends MenuView
       else if (event.isAborted())
          this.displayStatusMessage('End player turn aborted.', 'error');
       else
-      {
-         console.error('Error ending player turn:', event);
          this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to end player turn', 'error');
-      }
 
       this.abortControl = null;
    }
@@ -560,12 +717,10 @@ export class ManageGamesView extends MenuView
       this.updatePlayerStatus('ejected');
    }
 
-   /**
-    * Update player status
-    */
    updatePlayerStatus(newStatus)
    {
-      if (!this.selectedGame || !this.selectedPlayer) return;
+      if (!this.selectedGame || !this.selectedPlayer) 
+        return;
 
       if (this.abortControl)
          this.abortControl.abort();
@@ -583,9 +738,10 @@ export class ManageGamesView extends MenuView
     */
    handleUpdatePlayerStatusResponse(event)
    {
+      console.log('🔐 ManageGamesView: Handling update player status response', event);
+
       if (event.isSuccess())
       {
-         // Update selected player status
          if (this.selectedPlayer)
             this.selectedPlayer.status = event.data?.status || this.selectedPlayer.status;
          
@@ -597,10 +753,7 @@ export class ManageGamesView extends MenuView
       else if (event.isAborted())
          this.displayStatusMessage('Update player status aborted.', 'error');
       else
-      {
-         console.error('Error updating player status:', event);
          this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to update player status', 'error');
-      }
 
       this.abortControl = null;
    }
@@ -693,7 +846,6 @@ export class ManageGamesView extends MenuView
       const playerNameInput = dialog.querySelector('#player-name-input');
       const countryNameInput = dialog.querySelector('#country-name-input');
       const addBtn = dialog.querySelector('.add-ai-player-btn');
-      const errorDiv = dialog.querySelector('#ai-dialog-error');
       const formBuilder = new AIConfigFormBuilder();
       let currentForm = null;
       let selectedAI = null;
@@ -1046,12 +1198,12 @@ export class ManageGamesView extends MenuView
 
    dispose()
    {
+      if (this.dialog) 
+        this.dialog.close();
+      
       // Abort any pending requests
       if (this.abortControl)
          this.abortControl.abort();
-
-      // Remove event bus listeners
-      eventBus.off('game:gameCreated', this.handleGameCreated);
 
       this.unregisterEventHandlers();
 
@@ -1268,11 +1420,13 @@ const gameCardHTML = (game, isSelected) => `
 const playerCardHTML = (player, isSelected) =>
 {
    const metaStr = typeof player.meta === 'string' ? player.meta : JSON.stringify(player.meta || {}, null, 2);
+   const isAI = player.type === 'ai';
+   const statusDisplay = isAI ? `${player.status || 'active'}-ai` : (player.status || 'active');
    return `
 <div class="player-card ${isSelected ? 'selected' : ''}" data-player-id="${player.id}">
   <div class="player-card-header">
     <h4 class="player-name">${Utils.escapeHtml(player.name)}</h4>
-    <span class="player-status-badge status-${player.status}">${player.status}</span>
+    <span class="player-status-badge status-${player.status}">${Utils.escapeHtml(statusDisplay)}</span>
   </div>
   <div class="player-card-body">
     <div class="player-info-row">
@@ -1281,7 +1435,7 @@ const playerCardHTML = (player, isSelected) =>
     </div>
     <div class="player-info-row">
       <span class="player-label">Status:</span>
-      <span class="player-value">${Utils.escapeHtml(player.status || 'active')}</span>
+      <span class="player-value">${Utils.escapeHtml(statusDisplay)}</span>
     </div>
     <div class="player-info-row">
       <span class="player-label">Meta:</span>

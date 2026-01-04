@@ -440,26 +440,5 @@ export class GameEventHandler
    async handleStartGame(event)
    {
       console.log('🎮 GameEventHandler: Starting game with data:', event);
-
-      // Game should already be loaded at this point
-      // This method can be used for any additional initialization needed to start the game
-      const gameId = event?.gameId;
-
-      if (!gameId)
-      {
-         console.error('🎮 GameEventHandler: Missing gameId in startGame data');
-         return;
-      }
-
-      // Emit game start event for rendering/display
-      eventBus.emit('game:start',
-      {
-         success: true,
-         details:
-         {
-            eventType: 'game:start',
-            gameId: gameId
-         }
-      });
    }
 }

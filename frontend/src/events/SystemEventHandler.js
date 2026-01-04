@@ -26,7 +26,8 @@ export class SystemEventHandler
       this.eventRegister.registerEventHandler('system:listGamesRequest', this.handleListGamesRequest.bind(this));
       this.eventRegister.registerEventHandler('system:joinGameRequest', this.handleJoinGameRequest.bind(this));
       this.eventRegister.registerEventHandler('system:createGameRequest', this.handleCreateGameRequest.bind(this));
-      this.eventRegister.registerEventHandler('system:manageGamePlayersRequest', this.handleManageGamePlayersRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:listGamePlayersRequest', this.handleListGamePlayersRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:startGameRequest', this.handleStartGameRequest.bind(this));
       this.eventRegister.registerEventHandler('system:updateGameStatusRequest', this.handleUpdateGameStatusRequest.bind(this));
       this.eventRegister.registerEventHandler('system:endPlayerTurnRequest', this.handleEndPlayerTurnRequest.bind(this));
       this.eventRegister.registerEventHandler('system:updatePlayerStatusRequest', this.handleUpdatePlayerStatusRequest.bind(this));
@@ -511,9 +512,9 @@ export class SystemEventHandler
     * Handle manage game players request event
     * @param {ApiRequest} event - Manage game players request event
     */
-   handleManageGamePlayersRequest(event)
+   handleListGamePlayersRequest(event)
    {
-      console.log('🔐 SystemEventHandler: Processing manage game players request');
+      console.log('🔐 SystemEventHandler: Processing list game players request');
 
       if(!(event instanceof ApiRequest))
          throw new Error('SystemEventHandler: Invalid event type');
@@ -522,8 +523,8 @@ export class SystemEventHandler
 
       if (!gameId)
       {
-         const errorResponse = event.prepareResponse('system:manageGamePlayersResponse', null, 400, {message: 'Game ID is required'});
-         eventBus.emit('system:manageGamePlayersResponse', errorResponse);
+         const errorResponse = event.prepareResponse('system:listGamePlayersResponse', null, 400, {message: 'Game ID is required'});
+         eventBus.emit('system:listGamePlayersResponse', errorResponse);
          return;
       }
 
@@ -532,19 +533,73 @@ export class SystemEventHandler
       RB.fetchGet(`/api/games/${gameId}/manage/players`, event.signal)
          .then(success =>
          {
-            console.log('Manage game players request success:', success);
-            response = event.prepareResponse('system:manageGamePlayersResponse', success, 200, null);
+            console.log('List game players request success:', success);
+            response = event.prepareResponse('system:listGamePlayersResponse', success, 200, null);
          })
          .catch(error =>
          {
-            console.error('Manage game players request error:', error);
+            console.error('List game players request error:', error);
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
-            response = event.prepareResponse('system:manageGamePlayersResponse', null, status, errorBody);
+            response = event.prepareResponse('system:listGamePlayersResponse', null, status, errorBody);
          })
          .finally(() =>
          {
-            eventBus.emit('system:manageGamePlayersResponse', response);
+            eventBus.emit('system:listGamePlayersResponse', response);
+         });
+   }
+
+   /**
+    * Handle start game request event
+    * @param {ApiRequest} event - Start game request event
+    */
+   handleStartGameRequest(event)
+   {
+      console.log('🔐 SystemEventHandler: Processing start game request');
+
+      if(!(event instanceof ApiRequest))
+         throw new Error('SystemEventHandler: Invalid event type');
+
+      const { gameId } = event.data || {};
+
+      if (!gameId)
+      {
+         const errorResponse = event.prepareResponse('system:startGameResponse', null, 400, {message: 'Game ID is required'});
+         eventBus.emit('system:startGameResponse', errorResponse);
+         return;
+      }
+
+      let response = null;
+
+      RB.fetchPost(`/api/games/${gameId}/startGame`, {}, event.signal)
+         .then(success =>
+         {
+            console.log('Start game request success:', success);
+            // On 202 Accepted, emit updateGameStatusResponse with creating status
+            if (success.status === 'creating')
+            {
+               const statusResponse = event.prepareResponse('system:updateGameStatusResponse', {
+                  success: true,
+                  game: {
+                     id: gameId,
+                     status: 'creating',
+                     substatus: null
+                  }
+               }, 202, null);
+               eventBus.emit('system:updateGameStatusResponse', statusResponse);
+            }
+            response = event.prepareResponse('system:startGameResponse', success, 202, null);
+         })
+         .catch(error =>
+         {
+            console.error('Start game request error:', error);
+            const status = event.signal?.aborted ? 499 : (error.status || 400);
+            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:startGameResponse', null, status, errorBody);
+         })
+         .finally(() =>
+         {
+            eventBus.emit('system:startGameResponse', response);
          });
    }
 
@@ -559,7 +614,7 @@ export class SystemEventHandler
       if(!(event instanceof ApiRequest))
          throw new Error('SystemEventHandler: Invalid event type');
 
-      const { gameId, status } = event.data || {};
+      const { gameId, status, statusReason } = event.data || {};
 
       if (!gameId)
       {
@@ -577,7 +632,11 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPut(`/api/games/${gameId}/status`, {status}, event.signal)
+      const requestBody = { status };
+      if (statusReason !== null && statusReason !== undefined)
+         requestBody.statusReason = statusReason;
+
+      RB.fetchPut(`/api/games/${gameId}/status`, requestBody, event.signal)
          .then(success =>
          {
             console.log('Update game status request success:', success);

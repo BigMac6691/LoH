@@ -100,10 +100,15 @@ export class WebSocketManager
       if (!this.socket) 
          return;
 
+      // Game events are handled by the message listeners that were registered by the GameController
       this.socket.onAny((event, data) =>
       {
          console.log('🔌 WebSocketManager: Received event:', event, data);
-         this.notifyListeners(event, data);
+
+         if(event.startsWith('game:'))
+            this.notifyListeners(event, data);
+         else
+            eventBus.emit(event, new ApiEvent(event, data.data));
       });
 
       // Connection established
@@ -219,11 +224,10 @@ export class WebSocketManager
     */
    notifyListeners(eventType, data)
    {
+      console.log(`🔌 WebSocketManager: Notifying listeners for ${eventType} with data:`, data);
+      
       if (this.messageListeners.size === 0)
-      {
-         console.log(`🔌 WebSocketManager: No listeners registered for ${eventType}, message dropped`);
-         return;
-      }
+         return console.log(`🔌 WebSocketManager: No listeners registered for ${eventType}, message dropped`);
 
       // Forward message to all registered listeners
       // Listeners are responsible for session validation and further routing

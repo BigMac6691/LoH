@@ -270,10 +270,8 @@ export class GameController
       // The session guard ensures the session is still valid when operations complete
       if (handlerInfo.async)
       {
-         this.currentSession.runAsync(async () =>
-         {
-            await handlerInfo.handler();
-         }).catch(error =>
+         this.currentSession.runAsync(async () => { handlerInfo.handler(); })
+         .catch(error =>
          {
             // Session was disposed during async operation - this is expected and safe to ignore
             if (error.message && error.message.includes('Session was disposed'))

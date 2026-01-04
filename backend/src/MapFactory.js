@@ -31,13 +31,8 @@ export class MapFactory {
     // Calculate sector size using normalized coordinates (-1 to +1)
     const sectorSize = 2 / config.mapSize;
     
-    // Generate sectors
     this.sectors = this.generateSectors(config.mapSize, sectorSize);
-    
-    // Generate stars for each sector
     const stars = this.generateStars(config, this.sectors);
-    
-    // Generate wormholes
     this.wormholes = this.generateWormholes(this.sectors, stars);
     
     return {
@@ -354,29 +349,20 @@ export class MapFactory {
  * @param {number} params.densityMax - Maximum star density (0-9)
  * @returns {MapModel} MapModel instance with generated data
  */
-export async function generateMap({ seed, mapSize, densityMin, densityMax }) {
-  // Convert string seed to number if needed
+export async function generateMap({ seed, mapSize, densityMin, densityMax }) 
+{
+  console.log(`🎮 MapFactory: Generating map with seed ${seed}, mapSize ${mapSize}, densityMin ${densityMin}, densityMax ${densityMax}`);
+
   const numericSeed = typeof seed === 'string' ? hashString(seed) : seed;
-  
-  // Create MapFactory instance
   const mapFactory = new MapFactory(numericSeed);
+  const model = mapFactory.generateMapModel({ mapSize, densityMin, densityMax });
   
-  // Generate the map model
-  const model = mapFactory.generateMapModel({
-    mapSize,
-    minStarDensity: densityMin,
-    maxStarDensity: densityMax
-  });
-  
-  // Create and return MapModel instance
   const { MapModel } = await import('../../packages/shared/src/MapModel.js');
   const mapModel = new MapModel(numericSeed);
   mapModel.setMapData(model);
-  
+
   return mapModel;
 }
-
-
 
 /**
  * Hash a string to a number for seeding

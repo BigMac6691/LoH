@@ -227,9 +227,9 @@ export function requireGamePlayer() {
     }
 
     try {
-      // Check if user is a player in the game
+      // Check if user is a player in the game (only human players, not AI)
       const { rows } = await pool.query(
-        'SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2',
+        'SELECT id FROM game_player WHERE game_id = $1 AND user_id = $2 AND type = \'player\'',
         [gameId, req.user.id]
       );
 

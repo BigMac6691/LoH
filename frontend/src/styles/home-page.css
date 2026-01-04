@@ -300,7 +300,7 @@
   min-height: 0; /* Allow flex child to shrink */
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden; /* Don't scroll the entire view-content, let children handle scrolling */
 }
 
 .placeholder-text {
@@ -1376,6 +1376,18 @@
   padding: 10px;
   backdrop-filter: blur(10px);
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Ensure games section in manage view has proper flex layout */
+.manage-games-left-panel .manage-games-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .manage-games-section h3 {
@@ -1387,6 +1399,12 @@
 }
 
 /* Games List (for GamesPlayingList - more specific selector) */
+.games-playing-list .view-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .games-playing-list .games-list-container {
   display: flex;
   flex-direction: column;
@@ -1394,6 +1412,10 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+.games-playing-list .pagination-controls {
+  flex-shrink: 0;
 }
 
 /* Games List Container in Manage Games View */
@@ -1404,6 +1426,12 @@
   flex: 1;
   min-height: 200px;
   overflow-y: auto;
+}
+
+/* Pagination controls in manage games view should be outside scrollable area */
+.manage-games-view .pagination-controls {
+  flex-shrink: 0;
+  margin-top: 10px;
 }
 
 .game-card.selected {
@@ -1671,6 +1699,34 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+}
+
+/* Games Available List - ensure pagination is outside scrollable area */
+.games-available-list .view-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.games-available-list .view-content fieldset {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.games-available-list .games-list-container {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.games-available-list .pagination-controls {
+  flex-shrink: 0;
 }
 
 .create-game-form {

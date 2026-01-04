@@ -5,6 +5,7 @@ import { MenuView } from './MenuView.js';
 import { eventBus } from '../eventBus.js';
 import { ApiEvent, ApiRequest } from '../events/Events.js';
 import { Utils } from '../utils/Utils.js';
+import { webSocketManager } from '../services/WebSocketManager.js';
 
 export class GamesPlayingList extends MenuView
 {
@@ -18,6 +19,28 @@ export class GamesPlayingList extends MenuView
       this.totalPages = 1;
 
       this.registerEventHandler('system:listGamesResponse', this.handleListGamesResponse.bind(this));
+      this.registerEventHandler('system:updateGameStatusResponse', this.handleUpdateGameStatusResponse.bind(this));
+      this.registerEventHandler('system:substatusUpdated', this.handleSubstatusUpdated.bind(this));
+
+      // Set up WebSocket listener for substatus updates
+      this.webSocketListener = (eventType, data) => {
+         if (eventType === 'system:substatusUpdated') {
+            // Convert WebSocket message to eventBus event
+            eventBus.emit('system:substatusUpdated', new ApiEvent('system:substatusUpdated', data));
+         }
+      };
+      webSocketManager.addMessageListener(this.webSocketListener);
+   }
+
+   dispose()
+   {
+      // Remove WebSocket listener
+      if (this.webSocketListener) {
+         webSocketManager.removeMessageListener(this.webSocketListener);
+         this.webSocketListener = null;
+      }
+
+      super.dispose();
    }
 
    create()
@@ -92,6 +115,50 @@ export class GamesPlayingList extends MenuView
          this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to load games', 'error');
 
       this.abortControl = null;
+   }
+
+   /**
+    * Handle update game status response
+    * @param {ApiResponse} event - Update game status response event
+    */
+   handleUpdateGameStatusResponse(event)
+   {
+      if (event.isSuccess() && event.data?.game)
+      {
+         const updatedGame = event.data.game;
+         const gameIndex = this.games.findIndex(game => game.id === updatedGame.id);
+         if (gameIndex !== -1)
+         {
+            this.games[gameIndex] = { ...this.games[gameIndex], ...updatedGame };
+            this.renderGames();
+         }
+      }
+   }
+
+   /**
+    * Handle substatus updated event (from WebSocket or eventBus)
+    * @param {ApiEvent|Object} event - Substatus update event
+    */
+   handleSubstatusUpdated(event)
+   {
+      // Handle both ApiEvent and plain object formats
+      const eventData = event?.data || event;
+      const { gameId, status, substatus, statusReason } = eventData;
+
+      if (!gameId)
+         return;
+
+      // Update the game in our list if we have it
+      const gameIndex = this.games.findIndex(game => game.id === gameId);
+      if (gameIndex !== -1)
+      {
+         this.games[gameIndex].status = status;
+         this.games[gameIndex].substatus = substatus;
+         this.games[gameIndex].status_reason = statusReason;
+         this.renderGames();
+      }
+
+      // Note: system:substatusUpdated is progress only and should not trigger navigation
    }
 
    renderGames()

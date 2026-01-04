@@ -56,16 +56,39 @@ export async function getGame(id, client = null) {
  * Update game status
  * @param {Object} params
  * @param {string} params.id - Game UUID
- * @param {string} params.status - New status ('lobby'|'running'|'paused'|'finished')
+ * @param {string} params.status - New status
+ * @param {string} [params.substatus] - Optional substatus
+ * @param {string} [params.statusReason] - Optional status reason
  * @param {Object} [client] - Optional database client for transactions
  * @returns {Promise<Object|null>} The updated game row or null
  */
-export async function updateGameStatus({ id, status }, client = null) {
+export async function updateGameStatus({ id, status, substatus = null, statusReason = null }, client = null) {
   const dbClient = client || pool;
   
+  // Build dynamic update query
+  const updates = ['status = $2'];
+  const params = [id, status];
+  let paramIndex = 3;
+  
+  if (substatus !== null && substatus !== undefined) {
+    updates.push(`substatus = $${paramIndex}`);
+    params.push(substatus);
+    paramIndex++;
+  } else {
+    updates.push('substatus = NULL');
+  }
+  
+  if (statusReason !== null && statusReason !== undefined) {
+    updates.push(`status_reason = $${paramIndex}`);
+    params.push(statusReason);
+    paramIndex++;
+  } else {
+    updates.push('status_reason = NULL');
+  }
+  
   const { rows } = await dbClient.query(
-    `UPDATE game SET status=$2 WHERE id=$1 RETURNING *`,
-    [id, status]
+    `UPDATE game SET ${updates.join(', ')} WHERE id=$1 RETURNING *`,
+    params
   );
   
   return rows[0] ?? null;
