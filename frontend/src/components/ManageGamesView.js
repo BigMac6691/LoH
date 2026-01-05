@@ -285,6 +285,7 @@ export class ManageGamesView extends MenuView
 
    renderPlayers()
    {
+      console.log('🔐 ManageGamesView: Rendering players', this.players);
       const playersContainer = Utils.requireChild(this.container, '.players-list-container');
 
       if (this.players.length === 0)
@@ -612,6 +613,7 @@ export class ManageGamesView extends MenuView
          const gameId = updatedGame?.id;
          const newStatus = updatedGame?.status;
          const substatus = updatedGame?.substatus;
+         const statusReason = updatedGame?.status_reason;
          
          if (!gameId || !newStatus)
          {
@@ -627,7 +629,9 @@ export class ManageGamesView extends MenuView
             this.games[gameIndex].status = newStatus;
             if (substatus !== undefined)
                this.games[gameIndex].substatus = substatus;
-
+            if (statusReason !== undefined)
+               this.games[gameIndex].status_reason = statusReason;
+            
             this.updateGameControlButtons();
             this.updatePlayerControlButtons();
             this.renderGames();
@@ -641,7 +645,7 @@ export class ManageGamesView extends MenuView
                this.displayStatusMessage(`Game status updated to ${newStatus}`, 'success');
          }
          else
-            this.displayStatusMessage('Game not found in list of loaded games', 'error');
+            this.displayStatusMessage('Game not found in list of loaded games, status updated on database', 'warning');
       }
       else if (event.isAborted())
          this.displayStatusMessage('Update game status aborted.', 'error');
@@ -651,22 +655,45 @@ export class ManageGamesView extends MenuView
       this.abortControl = null;
    }
 
-   endPlayerTurn()
+   async endPlayerTurn()
    {
-      if (!this.selectedGame || !this.selectedPlayer) 
-        return;
+      const { allowed, message } = this.canEndPlayerTurn();
+      
+      if (allowed)
+      {
+         const dialog = new PromptDialog(
+         {
+            title: 'End Player Turn',
+            message: `Please provide a reason for ending ${this.selectedPlayer.name}'s turn:`,
+            placeholder: 'Enter reason...',
+            okText: 'End',
+            cancelText: 'Cancel'
+         });
 
-      if (this.selectedPlayer.status === 'ejected')
-         return this.displayStatusMessage('Player is ejected and cannot end turn', 'error');
+         const reason = await dialog.show();
 
-      if (this.abortControl)
-         this.abortControl.abort();
+         if (reason === null || reason.trim() === '')
+            return this.displayStatusMessage('Ending player turn was cancelled', 'info');
 
-      this.abortControl = new AbortController();
+         if (this.abortControl)
+            this.abortControl.abort();
 
-      this.displayStatusMessage('Ending player turn...', 'info');
+         this.abortControl = new AbortController();
 
-      eventBus.emit('system:endPlayerTurnRequest', new ApiRequest('system:endPlayerTurnRequest', {gameId: this.selectedGame.id, playerId: this.selectedPlayer.id}, this.abortControl.signal));
+         this.displayStatusMessage('Ending player turn...', 'info');
+
+         eventBus.emit('system:endPlayerTurnRequest', new ApiRequest('system:endPlayerTurnRequest',
+         {
+            gameId: this.selectedGame.id,
+            playerId: this.selectedPlayer.id,
+            reason: reason.trim()
+         }, this.abortControl.signal));
+      }
+      else
+      {
+        this.displayStatusMessage(message, 'warning');
+        this.updatePlayerControlButtons();
+      }
    }
 
    /**
@@ -692,44 +719,86 @@ export class ManageGamesView extends MenuView
 
    resetPlayerStatus()
    {
-      if (!this.selectedGame || !this.selectedPlayer || this.selectedPlayer.status === 'ejected') 
-        return;
-
-      this.updatePlayerStatus('active');
+      const { allowed, message } = this.canResetPlayerStatus();
+      
+      if (allowed)
+          this.updatePlayerStatus(this.selectedGame.id, this.selectedPlayer.id, 'active');
+      else
+      {
+        this.displayStatusMessage(message, 'warning');
+        this.updatePlayerControlButtons();
+      }
    }
 
-   suspendPlayer()
+   async suspendPlayer()
    {
-      if (!this.selectedGame || !this.selectedPlayer || this.selectedPlayer.status === 'ejected') 
-        return;
+      const { allowed, message } = this.canSuspendPlayer();
+      
+      if (allowed)
+      {
+         const dialog = new PromptDialog(
+         {
+            title: 'Suspend Player',
+            message: `Please provide a reason for suspending ${this.selectedPlayer.name}:`,
+            placeholder: 'Enter reason...',
+            okText: 'Suspend',
+            cancelText: 'Cancel'
+         });
 
-      this.updatePlayerStatus('suspended');
+         const reason = await dialog.show();
+
+         if (reason === null || reason.trim() === '')
+            return this.displayStatusMessage('Suspending player was cancelled', 'info');
+
+         this.updatePlayerStatus(this.selectedGame.id, this.selectedPlayer.id, 'suspended', reason.trim());
+      }
+      else
+      {
+        this.displayStatusMessage(message, 'warning');
+        this.updatePlayerControlButtons();
+      }
    }
 
-   ejectPlayer()
+   async ejectPlayer()
    {
-      if (!this.selectedGame || !this.selectedPlayer || this.selectedPlayer.status === 'ejected') 
-        return;
+      const { allowed, message } = this.canEjectPlayer();
+      
+      if (allowed)
+      {
+        const dialog = new PromptDialog(
+          {
+             title: 'Eject Player - CANNOT BE UNDONE',
+             message: `Please provide a reason for ejecting ${this.selectedPlayer.name}:`,
+             placeholder: 'Enter reason...',
+             okText: 'Eject',
+             cancelText: 'Cancel'
+          });
+ 
+          const reason = await dialog.show();
+ 
+          if (reason === null || reason.trim() === '')
+             return this.displayStatusMessage('Ejecting player was cancelled', 'info');
 
-      if (!confirm('Are you sure you want to eject this player? This action cannot be undone.'))
-         return;
-
-      this.updatePlayerStatus('ejected');
+        this.updatePlayerStatus(this.selectedGame.id, this.selectedPlayer.id, 'ejected', reason.trim());
+      }
+      else
+      {
+        this.displayStatusMessage(message, 'warning');
+        this.updatePlayerControlButtons();
+      }
    }
 
-   updatePlayerStatus(newStatus)
+   updatePlayerStatus(gameId, playerId, newStatus, statusReason = null)
    {
-      if (!this.selectedGame || !this.selectedPlayer) 
-        return;
-
       if (this.abortControl)
          this.abortControl.abort();
 
       this.abortControl = new AbortController();
 
-      this.displayStatusMessage('Updating player status...', 'info');
+      this.displayStatusMessage(`Updating player status to ${newStatus}${statusReason ? ` (${statusReason})` : ''}...`, 'info');
 
-      eventBus.emit('system:updatePlayerStatusRequest', new ApiRequest('system:updatePlayerStatusRequest', {gameId: this.selectedGame.id, playerId: this.selectedPlayer.id, status: newStatus}, this.abortControl.signal));
+      const requestData = {gameId: gameId, playerId: playerId, status: newStatus, statusReason: statusReason?.trim()};
+      eventBus.emit('system:updatePlayerStatusRequest', new ApiRequest('system:updatePlayerStatusRequest', requestData, this.abortControl.signal));
    }
 
    /**
@@ -738,17 +807,26 @@ export class ManageGamesView extends MenuView
     */
    handleUpdatePlayerStatusResponse(event)
    {
-      console.log('🔐 ManageGamesView: Handling update player status response', event);
-
       if (event.isSuccess())
       {
-         if (this.selectedPlayer)
-            this.selectedPlayer.status = event.data?.status || this.selectedPlayer.status;
-         
-         this.updatePlayerControlButtons();
-         this.renderPlayers(); // Re-render to update status badge
+         if(this.selectedGame && this.selectedGame.id === event.data?.player?.game_id)
+         {
+            const playerIndex = this.players.findIndex(player => player.id === event.data?.player?.id);
 
-         this.displayStatusMessage(`Player status updated to ${event.data?.status || 'success'}`, 'success');
+            if (playerIndex !== -1)
+            {
+               this.players[playerIndex].status = event.data?.player?.status;
+               this.players[playerIndex].status_reason = event.data?.player?.status_reason;
+
+               this.updatePlayerControlButtons();
+               this.renderPlayers();
+               this.displayStatusMessage(`Player status updated to ${event.data?.player?.status}`, 'success');
+            }
+            else
+               this.displayStatusMessage('Player not found in list of loaded players, player status updated on database', 'warning');
+         }
+         else
+            this.displayStatusMessage('Game the player is in is not found in list of loaded games, player status updated on database', 'warning');
       }
       else if (event.isAborted())
          this.displayStatusMessage('Update player status aborted.', 'error');
@@ -763,19 +841,24 @@ export class ManageGamesView extends MenuView
     */
    showAddAIPlayerDialog()
    {
-      if (!this.selectedGame) return;
+      const { allowed, message } = this.canAddAIPlayer();
 
-      if (this.abortControl)
-         this.abortControl.abort();
+      if (allowed)
+      {
+        if (this.abortControl)
+          this.abortControl.abort();
+ 
+        this.abortControl = new AbortController();
 
-      this.abortControl = new AbortController();
+        this.displayStatusMessage('Loading AI list...', 'info');
 
-      this.displayStatusMessage('Loading AI list...', 'info');
-
-      // Store dialog state for response handler
-      this.pendingAIDialog = true;
-
-      eventBus.emit('system:aiListRequest', new ApiRequest('system:aiListRequest', null, this.abortControl.signal));
+        eventBus.emit('system:aiListRequest', new ApiRequest('system:aiListRequest', null, this.abortControl.signal));
+      }
+      else
+      {
+        this.displayStatusMessage(message, 'warning');
+        this.updatePlayerControlButtons();
+      }
    }
 
    /**
@@ -784,7 +867,6 @@ export class ManageGamesView extends MenuView
     */
    handleAIListResponse(event)
    {
-      this.pendingAIDialog = false;
       this.abortControl = null;
 
       if (!event.isSuccess() || !event.data)
@@ -962,7 +1044,7 @@ export class ManageGamesView extends MenuView
       });
 
       // Close button handler
-      const closeBtn = dialog.querySelector('.close-dialog-btn');
+      const closeBtn = dialog.querySelector('.cancel-dialog-btn');
       closeBtn.addEventListener('click', () => {document.body.removeChild(dialog);});
 
       // Close on outside click
@@ -980,9 +1062,6 @@ export class ManageGamesView extends MenuView
       document.addEventListener('keydown', escapeHandler);
    }
 
-   /**
-    * Show Edit Meta dialog
-    */
    showEditMetaDialog()
    {
       if (!this.selectedGame || !this.selectedPlayer) 
@@ -1044,12 +1123,10 @@ export class ManageGamesView extends MenuView
       this.dialog.show();
    }
 
-   /**
-    * Abort current operation and close dialog
-    */
    abort(message)
    {
       this.abortControl?.abort(message);
+
       if (this.dialog)
          this.dialog.close();
    }
@@ -1156,7 +1233,6 @@ export class ManageGamesView extends MenuView
 
    changePage(delta)
    {
-      console.log('🔐 ManageGamesView: Changing page to', this.currentPage, 'with delta', delta);
       const newPage = this.currentPage + delta;
 
       if (newPage >= 1 && newPage <= this.totalPages)
@@ -1174,18 +1250,9 @@ export class ManageGamesView extends MenuView
 
    updatePaginationControls()
    {
-      const prevBtn = this.container.querySelector('#prev-page-btn');
-      const nextBtn = this.container.querySelector('#next-page-btn');
-      const pageInfo = this.container.querySelector('#page-info');
-
-      if (prevBtn) 
-        prevBtn.disabled = this.currentPage <= 1;
-
-      if (nextBtn) 
-        nextBtn.disabled = this.currentPage >= this.totalPages;
-
-      if (pageInfo) 
-        pageInfo.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
+      Utils.requireChild(this.container, '#prev-page-btn').disabled = this.currentPage <= 1;
+      Utils.requireChild(this.container, '#next-page-btn').disabled = this.currentPage >= this.totalPages;
+      Utils.requireChild(this.container, '#page-info').textContent = `Page ${this.currentPage} of ${this.totalPages}`;
    }
 
    getContainer()
@@ -1215,7 +1282,6 @@ export class ManageGamesView extends MenuView
       this.selectedPlayer = null;
       this.games = [];
       this.players = [];
-      this.pendingCreateGameId = null;
       this.abortControl = null;
       this.pendingAIDialogElement = null;
       this.dialog = null;
@@ -1352,15 +1418,7 @@ const addAIPlayerDialogHTML = `
     gap: 10px;
     justify-content: flex-end;
   ">
-    <button class="close-dialog-btn" style="
-      padding: 10px 20px;
-      background: rgba(255, 255, 255, 0.1);
-      color: white;
-      border: 1px solid #00ff88;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-    ">Cancel</button>
+    <button class="cancel-dialog-btn">Cancel</button>
     <button class="add-ai-player-btn" style="
       padding: 10px 20px;
       background: #00ff88;
@@ -1380,7 +1438,22 @@ const addAIPlayerDialogHTML = `
  * @param {boolean} isSelected - Whether the game is selected
  * @returns {string} HTML string
  */
-const gameCardHTML = (game, isSelected) => `
+const gameCardHTML = (game, isSelected) => {
+   const substatusHTML = (game.substatus) 
+      ? `<div class="game-info-row">
+           <span class="game-label">Substatus:</span>
+           <span class="game-value">${Utils.escapeHtml(game.substatus)}</span>
+         </div>`
+      : '';
+   
+   const statusReasonHTML = (game.status_reason)
+      ? `<div class="game-info-row">
+           <span class="game-label">Status Reason:</span>
+           <span class="game-value">${Utils.escapeHtml(game.status_reason)}</span>
+         </div>`
+      : '';
+
+   return `
 <div class="game-card ${isSelected ? 'selected' : ''}" data-game-id="${game.id}">
   <div class="game-card-header">
     <h4 class="game-title">${Utils.escapeHtml(game.title)}</h4>
@@ -1407,9 +1480,12 @@ const gameCardHTML = (game, isSelected) => `
       <span class="game-label">Players:</span>
       <span class="game-value">${game.player_count || 0} / ${game.max_players || 6}</span>
     </div>
+    ${substatusHTML}
+    ${statusReasonHTML}
   </div>
 </div>
 `;
+};
 
 /**
  * Generate HTML for a player card
@@ -1421,22 +1497,27 @@ const playerCardHTML = (player, isSelected) =>
 {
    const metaStr = typeof player.meta === 'string' ? player.meta : JSON.stringify(player.meta || {}, null, 2);
    const isAI = player.type === 'ai';
-   const statusDisplay = isAI ? `${player.status || 'active'}-ai` : (player.status || 'active');
+   const nameDisplay = isAI ? `${player.name} (AI)` : player.name;
+   
+   const statusReasonHTML = (player.status_reason)
+      ? `<div class="player-info-row">
+           <span class="player-label">Status Reason:</span>
+           <span class="player-value">${Utils.escapeHtml(player.status_reason)}</span>
+         </div>`
+      : '';
+
    return `
 <div class="player-card ${isSelected ? 'selected' : ''}" data-player-id="${player.id}">
   <div class="player-card-header">
-    <h4 class="player-name">${Utils.escapeHtml(player.name)}</h4>
-    <span class="player-status-badge status-${player.status}">${Utils.escapeHtml(statusDisplay)}</span>
+    <h4 class="player-name">${Utils.escapeHtml(nameDisplay)}</h4>
+    <span class="player-status-badge status-${player.status}">${Utils.escapeHtml(player.status)}</span>
   </div>
   <div class="player-card-body">
     <div class="player-info-row">
       <span class="player-label">Country:</span>
       <span class="player-value">${Utils.escapeHtml(player.country_name || 'N/A')}</span>
     </div>
-    <div class="player-info-row">
-      <span class="player-label">Status:</span>
-      <span class="player-value">${Utils.escapeHtml(statusDisplay)}</span>
-    </div>
+    ${statusReasonHTML}
     <div class="player-info-row">
       <span class="player-label">Meta:</span>
       <span class="player-value meta-preview">${Utils.escapeHtml(metaStr.substring(0, 100))}${metaStr.length > 100 ? '...' : ''}</span>

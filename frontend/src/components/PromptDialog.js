@@ -76,16 +76,16 @@ export class PromptDialog
                 style="width: 100%; padding: 10px; margin-bottom: 20px; background: rgba(255, 255, 255, 0.1); border: 1px solid #00ff88; border-radius: 5px; color: white; font-size: 14px; box-sizing: border-box;"
                 autofocus>
          <div style="display: flex; gap: 10px; justify-content: flex-end;">
-            <button type="button" class="prompt-cancel-btn" style="padding: 10px 20px; background: rgba(255, 255, 255, 0.1); border: 1px solid #00ff88; border-radius: 5px; color: white; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.2s;">${Utils.escapeHtml(cancelText)}</button>
-            <button type="button" class="prompt-ok-btn" style="padding: 10px 20px; background: #00ff88; border: 1px solid #00ff88; border-radius: 5px; color: #000; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.2s;">${Utils.escapeHtml(okText)}</button>
+            <button type="button" class="cancel-dialog-btn">${Utils.escapeHtml(cancelText)}</button>
+            <button type="button" id="prompt-ok-btn" class="pagination-btn">${Utils.escapeHtml(okText)}</button>
          </div>
       `;
 
       // Get references to elements
       this.dragHandle = this.dialog.querySelector('.prompt-drag-handle');
       this.input = this.dialog.querySelector('.prompt-input');
-      this.okBtn = this.dialog.querySelector('.prompt-ok-btn');
-      this.cancelBtn = this.dialog.querySelector('.prompt-cancel-btn');
+      this.okBtn = this.dialog.querySelector('#prompt-ok-btn');
+      this.cancelBtn = this.dialog.querySelector('.cancel-dialog-btn');
 
       // Setup event handlers
       this.setupEventHandlers();
@@ -123,31 +123,6 @@ export class PromptDialog
       {
          e.preventDefault();
          this.close(null);
-      });
-
-      // Add hover effects
-      this.okBtn.addEventListener('mouseenter', () =>
-      {
-         this.okBtn.style.background = '#00cc6a';
-         this.okBtn.style.boxShadow = '0 0 10px rgba(0, 255, 136, 0.5)';
-      });
-
-      this.okBtn.addEventListener('mouseleave', () =>
-      {
-         this.okBtn.style.background = '#00ff88';
-         this.okBtn.style.boxShadow = 'none';
-      });
-
-      this.cancelBtn.addEventListener('mouseenter', () =>
-      {
-         this.cancelBtn.style.background = 'rgba(255, 255, 255, 0.2)';
-         this.cancelBtn.style.borderColor = '#00cc6a';
-      });
-      
-      this.cancelBtn.addEventListener('mouseleave', () =>
-      {
-         this.cancelBtn.style.background = 'rgba(255, 255, 255, 0.1)';
-         this.cancelBtn.style.borderColor = '#00ff88';
       });
    }
 

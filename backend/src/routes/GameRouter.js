@@ -966,6 +966,7 @@ export class GameRouter
       try
       {
          const {gameId, playerId} = req.params;
+         const { reason } = req.body;
 
          if (!gameId || !playerId)
             return res.status(400).json({error: 'Game ID and player ID are required'});
@@ -986,7 +987,7 @@ export class GameRouter
          // Use TurnService to end the turn
          const { TurnService } = await import('../services/TurnService.js');
          const turnService = new TurnService();
-         const result = await turnService.endPlayerTurn(gameId, playerId);
+         const result = await turnService.endPlayerTurn(gameId, playerId, reason || null);
 
          res.json({success: true, ...result});
       }
@@ -1006,7 +1007,7 @@ export class GameRouter
       try
       {
          const {gameId, playerId} = req.params;
-         const { status } = req.body;
+         const { status, statusReason } = req.body;
 
          if (!gameId || !playerId || !status)
             return res.status(400).json({error: 'Game ID, player ID, and status are required'});
@@ -1041,13 +1042,13 @@ export class GameRouter
          if (player.status === 'ejected' && status !== 'ejected')
             return res.status(400).json({error: 'Cannot change status of an ejected player'});
 
-         // Update status
+         // Update status and status_reason
          const { rows: updatedRows } = await pool.query(
             `UPDATE game_player 
-         SET status = $1 
+         SET status = $1, status_reason = $4
          WHERE id = $2 AND game_id = $3 
          RETURNING *`,
-            [status, playerId, gameId]
+            [status, playerId, gameId, statusReason || null]
          );
 
          res.json({success: true, player: updatedRows[0]});

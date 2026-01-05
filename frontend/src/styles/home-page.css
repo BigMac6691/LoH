@@ -1592,7 +1592,7 @@
 .player-label {
   font-weight: bold;
   color: var(--color-secondary, #00ffff);
-  min-width: 80px;
+  min-width: 95px;
 }
 
 .player-value {

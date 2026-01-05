@@ -666,7 +666,7 @@ export class SystemEventHandler
       if(!(event instanceof ApiRequest))
          throw new Error('SystemEventHandler: Invalid event type');
 
-      const { gameId, playerId } = event.data || {};
+      const { gameId, playerId, reason } = event.data || {};
 
       if (!gameId)
       {
@@ -684,7 +684,12 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPost(`/api/games/${gameId}/players/${playerId}/end-turn`, null, event.signal)
+      // Include reason in request body if provided
+      const requestBody = {};
+      if (reason !== null && reason !== undefined)
+         requestBody.reason = reason;
+
+      RB.fetchPost(`/api/games/${gameId}/players/${playerId}/end-turn`, requestBody, event.signal)
          .then(success =>
          {
             console.log('End player turn request success:', success);
@@ -714,7 +719,7 @@ export class SystemEventHandler
       if(!(event instanceof ApiRequest))
          throw new Error('SystemEventHandler: Invalid event type');
 
-      const { gameId, playerId, status } = event.data || {};
+      const { gameId, playerId, status, statusReason } = event.data || {};
 
       if (!gameId)
       {
@@ -739,7 +744,11 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPut(`/api/games/${gameId}/players/${playerId}/status`, {status}, event.signal)
+      const requestBody = {status};
+      if (statusReason !== null && statusReason !== undefined)
+         requestBody.statusReason = statusReason;
+
+      RB.fetchPut(`/api/games/${gameId}/players/${playerId}/status`, requestBody, event.signal)
          .then(success =>
          {
             console.log('Update player status request success:', success);

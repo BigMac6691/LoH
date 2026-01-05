@@ -81,24 +81,25 @@ export class TurnService
     * End a player's turn by updating their status to "waiting"
     * @param {string} gameId - Game ID
     * @param {string} playerId - Player ID
+    * @param {string|null} reason - Optional reason for ending the turn
     * @returns {Promise<Object>} Result object with success status and updated player info
     */
-   async endPlayerTurn(gameId, playerId)
+   async endPlayerTurn(gameId, playerId, reason = null)
    {
-      console.log(`🔄 TurnService: Ending turn for player ${playerId} in game ${gameId}`);
+      console.log(`🔄 TurnService: Ending turn for player ${playerId} in game ${gameId}${reason ? ` (reason: ${reason})` : ''}`);
 
       try
       {
-         // Update the player's status to "waiting"
+         // Update the player's status to "waiting" and optionally set status_reason
          const
          {
             rows
          } = await pool.query(
             `UPDATE game_player 
-         SET status = 'waiting'
+         SET status = 'waiting', status_reason = $3
          WHERE game_id = $1 AND id = $2
          RETURNING *`,
-            [gameId, playerId]
+            [gameId, playerId, reason]
          );
 
          if (rows.length === 0)

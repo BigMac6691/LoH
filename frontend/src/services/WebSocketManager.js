@@ -107,8 +107,10 @@ export class WebSocketManager
 
          if(event.startsWith('game:'))
             this.notifyListeners(event, data);
-         else
+         else if (event.includes(':'))
             eventBus.emit(event, new ApiEvent(event, data.data));
+         else
+            eventBus.emit("ui:statusMessage", new ApiEvent("ui:statusMessage", {message: event, type: 'info'}));
       });
 
       // Connection established
