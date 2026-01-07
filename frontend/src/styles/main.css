@@ -12,17 +12,50 @@
 @import './test-pages.css';
 
 /* Global overrides and additional styles */
-* {
+* 
+{
   box-sizing: border-box;
 }
 
-body {
+body 
+{
   margin: 0;
   padding: 0;
   font-family: Arial, sans-serif;
   background: #000;
   color: #fff;
   overflow-x: hidden;
+}
+
+button
+{
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-xl);
+  font-size: var(--font-size-lg);
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+  border: 2px solid;
+  text-transform: uppercase;
+  
+  color: rgba(var(--color-btn-rgb), var(--muted-alpha-off));
+  background: rgba(var(--color-btn-rgb), var(--muted-alpha-on));
+  border-color: rgba(var(--color-btn-rgb), var(--muted-alpha-off));
+
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  transform: none;
+}
+
+button:hover
+{
+  transform: scale(1.05);
+}
+
+button:disabled
+{
+  opacity: var(--muted-alpha-half);
+  cursor: not-allowed;
 }
 
 /* Ensure panels are above other content */

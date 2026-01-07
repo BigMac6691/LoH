@@ -2026,23 +2026,3 @@ dialog::backdrop {
   background: #ff4444;
   color: #fff;
 }
-
-.save-dialog-btn {
-  padding: 8px 16px;
-  background: rgba(0, 255, 136, 0.2);
-  color: #00ff88;
-  border: 1px solid #00ff88;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: all 0.2s ease;
-}
-
-.save-dialog-btn:hover {
-  background: #00cc6a;
-}
-
-.save-dialog-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}

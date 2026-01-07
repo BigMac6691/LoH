@@ -59,9 +59,9 @@ export class GamesAvailableList extends MenuView
           </div>
         </fieldset>
         <div class="pagination-controls">
-          <button class="pagination-btn" id="prev-page-btn" disabled>Previous</button>
+          <button id="prev-page-btn" disabled>Previous</button>
           <span class="pagination-info" id="page-info">Page 1 of 1</span>
-          <button class="pagination-btn" id="next-page-btn" disabled>Next</button>
+          <button id="next-page-btn" disabled>Next</button>
         </div>
       </div>
     `;
@@ -347,7 +347,7 @@ const gameHTML = (game) => `
             placeholder="Country name" 
             maxlength="50"
           />
-          <button class="game-action-btn join-btn" data-game-id="${game.id}">
+          <button class="join-btn" data-game-id="${game.id}">
             JOIN
           </button>
         </div>

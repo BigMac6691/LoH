@@ -30,7 +30,7 @@ export class ManageNewsEventsView extends MenuView {
           <div class="events-list-panel">
             <div class="panel-header">
               <h3>System Events</h3>
-              <button class="btn-create" id="btn-create-event">+ Create New</button>
+              <button id="btn-create-event">+ Create New</button>
             </div>
             <div class="events-list-container" id="events-list-container">
               <div class="events-loading">Loading events...</div>
@@ -235,8 +235,8 @@ export class ManageNewsEventsView extends MenuView {
               placeholder="Enter event text (max 1024 characters)..."></textarea>
           </div>
           <div class="editor-actions">
-            <button class="btn-save" id="btn-save-create">Save</button>
-            <button class="btn-cancel" id="btn-cancel-create">Cancel</button>
+            <button id="btn-save-create">Save</button>
+            <button class="cancel-dialog-btn" id="btn-cancel-create">Cancel</button>
           </div>
         </div>
       `;
@@ -284,9 +284,9 @@ export class ManageNewsEventsView extends MenuView {
               placeholder="Enter event text (max 1024 characters)...">${this.escapeHtml(this.selectedEvent.text)}</textarea>
           </div>
           <div class="editor-actions">
-            <button class="btn-save" id="btn-save-edit">Save</button>
-            <button class="btn-delete" id="btn-delete-edit">Delete</button>
-            <button class="btn-cancel" id="btn-cancel-edit">Cancel</button>
+            <button id="btn-save-edit">Save</button>
+            <button id="btn-delete-edit">Delete</button>
+            <button class="cancel-dialog-btn" id="btn-cancel-edit">Cancel</button>
           </div>
         </div>
       `;

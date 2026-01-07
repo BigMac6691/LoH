@@ -56,9 +56,9 @@ export class GamesPlayingList extends MenuView
           <div class="games-loading">Loading games...</div>
         </div>
         <div class="pagination-controls">
-          <button class="pagination-btn" id="prev-page-btn" disabled>Previous</button>
+          <button id="prev-page-btn" disabled>Previous</button>
           <span class="pagination-info" id="page-info">Page 1 of 1</span>
-          <button class="pagination-btn" id="next-page-btn" disabled>Next</button>
+          <button id="next-page-btn" disabled>Next</button>
         </div>
       </div>
       `;
@@ -286,7 +286,7 @@ const gameHTML = (game) =>
           </div>
         </div>
         <div class="game-card-footer">
-          <button class="game-action-btn play-btn" data-game-id="${game.id}" ${game.status === 'lobby' || game.status === 'frozen' ? 'disabled' : ''}>
+          <button class="play-btn" data-game-id="${game.id}" ${game.status === 'lobby' || game.status === 'frozen' ? 'disabled' : ''}>
             PLAY
           </button>
         </div>

@@ -77,7 +77,7 @@ export class PromptDialog
                 autofocus>
          <div style="display: flex; gap: 10px; justify-content: flex-end;">
             <button type="button" class="cancel-dialog-btn">${Utils.escapeHtml(cancelText)}</button>
-            <button type="button" id="prompt-ok-btn" class="pagination-btn">${Utils.escapeHtml(okText)}</button>
+            <button type="button" id="prompt-ok-btn">${Utils.escapeHtml(okText)}</button>
          </div>
       `;
 

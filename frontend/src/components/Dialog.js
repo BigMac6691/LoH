@@ -19,22 +19,7 @@ export class Dialog
    {
       this.dialog = document.createElement('dialog');
       this.dialog.className = options.className || 'app-dialog';
-      
-      // Apply default styles to match existing appearance
-      this.dialog.style.cssText = 
-      `  background: rgba(0, 0, 0, 0.95);
-         border: 2px solid #00ff88;
-         border-radius: 15px;
-         padding: 30px;
-         color: white;
-         min-width: 400px;
-         max-width: 500px;
-         backdrop-filter: blur(10px);
-         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-         ${options.styles || ''}
-      `;
-
-      // Build dialog HTML structure (without buttons initially)
+      this.dialog.style.cssText = `${dialogCSS} ${options.styles || ''}`;
       this.dialog.innerHTML = 
       `  <h2 style="margin: 0 0 20px 0; color: #00ff88; text-align: center;">${options.title || 'Dialog'}</h2>
          ${options.contentHTML || ''}
@@ -95,13 +80,24 @@ export class Dialog
    setDisabled(state)
    {
       Utils.requireChild(this.dialog, 'fieldset').disabled = state;
-      Utils.requireChild(this.dialog, '.save-dialog-btn').disabled = state;
+      Utils.requireChild(this.dialog, '#save-dialog-btn').disabled = state;
    }
 }
 
 const getBottomButtonsHTML = (buttonText) =>
 `  <div style="display: flex; gap: 10px; justify-content: flex-end;">
     <button type="button" class="cancel-dialog-btn">Cancel</button>
-    <button type="submit" class="save-dialog-btn">${buttonText}</button>
+    <button type="submit" id="save-dialog-btn">${buttonText}</button>
   </div>
-`
+`;
+
+const dialogCSS = `  background: rgba(0, 0, 0, 0.95);
+         border: 2px solid #00ff88;
+         border-radius: 15px;
+         padding: 30px;
+         color: white;
+         min-width: 400px;
+         max-width: 500px;
+         backdrop-filter: blur(10px);
+         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      `;

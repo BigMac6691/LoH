@@ -242,7 +242,7 @@ const createHTML = `
 
             <!-- Create Button -->
             <div class="form-actions">
-              <button type="submit" id="create-game-btn" class="create-btn">Create Game</button>
+              <button type="submit" id="create-game-btn">Create Game</button>
             </div>
           </fieldset>
         </form>

@@ -88,8 +88,8 @@ export class PlayerProfileView extends MenuView
       // Add event listeners
       if(!this.profileData?.emailVerified)
       {
-         Utils.requireChild(this.container, '.resend-verification-btn').addEventListener('click', () => { this.handleResendVerification(); });
-         Utils.requireChild(this.container, '.verify-email-btn').addEventListener('click', () => { this.showVerifyEmailDialog(); });
+         Utils.requireChild(this.container, '#resend-verification-btn').addEventListener('click', () => { this.handleResendVerification(); });
+         Utils.requireChild(this.container, '#verify-email-btn').addEventListener('click', () => { this.showVerifyEmailDialog(); });
       }
       
       Utils.requireChild(this.container, '#change-password-btn').addEventListener('click', () => { this.showChangePasswordDialog(); });
@@ -206,7 +206,7 @@ export class PlayerProfileView extends MenuView
 
       this.statusComponent.mount(Utils.requireChild(this.dialog.getDialog(), '#password-mount-point'));
 
-      Utils.requireChild(this.dialog.getDialog(), '.save-dialog-btn').addEventListener('click', (e) =>
+      Utils.requireChild(this.dialog.getDialog(), '#save-dialog-btn').addEventListener('click', (e) =>
       {
          e.preventDefault();
 
@@ -314,11 +314,11 @@ export class PlayerProfileView extends MenuView
       tokenInput.addEventListener('keypress', (e) =>
       {
          if (e.key === 'Enter')
-            Utils.requireChild(this.dialog.getDialog(), '.save-dialog-btn').click();
+            Utils.requireChild(this.dialog.getDialog(), '#save-dialog-btn').click();
       });
 
       Utils.requireChild(this.dialog.getDialog(), '.cancel-dialog-btn').addEventListener('click', () => { this.abort('User cancelled verification'); });
-      Utils.requireChild(this.dialog.getDialog(), '.save-dialog-btn').addEventListener('click', () =>
+      Utils.requireChild(this.dialog.getDialog(), '#save-dialog-btn').addEventListener('click', () =>
       {
          const token = tokenInput.value.trim();
          if (!token)
@@ -444,7 +444,7 @@ const initialHTML = `
 const getProfileViewHTML = (user, formatPhoneNumber) => 
 `<div class="view-header">
   <h2 style="margin: 5px;">Player Profile</h2>
-  <button id="edit-profile-btn" class="save-dialog-btn">Edit Profile</button>
+  <button id="edit-profile-btn">Edit Profile</button>
 </div>
 <div class="view-content">
   <div class="profile-info">
@@ -456,8 +456,8 @@ const getProfileViewHTML = (user, formatPhoneNumber) =>
           ${Utils.escapeHtml(user?.email || 'N/A')}
           ${user?.emailVerified ? '<span id="email-verified-badge" class="email-verified-badge">✓ Verified</span>' : '<span id="email-unverified-badge" class="email-unverified-badge">✗ Unverified</span>'}
           ${!user?.emailVerified ? 
-          ` <button class="verify-email-btn" style="padding: 4px 12px; background: rgba(0, 255, 136, 0.2); color: #00ff88; border: 1px solid #00ff88; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: bold;">Verify Email</button>
-            <button class="resend-verification-btn" style="padding: 4px 12px; background: rgba(0, 150, 255, 0.2); color: #0096ff; border: 1px solid #0096ff; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: bold;">Resend Token</button>
+          ` <button id="verify-email-btn">Verify Email</button>
+            <button id="resend-verification-btn">Resend Token</button>
           ` : ''}
         </span>
       </div>
@@ -483,7 +483,7 @@ const getProfileViewHTML = (user, formatPhoneNumber) =>
     </div>
     <div class="profile-section">
       <h3>Password</h3>
-      <button id="change-password-btn" class="save-dialog-btn">Change Password</button>
+      <button id="change-password-btn">Change Password</button>
     </div>
   </div>
 </div>
@@ -493,7 +493,7 @@ const getProfileEditFormHTML = (user) =>
 `<div class="view-header">
   <h2 style="margin: 5px;">Edit Profile</h2>
   <button id="cancel-edit-profile-btn" class="cancel-dialog-btn">Cancel</button>
-  <button id="save-profile-btn" class="save-dialog-btn">Save Changes</button>
+  <button id="save-profile-btn">Save Changes</button>
 </div>
 <div class="view-content">
   <form class="profile-edit-form" id="profile-edit-form">

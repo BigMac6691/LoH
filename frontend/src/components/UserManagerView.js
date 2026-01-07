@@ -356,8 +356,8 @@ export class UserManagerView extends MenuView {
         </div>
         
         <div class="editor-actions">
-          <button class="btn-save" id="btn-save-user">Save Changes</button>
-          <button class="btn-reset-password" id="btn-reset-password">Reset Password</button>
+          <button id="btn-save-user">Save Changes</button>
+          <button id="btn-reset-password">Reset Password</button>
         </div>
       </div>
     `;

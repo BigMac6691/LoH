@@ -33,7 +33,7 @@ export class ManageGamesView extends MenuView
       this.totalPages = 1;
       this.userRole = localStorage.getItem('user_role');
       this.abortControl = null;
-      this.pendingAIDialogElement = null;
+      this.pendingAIPlayerDialog = null;
       this.dialog = null;
 
       // Register event handlers
@@ -430,8 +430,8 @@ export class ManageGamesView extends MenuView
       {
         if (this.selectedGame.status === 'paused')
           this.updateGameStatus(this.selectedGame.id, 'running');
-        else
-        {
+      else
+      {
           const dialog = new PromptDialog(
           {
             title: 'Pause Game',
@@ -487,8 +487,8 @@ export class ManageGamesView extends MenuView
       else
       {
         this.displayStatusMessage(message, 'warning');
-        this.updateGameControlButtons();
-        this.updatePlayerControlButtons();
+         this.updateGameControlButtons();
+          this.updatePlayerControlButtons();
       }
    }
 
@@ -580,7 +580,7 @@ export class ManageGamesView extends MenuView
             this.selectedGame.substatus = substatus;
             this.selectedGame.status_reason = statusReason;
             this.updateGameControlButtons();
-            this.updatePlayerControlButtons();
+         this.updatePlayerControlButtons();
          }
 
          this.renderGames();
@@ -619,8 +619,8 @@ export class ManageGamesView extends MenuView
          {
             this.displayStatusMessage('Invalid response: missing game ID or status', 'error');
             this.abortControl = null;
-            return;
-         }
+         return;
+      }
 
          // Find and update the game in the games array
          const gameIndex = this.games.findIndex(game => game.id === gameId);
@@ -723,8 +723,8 @@ export class ManageGamesView extends MenuView
       
       if (allowed)
           this.updatePlayerStatus(this.selectedGame.id, this.selectedPlayer.id, 'active');
-      else
-      {
+         else
+         {
         this.displayStatusMessage(message, 'warning');
         this.updatePlayerControlButtons();
       }
@@ -853,9 +853,9 @@ export class ManageGamesView extends MenuView
         this.displayStatusMessage('Loading AI list...', 'info');
 
         eventBus.emit('system:aiListRequest', new ApiRequest('system:aiListRequest', null, this.abortControl.signal));
-      }
-      else
-      {
+            }
+            else
+            {
         this.displayStatusMessage(message, 'warning');
         this.updatePlayerControlButtons();
       }
@@ -886,180 +886,11 @@ export class ManageGamesView extends MenuView
     */
    createAIPlayerDialog(availableAIs)
    {
+      if (this.pendingAIPlayerDialog)
+         throw new Error('ManageGamesView: Add AI Player dialog is already open');
 
-      // Create dialog
-      const dialog = document.createElement('div');
-      dialog.className = 'ai-player-dialog';
-      dialog.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.95);
-      border: 2px solid #00ff88;
-      border-radius: 15px;
-      padding: 30px;
-      color: white;
-      z-index: 10002;
-      min-width: 500px;
-      max-width: 700px;
-      max-height: 90vh;
-      overflow-y: auto;
-      backdrop-filter: blur(10px);
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    `;
-
-      dialog.innerHTML = addAIPlayerDialogHTML;
-
-      document.body.appendChild(dialog);
-
-      // Populate AI select
-      const aiSelect = dialog.querySelector('#ai-select');
-      availableAIs.forEach(ai =>
-      {
-         const option = document.createElement('option');
-         option.value = ai.name;
-         option.textContent = ai.name;
-         aiSelect.appendChild(option);
-      });
-
-      const aiDescription = dialog.querySelector('#ai-description');
-      const aiConfigContainer = dialog.querySelector('#ai-config-container');
-      const playerNameInput = dialog.querySelector('#player-name-input');
-      const countryNameInput = dialog.querySelector('#country-name-input');
-      const addBtn = dialog.querySelector('.add-ai-player-btn');
-      const formBuilder = new AIConfigFormBuilder();
-      let currentForm = null;
-      let selectedAI = null;
-
-      // AI selection handler
-      aiSelect.addEventListener('change', async (e) =>
-      {
-         const aiName = e.target.value;
-         if (!aiName)
-         {
-            aiDescription.style.display = 'none';
-            aiConfigContainer.style.display = 'none';
-            addBtn.disabled = true;
-            selectedAI = null;
-            return;
-         }
-
-         selectedAI = availableAIs.find(ai => ai.name === aiName);
-         if (!selectedAI) 
-          return;
-
-         // Show description
-         if (selectedAI.description)
-         {
-            aiDescription.textContent = selectedAI.description;
-            aiDescription.style.display = 'block';
-         }
-         else
-            aiDescription.style.display = 'none';
-
-         // Build config form
-         if (selectedAI.schema && Object.keys(selectedAI.schema).length > 0)
-         {
-            currentForm = formBuilder.buildForm(selectedAI.schema, {}, aiConfigContainer); //build form from AI schema
-            aiConfigContainer.style.display = 'block';
-         }
-         else
-         {
-            aiConfigContainer.innerHTML = '<p style="color: #888; font-size: 13px;">This AI has no configurable options.</p>';
-            aiConfigContainer.style.display = 'block';
-            currentForm = 
-            {
-               getData: () => ({}), //return empty object
-               validate: () => []
-            };
-         }
-
-         // Enable add button if required fields are filled
-         updateAddButtonState();
-      });
-
-      playerNameInput.addEventListener('input', () => { updateAddButtonState(); });
-      countryNameInput.addEventListener('input', () => { updateAddButtonState(); });
-
-      // Update add button state
-      function updateAddButtonState()
-      {
-         const hasPlayerName = playerNameInput.value.trim().length > 0;
-         const hasCountryName = countryNameInput.value.trim().length > 0;
-         const hasAI = selectedAI !== null;
-         addBtn.disabled = !(hasPlayerName && hasCountryName && hasAI);
-      }
-
-      // Add AI player handler
-      addBtn.addEventListener('click', () =>
-      {
-         if (addBtn.disabled) 
-          return;
-
-         const playerName = playerNameInput.value.trim();
-         const countryName = countryNameInput.value.trim();
-
-         if (!playerName)
-          return this.displayStatusMessage('Player name is required', 'error'); //void function call
-
-         if (!countryName)
-          return this.displayStatusMessage('Country name is required', 'error'); //void function call
-
-         if (!selectedAI)
-          return this.displayStatusMessage('Please select an AI', 'error');
-
-         // Validate form
-         if (currentForm)
-         {
-            const errors = currentForm.validate();
-            if (errors.length > 0)
-              return this.displayStatusMessage(errors.join(', '), 'error'); //void function call
-         }
-
-         // Get AI config
-         const aiConfig = currentForm?.getData() || {};
-
-         // Disable button during request
-         addBtn.disabled = true;
-         addBtn.textContent = 'Adding...';
-
-         // Store dialog reference for cleanup
-         this.pendingAIDialogElement = dialog;
-
-         if (this.abortControl)
-            this.abortControl.abort();
-
-         this.abortControl = new AbortController();
-
-         this.displayStatusMessage('Adding AI player...', 'info');
-
-         eventBus.emit('system:addAIPlayerRequest', new ApiRequest('system:addAIPlayerRequest', {
-            gameId: this.selectedGame.id,
-            aiName: selectedAI.name,
-            playerName,
-            countryName,
-            aiConfig
-         }, this.abortControl.signal));
-      });
-
-      // Close button handler
-      const closeBtn = dialog.querySelector('.cancel-dialog-btn');
-      closeBtn.addEventListener('click', () => {document.body.removeChild(dialog);});
-
-      // Close on outside click
-      dialog.addEventListener('click', (e) => {if (e.target === dialog) document.body.removeChild(dialog);});
-
-      // Close on Escape key
-      const escapeHandler = (e) =>
-      {
-         if (e.key === 'Escape')
-         {
-            document.body.removeChild(dialog);
-            document.removeEventListener('keydown', escapeHandler);
-         }
-      };
-      document.addEventListener('keydown', escapeHandler);
+      this.pendingAIPlayerDialog = new AddAIPlayerDialog(availableAIs, this);
+      this.pendingAIPlayerDialog.show();
    }
 
    showEditMetaDialog()
@@ -1084,24 +915,24 @@ export class ManageGamesView extends MenuView
 
       this.statusComponent.mount(Utils.requireChild(this.dialog.getDialog(), '#meta-mount-point'));
 
-      Utils.requireChild(this.dialog.getDialog(), '.save-dialog-btn').addEventListener('click', (e) =>
+      Utils.requireChild(this.dialog.getDialog(), '#save-dialog-btn').addEventListener('click', (e) =>
       {
          e.preventDefault();
 
          const metaInput = Utils.requireChild(this.dialog.getDialog(), '#player-meta-input');
-         const metaStr = metaInput.value.trim();
+      const metaStr = metaInput.value.trim();
 
-         // Validate JSON
-         let metaData;
-         try
-         {
-            metaData = JSON.parse(metaStr);
-         }
-         catch (e)
-         {
-            this.displayStatusMessage('Error: Meta must be valid JSON', 'error');
-            return;
-         }
+      // Validate JSON
+      let metaData;
+      try
+      {
+         metaData = JSON.parse(metaStr);
+      }
+      catch (e)
+      {
+         this.displayStatusMessage('Error: Meta must be valid JSON', 'error');
+         return;
+      }
 
          if (this.abortControl)
             this.abortControl.abort();
@@ -1131,9 +962,6 @@ export class ManageGamesView extends MenuView
          this.dialog.close();
    }
 
-   /**
-    * Handle dialog close
-    */
    handleDialogClose()
    {
       this.dialog = null;
@@ -1152,6 +980,8 @@ export class ManageGamesView extends MenuView
     */
    handleUpdatePlayerMetaResponse(event)
    {
+      console.log('🔐 ManageGamesView: Handling update player meta response', event);
+
       if (this.dialog)
          this.dialog.setDisabled(false);
 
@@ -1175,10 +1005,7 @@ export class ManageGamesView extends MenuView
             this.dialog.close();
       }
       else
-      {
-         console.error('Error updating player meta:', event);
          this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to update player meta', 'error');
-      }
 
       this.abortControl = null;
    }
@@ -1189,44 +1016,32 @@ export class ManageGamesView extends MenuView
     */
    handleAddAIPlayerResponse(event)
    {
-      const dialog = this.pendingAIDialogElement;
-      const addBtn = dialog?.querySelector('.add-ai-player-btn');
+      console.log('🔐 ManageGamesView: Handling add AI player response', event);
+
+      if (!this.pendingAIPlayerDialog)
+         return;
+
+      const addBtn = dialog.getDialog().querySelector('#add-ai-player-btn');
+      addBtn.disabled = false;
+      addBtn.textContent = 'Add AI Player';
 
       if (event.isSuccess())
       {
-         // Close dialog
-         if (dialog && dialog.parentNode)
-            document.body.removeChild(dialog);
+         dialog.close();
+         this.pendingAIPlayerDialog = null;
 
-         this.pendingAIDialogElement = null;
-
-         // Reload games and players
+         // Reload games and players or maybe update the game and reload players before re-rendering both lists
          this.loadGames(this.currentPage);
 
-         if (this.selectedGame)
+         if (this.selectedGame) // not needed if we re-render
             this.selectGame(this.selectedGame.id);
 
          this.displayStatusMessage('AI player added successfully', 'success');
       }
       else if (event.isAborted())
-      {
-         if (addBtn)
-         {
-            addBtn.disabled = false;
-            addBtn.textContent = 'Add AI Player';
-         }
          this.displayStatusMessage('Add AI player aborted.', 'error');
-      }
       else
-      {
-         console.error('Error adding AI player:', event);
          this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to add AI player', 'error');
-         if (addBtn)
-         {
-            addBtn.disabled = false;
-            addBtn.textContent = 'Add AI Player';
-         }
-      }
 
       this.abortControl = null;
    }
@@ -1244,7 +1059,7 @@ export class ManageGamesView extends MenuView
         this.updateGameControlButtons();
         this.updatePlayerControlButtons();
         this.renderPlayers();
-        this.loadGames(newPage);
+         this.loadGames(newPage);
       }
    }
 
@@ -1283,7 +1098,7 @@ export class ManageGamesView extends MenuView
       this.games = [];
       this.players = [];
       this.abortControl = null;
-      this.pendingAIDialogElement = null;
+      this.pendingAIPlayerDialog = null;
       this.dialog = null;
    }
 }
@@ -1296,44 +1111,44 @@ const manageGamesHTML = `
 <div class="manage-games-split-container">
   <!-- Left Panel: Games List -->
   <div class="manage-games-left-panel">
-    <div class="manage-games-section">
-      <h3>Games</h3>
-      <div class="games-list-container">
-        <div class="games-loading">Loading games...</div>
-      </div>
-      <div class="pagination-controls">
-        <button class="pagination-btn" id="prev-page-btn" disabled>Previous</button>
-        <span class="pagination-info" id="page-info">Page 1 of 1</span>
-        <button class="pagination-btn" id="next-page-btn" disabled>Next</button>
-      </div>
-    </div>
+<div class="manage-games-section">
+  <h3>Games</h3>
+  <div class="games-list-container">
+    <div class="games-loading">Loading games...</div>
   </div>
+  <div class="pagination-controls">
+    <button id="prev-page-btn" disabled>Previous</button>
+    <span class="pagination-info" id="page-info">Page 1 of 1</span>
+    <button id="next-page-btn" disabled>Next</button>
+      </div>
+  </div>
+</div>
 
   <!-- Right Panel: Management Controls -->
   <div class="manage-games-right-panel">
-    <!-- Game Control Buttons -->
+<!-- Game Control Buttons -->
     <div class="manage-games-section manage-games-fixed-section">
-      <h3>Game Controls</h3>
-      <div class="game-controls">
-        <button class="control-btn" id="start-game-btn" disabled>Start</button>
-        <button class="control-btn" id="pause-unpause-btn" disabled>Pause</button>
-        <button class="control-btn" id="freeze-unfreeze-btn" disabled>Freeze</button>
-        <button class="control-btn" id="finish-game-btn" disabled>Finish</button>
-        <button class="control-btn" id="add-ai-player-btn" disabled>Add AI Player</button>
-      </div>
-    </div>
+  <h3>Game Controls</h3>
+  <div class="game-controls">
+    <button id="start-game-btn" disabled>Start</button>
+    <button id="pause-unpause-btn" disabled>Pause</button>
+    <button id="freeze-unfreeze-btn" disabled>Freeze</button>
+    <button id="finish-game-btn" disabled>Finish</button>
+    <button id="add-ai-player-btn" disabled>Add AI Player</button>
+  </div>
+</div>
 
-    <!-- Player Control Buttons -->
+<!-- Player Control Buttons -->
     <div class="manage-games-section manage-games-fixed-section">
-      <h3>Player Controls</h3>
-      <div class="player-controls">
-        <button class="control-btn" id="end-turn-btn" disabled>End Turn</button>
-        <button class="control-btn" id="reset-status-btn" disabled>Reset Status</button>
-        <button class="control-btn" id="suspend-btn" disabled>Suspend</button>
-        <button class="control-btn" id="eject-btn" disabled>Eject</button>
-        <button class="control-btn" id="edit-meta-btn" disabled>Edit Meta</button>
-      </div>
-    </div>
+  <h3>Player Controls</h3>
+  <div class="player-controls">
+    <button id="end-turn-btn" disabled>End Turn</button>
+    <button id="reset-status-btn" disabled>Reset Status</button>
+    <button id="suspend-btn" disabled>Suspend</button>
+    <button id="eject-btn" disabled>Eject</button>
+        <button id="edit-meta-btn" disabled>Edit Meta</button>
+  </div>
+</div>
 
     <!-- Players List -->
     <div class="manage-games-section manage-games-scrollable-section">
@@ -1351,85 +1166,64 @@ const manageGamesHTML = `
  * HTML for the Add AI Player dialog
  */
 const addAIPlayerDialogHTML = `
-<h2 style="margin: 0 0 20px 0; color: #00ff88; text-align: center;">Add AI Player</h2>
-<div class="ai-dialog-content">
-  <div class="ai-selection-group">
-    <label for="ai-select" style="display: block; margin-bottom: 8px; color: #00ff88;">Select AI:</label>
-    <select id="ai-select" class="ai-select" style="
-      width: 100%;
-      padding: 8px;
-      background: rgba(0, 0, 0, 0.8);
-      border: 1px solid #00ff88;
-      border-radius: 5px;
-      color: white;
-      font-size: 14px;
-      margin-bottom: 15px;
-    ">
-      <option value="">-- Select an AI --</option>
-    </select>
-  </div>
-  <div id="ai-description" class="ai-description" style="
-    margin-bottom: 15px;
-    padding: 10px;
-    background: rgba(0, 255, 136, 0.1);
-    border-left: 3px solid #00ff88;
-    border-radius: 5px;
-    font-size: 13px;
-    line-height: 1.5;
-    display: none;
-  "></div>
-  <div class="player-name-group">
-    <label for="player-name-input" style="display: block; margin-bottom: 8px; color: #00ff88;">Player Name:</label>
-    <input type="text" id="player-name-input" class="player-name-input" placeholder="Enter unique player name" style="
-      width: 100%;
-      padding: 8px;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid #00ff88;
-      border-radius: 5px;
-      color: white;
-      font-size: 14px;
-      margin-bottom: 15px;
-    " />
-  </div>
-  <div class="country-name-group">
-    <label for="country-name-input" style="display: block; margin-bottom: 8px; color: #00ff88;">Country Name:</label>
-    <input type="text" id="country-name-input" class="country-name-input" placeholder="Enter unique country name" style="
-      width: 100%;
-      padding: 8px;
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid #00ff88;
-      border-radius: 5px;
-      color: white;
-      font-size: 14px;
-      margin-bottom: 15px;
-    " />
-  </div>
-  <div id="ai-config-container" class="ai-config-container" style="
-    margin-bottom: 20px;
-    display: none;
-  "></div>
-  <div id="ai-dialog-error" class="ai-dialog-error" style="
-    color: #ff4444;
-    margin-bottom: 15px;
-    display: none;
-  "></div>
-  <div class="ai-dialog-actions" style="
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-  ">
+<h2 style="margin: 0 0 5px 0; color: #00ff88; text-align: center;">Add AI Player</h2>
+      <div class="ai-dialog-content">
+        <div class="ai-selection-group">
+          <label for="ai-select" style="display: block; margin-bottom: 8px; color: #00ff88;">Select AI:</label>
+    <select id="ai-select" class="ai-select">
+            <option value="">-- Select an AI --</option>
+          </select>
+        </div>
+        <div id="ai-description" class="ai-description" style="
+          margin-bottom: 15px;
+          padding: 10px;
+          background: rgba(0, 255, 136, 0.1);
+          border-left: 3px solid #00ff88;
+          border-radius: 5px;
+          font-size: 13px;
+          line-height: 1.5;
+          display: none;
+        "></div>
+        <div class="player-name-group">
+          <label for="player-name-input" style="display: block; margin-bottom: 8px; color: #00ff88;">Player Name:</label>
+          <input type="text" id="player-name-input" class="player-name-input" placeholder="Enter unique player name" style="
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            color: white;
+            font-size: 14px;
+            margin-bottom: 15px;
+          " />
+        </div>
+        <div class="country-name-group">
+          <label for="country-name-input" style="display: block; margin-bottom: 8px; color: #00ff88;">Country Name:</label>
+          <input type="text" id="country-name-input" class="country-name-input" placeholder="Enter unique country name" style="
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            color: white;
+            font-size: 14px;
+            margin-bottom: 15px;
+          " />
+        </div>
+  <fieldset id="ai-config-container" class="ai-config-container" style="
+          margin-bottom: 20px;
+          display: none;
+  "></fieldset>
+        <div class="ai-dialog-actions" style="
+          display: flex;
+          gap: 10px;
+          justify-content: flex-end;
+        ">
     <button class="cancel-dialog-btn">Cancel</button>
-    <button class="add-ai-player-btn" style="
-      padding: 10px 20px;
-      background: #00ff88;
-      color: black;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-    " disabled>Add AI Player</button>
-  </div>
-</div>
+          <button id="add-ai-player-btn" disabled>Add AI Player</button>
+        </div>
+      </div>
+<div id="ai-config-mount-point"></div>
 `;
 
 /**
@@ -1559,3 +1353,209 @@ const editMetaDialogHTML = (initialMeta) =>
 </fieldset>
 <div id="meta-mount-point"></div>
 `;
+
+const addAIPlayerDialogCSS = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      border: 2px solid #00ff88;
+      border-radius: 15px;
+      padding: 30px;
+      color: white;
+      z-index: 10002;
+      min-width: 500px;
+      max-width: 700px;
+      max-height: 90vh;
+      overflow-y: auto;
+      backdrop-filter: blur(10px);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    `;
+
+/**
+ * AddAIPlayerDialog - Dialog for adding AI players to a game
+ * Used exclusively within ManageGamesView
+ */
+class AddAIPlayerDialog
+{
+   constructor(availableAIs, context)
+   {
+      this.context = context;
+      this.availableAIs = availableAIs;
+      this.formBuilder = new AIConfigFormBuilder();
+      this.currentForm = null;
+      this.selectedAI = null;
+      this.escapeHandler = null;
+
+      this.dialog = document.createElement('div');
+      this.dialog.className = 'ai-player-dialog';
+      this.dialog.style.cssText = addAIPlayerDialogCSS;
+      this.dialog.innerHTML = addAIPlayerDialogHTML;
+
+      this.setupElements();
+      this.setupEventHandlers();
+   }
+
+   setupElements()
+   {
+      this.aiSelect = this.dialog.querySelector('#ai-select');
+      this.aiDescription = this.dialog.querySelector('#ai-description');
+      this.aiConfigContainer = this.dialog.querySelector('#ai-config-container');
+      this.playerNameInput = this.dialog.querySelector('#player-name-input');
+      this.countryNameInput = this.dialog.querySelector('#country-name-input');
+      this.addBtn = this.dialog.querySelector('#add-ai-player-btn');
+      this.cancelBtn = this.dialog.querySelector('.cancel-dialog-btn');
+
+      // Populate AI select
+      this.availableAIs.forEach(ai =>
+      {
+         const option = document.createElement('option');
+         option.value = ai.name;
+         option.textContent = ai.name;
+         this.aiSelect.appendChild(option);
+      });
+   }
+
+   setupEventHandlers()
+   {
+      this.aiSelect.addEventListener('change', (e) => this.handleAISelection(e));
+      this.playerNameInput.addEventListener('input', () => this.updateAddButtonState());
+      this.countryNameInput.addEventListener('input', () => this.updateAddButtonState());
+      this.addBtn.addEventListener('click', () => this.handleAddClick());
+      this.cancelBtn.addEventListener('click', () => this.close());
+
+      // Close on Escape key
+      this.escapeHandler = (e) =>
+      {
+         if (e.key === 'Escape')
+            this.close();
+      };
+      document.addEventListener('keydown', this.escapeHandler);
+   }
+
+   handleAISelection(e)
+      {
+         const aiName = e.target.value;
+         if (!aiName)
+         {
+         this.aiDescription.style.display = 'none';
+         this.aiConfigContainer.style.display = 'none';
+         this.addBtn.disabled = true;
+         this.selectedAI = null;
+            return;
+         }
+
+      this.selectedAI = this.availableAIs.find(ai => ai.name === aiName);
+      if (!this.selectedAI)
+         return this.context.displayStatusMessage('Unable to find AI in list of registered AIs', 'error');
+
+      this.aiDescription.textContent = this.selectedAI.description || 'No description available';
+      this.aiDescription.style.display = 'block';
+
+         // Build config form
+      if (this.selectedAI.schema && Object.keys(this.selectedAI.schema).length > 0)
+         this.currentForm = this.formBuilder.buildForm(this.selectedAI.schema, {}, this.aiConfigContainer);
+         else
+         {
+         this.aiConfigContainer.innerHTML = '<p style="color: #888; font-size: 13px;">This AI has no configurable options.</p>';
+         this.currentForm = 
+         {
+            getData: () => ({}),
+               validate: () => []
+            };
+         }
+
+      this.aiConfigContainer.style.display = 'block';
+      this.updateAddButtonState();
+   }
+
+   updateAddButtonState()
+   {
+      const hasPlayerName = this.playerNameInput.value.trim().length > 0;
+      const hasCountryName = this.countryNameInput.value.trim().length > 0;
+      const hasAI = this.selectedAI !== null;
+      this.addBtn.disabled = !(hasPlayerName && hasCountryName && hasAI);
+   }
+
+   handleAddClick()
+   {
+      if (this.addBtn.disabled)
+         return;
+
+      const playerName = this.playerNameInput.value.trim();
+      const countryName = this.countryNameInput.value.trim();
+
+         if (!playerName)
+         return this.context.displayStatusMessage('Player name is required', 'error');
+
+         if (!countryName)
+         return this.context.displayStatusMessage('Country name is required', 'error');
+
+      if (!this.selectedAI)
+         return this.context.displayStatusMessage('Please select an AI', 'error');
+
+         // Validate form
+      if (this.currentForm)
+         {
+         const errors = this.currentForm.validate();
+            if (errors.length > 0)
+            return this.context.displayStatusMessage(errors.join(', '), 'error');
+         }
+
+         // Get AI config
+      const aiConfig = this.currentForm?.getData() || {};
+
+      if (this.context.abortControl)
+         this.context.abortControl.abort();
+
+      this.context.abortControl = new AbortController();
+
+      this.context.displayStatusMessage('Adding AI player...', 'info');
+      this.setDisabled(true);
+
+      eventBus.emit('system:addAIPlayerRequest', new ApiRequest('system:addAIPlayerRequest', {
+         gameId: this.context.selectedGame.id,
+         aiName: this.selectedAI.name,
+               playerName,
+               countryName,
+               aiConfig
+      }, this.context.abortControl.signal));
+   }
+
+   show()
+   {
+      if (!this.dialog.parentNode)
+         document.body.appendChild(this.dialog);
+
+      this.context.statusComponent.mount(Utils.requireChild(this.dialog, '#ai-config-mount-point'));
+   }
+
+   close()
+   {
+      if (this.escapeHandler)
+      {
+         document.removeEventListener('keydown', this.escapeHandler);
+         this.escapeHandler = null;
+      }
+
+      if (this.dialog.parentNode)
+         this.dialog.parentNode.removeChild(this.dialog);
+
+      this.context.statusComponent.mount(Utils.requireElement('.home-main-content'));
+   }
+
+   getDialog()
+   {
+      return this.dialog;
+   }
+
+   setDisabled(state)
+   {
+      this.aiSelect.disabled = state;
+      this.playerNameInput.disabled = state;
+      this.countryNameInput.disabled = state;
+      this.aiConfigContainer.disabled = state; // this is a fieldset wrapping the dynamically generated AI config form
+      this.addBtn.disabled = state;
+   }
+}
