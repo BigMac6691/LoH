@@ -103,9 +103,6 @@ export class StatusComponent
       }
    }
 
-   /**
-    * Clean up
-    */
    dispose()
    {
       if (this.container && this.container.parentNode)

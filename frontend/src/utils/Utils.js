@@ -84,4 +84,9 @@ export class Utils
 
       return { valid: errors.length === 0, errors };
    }
+
+   static clamp(value, min, max)
+   {
+      return Math.max(min, Math.min(value, max));
+   }
 }

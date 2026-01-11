@@ -348,31 +348,20 @@ export class SystemEventHandler
      if(!(event instanceof ApiRequest))
         throw new Error('SystemEventHandler: Invalid event type');
 
+     let response = null;
      const { filter, context, page = 1, limit = 5 } = event.data || {};
 
      if (!filter)
-     {
-        const errorResponse = event.prepareResponse('system:listGamesResponse', null, 400, {message: 'Filter is required'});
-        eventBus.emit('system:listGamesResponse', errorResponse);
-        return;
-     }
+        response = event.prepareResponse('system:listGamesResponse', null, 400, {message: 'Filter is required'});
+     else if (!context)
+        response = event.prepareResponse('system:listGamesResponse', null, 400, {message: 'Context is required'});
+     else if (!['playing', 'available', 'manage', 'all'].includes(filter)) // Validate filter
+        response = event.prepareResponse('system:listGamesResponse', null, 400, {message: 'Invalid filter. Must be one of: playing, available, manage, all'});
 
-     if (!context)
-     {
-        const errorResponse = event.prepareResponse('system:listGamesResponse', null, 400, {message: 'Context is required'});
-        eventBus.emit('system:listGamesResponse', errorResponse);
-        return;
-     }
-
-     // Validate filter
-     if (!['playing', 'available', 'manage', 'all'].includes(filter)) {
-        const errorResponse = event.prepareResponse('system:listGamesResponse', null, 400, {message: 'Invalid filter. Must be one of: playing, available, manage, all'});
-        eventBus.emit('system:listGamesResponse', errorResponse);
-        return;
-     }
+     if(response !== null)
+        return eventBus.emit('system:listGamesResponse', response); // void function
 
      const queryParams = `?filter=${filter}&page=${page}&limit=${limit}`;
-     let response = null;
 
      RB.fetchGet(`/api/games/list${queryParams}`, event.signal)
         .then(success =>

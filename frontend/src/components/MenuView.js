@@ -3,6 +3,7 @@
  * Provides common functionality for components displayed in the home page menu
  */
 import { eventBus } from '../eventBus.js';
+import { RequestManager } from '../services/RequestManager.js';
 
 export class MenuView
 {
@@ -10,6 +11,7 @@ export class MenuView
    {
       this.statusComponent = statusComponent;
       this.eventHandlers = [];
+      this.requestManager = new RequestManager();
    }
 
    /**

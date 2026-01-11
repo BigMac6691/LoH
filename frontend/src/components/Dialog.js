@@ -31,13 +31,9 @@ export class Dialog
 
       this.onClose = options.onClose;
 
-      // Setup event handlers
       this.setupEventHandlers();
    }
 
-   /**
-    * Setup event handlers for dialog
-    */
    setupEventHandlers()
    {
       // Close on Escape key (native dialog behavior)
@@ -82,6 +78,22 @@ export class Dialog
       Utils.requireChild(this.dialog, 'fieldset').disabled = state;
       Utils.requireChild(this.dialog, '#save-dialog-btn').disabled = state;
    }
+
+   // Re-center the dialog after dynamic content changes, slight unfortunate side effect is the dialog will flash when it re-renders very briefly.
+   recenter()
+   {
+      if (!this.dialog || !this.dialog.open)
+         return;
+
+      // The native dialog element with showModal() centers automatically.  Use requestAnimationFrame to ensure the DOM has fully updated
+      requestAnimationFrame(() =>
+      {
+         this.dialog.style.top = '';
+         this.dialog.style.left = '';
+         this.dialog.style.transform = '';
+         this.dialog.showModal();
+      });
+   }
 }
 
 const getBottomButtonsHTML = (buttonText) =>
@@ -98,6 +110,9 @@ const dialogCSS = `  background: rgba(0, 0, 0, 0.95);
          color: white;
          min-width: 400px;
          max-width: 500px;
+         max-height: 90vh;
+         overflow-y: auto;
          backdrop-filter: blur(10px);
          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+         margin: auto;
       `;
