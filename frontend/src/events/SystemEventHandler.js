@@ -23,16 +23,16 @@ export class SystemEventHandler
       this.eventRegister.registerEventHandler('system:verifyEmailRequest', this.handleVerifyEmailRequest.bind(this));
       this.eventRegister.registerEventHandler('system:resendVerificationRequest', this.handleResendVerificationRequest.bind(this));
       this.eventRegister.registerEventHandler('system:systemEventsRequest', this.handleSystemEventsRequest.bind(this));
-      this.eventRegister.registerEventHandler('system:listGamesRequest', this.handleListGamesRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:listGames', this.handleListGames.bind(this));
       this.eventRegister.registerEventHandler('system:joinGameRequest', this.handleJoinGameRequest.bind(this));
       this.eventRegister.registerEventHandler('system:createGameRequest', this.handleCreateGameRequest.bind(this));
-      this.eventRegister.registerEventHandler('system:listGamePlayersRequest', this.handleListGamePlayersRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:listGamePlayers', this.handleListGamePlayers.bind(this));
       this.eventRegister.registerEventHandler('system:startGameRequest', this.handleStartGameRequest.bind(this));
-      this.eventRegister.registerEventHandler('system:updateGameStatusRequest', this.handleUpdateGameStatusRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:updateGameStatus', this.handleUpdateGameStatus.bind(this));
       this.eventRegister.registerEventHandler('system:endPlayerTurnRequest', this.handleEndPlayerTurnRequest.bind(this));
       this.eventRegister.registerEventHandler('system:updatePlayerStatusRequest', this.handleUpdatePlayerStatusRequest.bind(this));
       this.eventRegister.registerEventHandler('system:updatePlayerMetaRequest', this.handleUpdatePlayerMetaRequest.bind(this));
-      this.eventRegister.registerEventHandler('system:aiListRequest', this.handleAIListRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:listAI', this.handleListAI.bind(this));
       this.eventRegister.registerEventHandler('system:addAIPlayerRequest', this.handleAddAIPlayerRequest.bind(this));
    }
 
@@ -341,7 +341,7 @@ export class SystemEventHandler
    * 
    * Response will include the context for filtering purposes.
    */
-  handleListGamesRequest(event)
+  handleListGames(event)
   {
      console.log('🔐 SystemEventHandler: Processing list games request');
 
@@ -352,14 +352,14 @@ export class SystemEventHandler
      const { filter, context, page = 1, limit = 5 } = event.data || {};
 
      if (!filter)
-        response = event.prepareResponse('system:listGamesResponse', null, 400, {message: 'Filter is required'});
+        response = event.prepareResponse('system:gameList', null, 400, {message: 'Filter is required'});
      else if (!context)
-        response = event.prepareResponse('system:listGamesResponse', null, 400, {message: 'Context is required'});
+        response = event.prepareResponse('system:gameList', null, 400, {message: 'Context is required'});
      else if (!['playing', 'available', 'manage', 'all'].includes(filter)) // Validate filter
-        response = event.prepareResponse('system:listGamesResponse', null, 400, {message: 'Invalid filter. Must be one of: playing, available, manage, all'});
+        response = event.prepareResponse('system:gameList', null, 400, {message: 'Invalid filter. Must be one of: playing, available, manage, all'});
 
      if(response !== null)
-        return eventBus.emit('system:listGamesResponse', response); // void function
+        return eventBus.emit('system:gameList', response); // void function
 
      const queryParams = `?filter=${filter}&page=${page}&limit=${limit}`;
 
@@ -377,7 +377,7 @@ export class SystemEventHandler
               games: success.games || [],
               pagination: success.pagination
            };
-           response = event.prepareResponse('system:listGamesResponse', transformedResponse, 200, null);
+           response = event.prepareResponse('system:gameList', transformedResponse, 200, null);
         })
         .catch(error =>
         {
@@ -385,11 +385,11 @@ export class SystemEventHandler
            const status = event.signal?.aborted ? 499 : 400;
            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
            const errorResponse = {filter: filter, context: context};
-           response = event.prepareResponse('system:listGamesResponse', errorResponse, status, errorBody);
+           response = event.prepareResponse('system:gameList', errorResponse, status, errorBody);
         })
         .finally(() =>
         {
-           eventBus.emit('system:listGamesResponse', response);
+           eventBus.emit('system:gameList', response);
         });
   }
 
@@ -501,7 +501,7 @@ export class SystemEventHandler
     * Handle manage game players request event
     * @param {ApiRequest} event - Manage game players request event
     */
-   handleListGamePlayersRequest(event)
+   handleListGamePlayers(event)
    {
       console.log('🔐 SystemEventHandler: Processing list game players request');
 
@@ -512,8 +512,8 @@ export class SystemEventHandler
 
       if (!gameId)
       {
-         const errorResponse = event.prepareResponse('system:listGamePlayersResponse', null, 400, {message: 'Game ID is required'});
-         eventBus.emit('system:listGamePlayersResponse', errorResponse);
+         const errorResponse = event.prepareResponse('system:gamePlayerList', null, 400, {message: 'Game ID is required'});
+         eventBus.emit('system:gamePlayerList', errorResponse);
          return;
       }
 
@@ -523,18 +523,18 @@ export class SystemEventHandler
          .then(success =>
          {
             console.log('List game players request success:', success);
-            response = event.prepareResponse('system:listGamePlayersResponse', success, 200, null);
+            response = event.prepareResponse('system:gamePlayerList', success, 200, null);
          })
          .catch(error =>
          {
             console.error('List game players request error:', error);
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
-            response = event.prepareResponse('system:listGamePlayersResponse', null, status, errorBody);
+            response = event.prepareResponse('system:gamePlayerList', null, status, errorBody);
          })
          .finally(() =>
          {
-            eventBus.emit('system:listGamePlayersResponse', response);
+            eventBus.emit('system:gamePlayerList', response);
          });
    }
 
@@ -596,7 +596,7 @@ export class SystemEventHandler
     * Handle update game status request event
     * @param {ApiRequest} event - Update game status request event
     */
-   handleUpdateGameStatusRequest(event)
+   handleUpdateGameStatus(event)
    {
       console.log('🔐 SystemEventHandler: Processing update game status request');
 
@@ -629,18 +629,18 @@ export class SystemEventHandler
          .then(success =>
          {
             console.log('Update game status request success:', success);
-            response = event.prepareResponse('system:updateGameStatusResponse', success, 200, null);
+            response = event.prepareResponse('system:gameUpdated', success, 200, null);
          })
          .catch(error =>
          {
             console.error('Update game status request error:', error);
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
-            response = event.prepareResponse('system:updateGameStatusResponse', null, status, errorBody);
+            response = event.prepareResponse('system:gameUpdated', null, status, errorBody);
          })
          .finally(() =>
          {
-            eventBus.emit('system:updateGameStatusResponse', response);
+            eventBus.emitEvent(response);
          });
    }
 
@@ -815,7 +815,7 @@ export class SystemEventHandler
     * Handle AI list request event
     * @param {ApiRequest} event - AI list request event
     */
-   handleAIListRequest(event)
+   handleListAI(event)
    {
       console.log('🔐 SystemEventHandler: Processing AI list request');
 
@@ -828,18 +828,18 @@ export class SystemEventHandler
          .then(success =>
          {
             console.log('AI list request success:', success);
-            response = event.prepareResponse('system:aiListResponse', success, 200, null);
+            response = event.prepareResponse('system:aiList', success, 200, null);
          })
          .catch(error =>
          {
             console.error('AI list request error:', error);
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
-            response = event.prepareResponse('system:aiListResponse', null, status, errorBody);
+            response = event.prepareResponse('system:aiList', null, status, errorBody);
          })
          .finally(() =>
          {
-            eventBus.emit('system:aiListResponse', response);
+            eventBus.emit('system:aiList', response);
          });
    }
 

@@ -13,7 +13,6 @@ export class Dialog
     * @param {string} options.contentHTML - HTML content for the dialog body
     * @param {string} options.className - Optional CSS class name for the dialog
     * @param {string} options.styles - Optional custom styles string (appended to default styles)
-    * @param {Function} options.onClose - Optional callback function called when dialog is closed
     */
    constructor(options = {})
    {
@@ -29,39 +28,70 @@ export class Dialog
       const buttonsHTML = getBottomButtonsHTML(options.buttonText || 'Save');
       Utils.requireChild(this.dialog, 'fieldset').insertAdjacentHTML('afterend', buttonsHTML);
 
-      this.onClose = options.onClose;
+      // Promise tracking for async show()
+      this.resolvePromise = null;
+      this.rejectPromise = null;
 
       this.setupEventHandlers();
    }
 
    setupEventHandlers()
    {
+      // Cancel button - resolve with false
+      const cancelBtn = Utils.requireChild(this.dialog, '.cancel-dialog-btn');
+      cancelBtn.addEventListener('click', () =>
+      {
+         this.close(false);
+      });
+
       // Close on Escape key (native dialog behavior)
       this.dialog.addEventListener('cancel', (e) =>
       {
          e.preventDefault();
-         this.close();
+         this.close(false);
+      });
+
+      // Note: Save button is handled by the caller, not here
+      // The caller should call close(true) when save succeeds
+   }
+
+   /**
+    * Show the dialog and return a Promise that resolves when the dialog is closed
+    * @returns {Promise<boolean>} Promise that resolves with true if Save was clicked, false if Cancel/Escape
+    */
+   show()
+   {
+      return new Promise((resolve, reject) =>
+      {
+         this.resolvePromise = resolve;
+         this.rejectPromise = reject;
+
+         if (!this.dialog.parentNode)
+            document.body.appendChild(this.dialog);
+         
+         this.dialog.showModal();
       });
    }
 
-   show()
-   {
-      if (!this.dialog.parentNode)
-         document.body.appendChild(this.dialog);
-      
-      this.dialog.showModal();
-   }
-
-   close()
+   /**
+    * Close the dialog with a result value
+    * @param {boolean} saved - Whether the dialog was saved (true) or cancelled (false)
+    * @private
+    */
+   close(saved = false)
    {
       this.dialog.close();
       
       if (this.dialog.parentNode)
          this.dialog.parentNode.removeChild(this.dialog);
       
-      // Call onClose callback if provided
-      if (this.onClose)
-         this.onClose();
+      // Resolve the promise with the result
+      if (this.resolvePromise)
+      {
+         this.resolvePromise(saved);
+         this.resolvePromise = null;
+         this.rejectPromise = null;
+      }
    }
 
    /**

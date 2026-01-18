@@ -18,7 +18,7 @@ export class GamesPlayingList extends MenuView
       this.currentPage = 1;
       this.totalPages = 1;
 
-      this.registerEventHandler('system:listGamesResponse', this.handleListGamesResponse.bind(this));
+      this.registerEventHandler('system:gameList', this.handleListGamesResponse.bind(this));
       this.registerEventHandler('system:updateGameStatusResponse', this.handleUpdateGameStatusResponse.bind(this));
       this.registerEventHandler('system:substatusUpdated', this.handleSubstatusUpdated.bind(this));
 
@@ -87,7 +87,7 @@ export class GamesPlayingList extends MenuView
 
       this.displayStatusMessage('Loading games...', 'info');
 
-      eventBus.emit('system:listGamesRequest', new ApiRequest('system:listGamesRequest', {filter: 'playing', context: 'GamesPlayingList', page, limit: 5}, this.abortControl.signal));
+      eventBus.emit('system:listGames', new ApiRequest('system:listGames', {filter: 'playing', context: 'GamesPlayingList', page, limit: 5}, this.abortControl.signal));
    }
 
    /**

@@ -968,9 +968,17 @@ export class GameRouter
          if (status === 'running' && !game.started_at)
             await pool.query(`UPDATE game SET started_at = now() WHERE id = $1`, [gameId]);
 
+         // temp testing code
+         const offset = Number(statusReason);
+         const delay = 10000 + (isNaN(offset) ? 0 : offset);
+         console.log('🔐 GameRouter: Updating game status', delay, offset, statusReason);
+
+         if(offset > 0)
+            updatedGame.updated_at = updatedGame.created_at;
+
          setTimeout(() => {
             res.json({success: true, game: updatedGame});
-         }, 10000);
+         }, +delay);
       }
       catch (error)
       {

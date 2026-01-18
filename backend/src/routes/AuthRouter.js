@@ -1209,10 +1209,8 @@ export class AuthRouter {
         });
       }
 
-      // Add updated_at
-      updates.push(`updated_at = now()`);
-
       // Build and execute update query
+      // Note: updated_at is automatically set by database trigger
       values.push(userId);
       const query = `
         UPDATE app_user
@@ -1348,9 +1346,10 @@ export class AuthRouter {
       const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
 
       // Update password
+      // Note: updated_at is automatically set by database trigger
       await pool.query(
         `UPDATE app_user 
-         SET password_hash = $1, updated_at = now()
+         SET password_hash = $1
          WHERE id = $2`,
         [newPasswordHash, userId]
       );

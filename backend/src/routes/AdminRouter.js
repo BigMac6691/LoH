@@ -191,9 +191,10 @@ export class AdminRouter {
       }
 
       // Update role
+      // Note: updated_at is automatically set by database trigger
       const { rows } = await pool.query(
         `UPDATE app_user 
-         SET role = $1, updated_at = NOW()
+         SET role = $1
          WHERE id = $2
          RETURNING id, email, display_name, role, status, email_verified, created_at, updated_at`,
         [role, userId]
@@ -261,9 +262,10 @@ export class AdminRouter {
       }
 
       // Update status
+      // Note: updated_at is automatically set by database trigger
       const { rows } = await pool.query(
         `UPDATE app_user 
-         SET status = $1, updated_at = NOW()
+         SET status = $1
          WHERE id = $2
          RETURNING id, email, display_name, role, status, email_verified, created_at, updated_at`,
         [status, userId]
@@ -409,8 +411,7 @@ export class AdminRouter {
         });
       }
 
-      // Add updated_at
-      updates.push(`updated_at = NOW()`);
+      // Note: updated_at is automatically set by database trigger
       values.push(userId);
 
       // Update user

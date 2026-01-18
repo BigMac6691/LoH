@@ -78,6 +78,11 @@ export class EventBus
       toRemove.reverse().forEach(index => this.listeners.splice(index, 1));
    }
 
+   emitEvent(event)
+   {
+      this.emit(event.type, event);
+   }
+
    /**
     * Clear all listeners for an event
     * @param {string} event - Event name (optional, clears all if not provided)

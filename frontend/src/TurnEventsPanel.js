@@ -13,8 +13,6 @@ export class TurnEventsPanel extends BaseDialog
   {
     super(); // Call BaseDialog constructor
 
-    console.log('📝 TurnEventsPanel: Constructor');
-    
     this.currentGame = null;
     this.currentTurn = null;
     this.currentPlayer = null;

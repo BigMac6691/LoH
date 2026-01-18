@@ -35,6 +35,8 @@ export class ManageGamesView extends MenuView
       this.targetPage = 1;
       this.userRole = localStorage.getItem('user_role');
       this.dialog = null; // we only allow one dialog at a time
+      this.gamesUpdating = new Set();
+      this.playersUpdating = new Set();
 
       this.aiList = [];
       this.aiSelect = null;
@@ -46,20 +48,18 @@ export class ManageGamesView extends MenuView
       this.aiFormBuilder = new AIConfigFormBuilder();
 
       // Register event handlers
-      this.registerEventHandler('system:listGamesResponse', this.handleListGamesResponse.bind(this));
-      this.registerEventHandler('system:listGamePlayersResponse', this.handleListGamePlayersResponse.bind(this));
-      this.registerEventHandler('system:startGameResponse', this.handleStartGameResponse.bind(this));
-      this.registerEventHandler('system:updateGameStatusResponse', this.handleUpdateGameStatusResponse.bind(this));
-      this.registerEventHandler('system:substatusUpdated', this.handleSubstatusUpdated.bind(this));
+      this.registerEventHandler('system:gameList', this.handleGameList.bind(this));
+      this.registerEventHandler('system:gamePlayerList', this.handleGamePlayersList.bind(this));
+      this.registerEventHandler('system:gameUpdated', this.handleGameUpdated.bind(this));
       this.registerEventHandler('system:endPlayerTurnResponse', this.handleEndPlayerTurnResponse.bind(this));
       this.registerEventHandler('system:updatePlayerStatusResponse', this.handleUpdatePlayerStatusResponse.bind(this));
       this.registerEventHandler('system:updatePlayerMetaResponse', this.handleUpdatePlayerMetaResponse.bind(this));
-      this.registerEventHandler('system:aiListResponse', this.handleAIListResponse.bind(this));
+      this.registerEventHandler('system:aiList', this.handleAIList.bind(this));
       this.registerEventHandler('system:addAIPlayerResponse', this.handleAddAIPlayerResponse.bind(this));
 
       const abortControl = this.requestManager.reset(`${this.constructor.name}:aiList`);
 
-      eventBus.emit('system:aiListRequest', new ApiRequest('system:aiListRequest', null, abortControl.signal));
+      eventBus.emit('system:listAI', new ApiRequest('system:listAI', null, abortControl.signal));
    }
 
    create()
@@ -97,24 +97,23 @@ export class ManageGamesView extends MenuView
 
    loadGames(page = 1)
    {
-      console.log('🔐 ManageGamesView: Loading games', page);
       const message = `Loading page ${this.targetPage} of ${this.totalPages}...`;
       Utils.requireChild(this.container, '.games-list-container').innerHTML = `<div class="games-loading">${message}</div>`;
       this.displayStatusMessage(message, 'info');
 
       const abortContext = `${this.constructor.name}:loadGames`;
       const abortControl = this.requestManager.reset(abortContext);
-      const request = new ApiRequest('system:listGamesRequest', {filter: 'manage', context: 'ManageGamesView', page, limit: 2}, abortControl.signal);
+      const request = new ApiRequest('system:listGames', {filter: 'manage', context: 'ManageGamesView', page, limit: 2}, abortControl.signal);
       
       this.requestManager.start(abortContext, request.transactionId);
-      eventBus.emit('system:listGamesRequest', request);
+      eventBus.emitEvent(request);
    }
 
    /**
     * Handle list games response
     * @param {ApiResponse} event - List games response event
     */
-   handleListGamesResponse(event)
+   handleGameList(event)
    {
       if (event.data?.context !== 'ManageGamesView') // Only process responses for this component
          return;
@@ -128,7 +127,7 @@ export class ManageGamesView extends MenuView
          this.displayStatusMessage(`Loaded ${this.games.length} games`, 'success');
       }
       else if (event.isAborted())
-         this.displayStatusMessage('Games loading aborted.', 'warning');
+         ; // do nothing
       else
          this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to load games', 'error');
 
@@ -153,7 +152,6 @@ export class ManageGamesView extends MenuView
 
    renderGames()
    {
-      console.error('🔐 ManageGamesView: Rendering games', this.games);
       const listContainer = Utils.requireChild(this.container, '.games-list-container');
 
       if (this.games.length === 0)
@@ -182,6 +180,17 @@ export class ManageGamesView extends MenuView
 
    updateGameControlButtons()
    {
+      if(this.gamesUpdating.has(this.selectedGame?.id))
+      {
+         Utils.requireChild(this.container, '#game-controls-container').style.display = 'none';
+         Utils.requireChild(this.container, '#game-controls-loading-container').style.display = 'block';
+
+         return;
+      }
+
+      Utils.requireChild(this.container, '#game-controls-loading-container').style.display = 'none';
+      Utils.requireChild(this.container, '#game-controls-container').style.display = 'flex';
+
       this.container.querySelector('#start-game-btn').disabled = !this.canStartGame().allowed;
       this.container.querySelector('#finish-game-btn').disabled = !this.canFinishGame().allowed;
       this.container.querySelector('#add-ai-player-btn').disabled = !this.canAddAIPlayer().allowed;
@@ -203,6 +212,8 @@ export class ManageGamesView extends MenuView
 
       if(!this.selectedGame)
         message = 'No game selected';
+      else if(this.gamesUpdating.has(this.selectedGame.id))
+        message = 'Game is being updated, please wait...';
       else if(this.selectedGame.status !== 'lobby' && this.selectedGame.status !== 'error')
         message = 'Game status is not lobby or error';
       else if(this.selectedGame.player_count < this.selectedGame.max_players)
@@ -218,6 +229,8 @@ export class ManageGamesView extends MenuView
 
       if(!this.selectedGame)
         message = 'No game selected';
+      else if(this.gamesUpdating.has(this.selectedGame.id))
+        message = 'Game is being updated, please wait...';
       else if(this.selectedGame.status !== 'running' && this.selectedGame.status !== 'paused')
         message = 'Game is not running nor paused';
       else if(this.selectedGame.status === 'paused')
@@ -233,6 +246,8 @@ export class ManageGamesView extends MenuView
 
       if(!this.selectedGame)
         message = 'No game selected';
+      else if(this.gamesUpdating.has(this.selectedGame.id))
+        message = 'Game is being updated, please wait...';
       else if(this.selectedGame.status !== 'running' && this.selectedGame.status !== 'paused' && this.selectedGame.status !== 'frozen')
         message = 'Game is not running nor paused nor frozen';
       else if(this.selectedGame.status === 'frozen')
@@ -247,6 +262,8 @@ export class ManageGamesView extends MenuView
 
       if(!this.selectedGame)
         message = 'No game selected';
+      else if(this.gamesUpdating.has(this.selectedGame.id))
+        message = 'Game is being updated, please wait...';
       else if(this.selectedGame.status === 'finished')
         message = 'Game is already finished';
 
@@ -261,6 +278,8 @@ export class ManageGamesView extends MenuView
         message = 'No game selected';
       else if(this.aiList.length === 0)
         message = 'No AI implementations are available';
+      else if(this.gamesUpdating.has(this.selectedGame.id))
+        message = 'Game is being updated, please wait...';
       else if(this.selectedGame.status !== 'lobby')
         message = 'Game is not in lobby';
       else if(this.selectedGame.player_count >= this.selectedGame.max_players)
@@ -277,16 +296,16 @@ export class ManageGamesView extends MenuView
       Utils.requireChild(this.container, '.players-list-container').innerHTML = '<div class="players-loading">Loading players...</div>';
       this.displayStatusMessage('Loading players...', 'info');
 
-      const request = new ApiRequest('system:listGamePlayersRequest', {gameId}, abortControl.signal);
+      const request = new ApiRequest('system:listGamePlayers', {gameId}, abortControl.signal);
       this.requestManager.start(abortContext, request.transactionId);
-      eventBus.emit('system:listGamePlayersRequest', request);
+      eventBus.emitEvent(request);
    }
 
    /**
     * Handle list game players response
     * @param {ApiResponse} event - List game players response event
     */
-   handleListGamePlayersResponse(event)
+   handleGamePlayersList(event)
    {
       if (event.isSuccess() && event.data)
       {
@@ -295,7 +314,7 @@ export class ManageGamesView extends MenuView
          this.displayStatusMessage(`Loaded ${this.players.length} players`, 'success');
       }
       else if (event.isAborted())
-         this.displayStatusMessage('Players loading aborted.', 'warning');
+         ; // do nothing
       else
          this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to load players', 'error');
 
@@ -314,11 +333,10 @@ export class ManageGamesView extends MenuView
 
    renderPlayers()
    {
-      console.log('🔐 ManageGamesView: Rendering players', this.selectedGame, this.players);
       const playersContainer = Utils.requireChild(this.container, '.players-list-container');
 
       if(!this.selectedGame)
-        playersContainer.innerHTML = '<div class="players-empty">No game selected.</div>';
+         playersContainer.innerHTML = '<div class="players-empty">No game selected.</div>';
       else if (this.players.length === 0)
          playersContainer.innerHTML = '<div class="players-empty">No players in this game.</div>';
       else
@@ -331,9 +349,6 @@ export class ManageGamesView extends MenuView
    {
       this.selectedPlayer = this.players.find(player => player.id === playerId);
 
-      if (!this.selectedPlayer) 
-        return;
-
       // Update UI
       this.container.querySelectorAll('.player-card').forEach(card => card.getAttribute('data-player-id') === playerId ? card.classList.add('selected') : card.classList.remove('selected'));
       this.updatePlayerControlButtons();
@@ -341,6 +356,17 @@ export class ManageGamesView extends MenuView
 
    updatePlayerControlButtons()
    {
+      if(this.playersUpdating.has(this.selectedPlayer?.id))
+      {
+         Utils.requireChild(this.container, '#player-controls-container').style.display = 'none';
+         Utils.requireChild(this.container, '#player-controls-loading-container').style.display = 'block';
+
+         return;
+      }
+
+      Utils.requireChild(this.container, '#player-controls-loading-container').style.display = 'none';
+      Utils.requireChild(this.container, '#player-controls-container').style.display = 'flex';
+
       Utils.requireChild(this.container, '#end-turn-btn').disabled = !this.canEndPlayerTurn().allowed;
       Utils.requireChild(this.container, '#reset-status-btn').disabled = !this.canResetPlayerStatus().allowed;
       Utils.requireChild(this.container, '#suspend-btn').disabled = !this.canSuspendPlayer().allowed;
@@ -356,6 +382,8 @@ export class ManageGamesView extends MenuView
         message = 'No game selected';
       else if(!this.selectedPlayer)
         message = 'No player selected';
+      else if(this.playersUpdating.has(this.selectedPlayer.id))
+         message = 'Player is being updated, please wait...';
       else if(this.selectedPlayer.status === 'ejected')
         message = 'Player is ejected';
       else if(this.selectedGame.status !== 'running')
@@ -372,6 +400,8 @@ export class ManageGamesView extends MenuView
         message = 'No game selected';
       else if(!this.selectedPlayer)
         message = 'No player selected';
+      else if(this.playersUpdating.has(this.selectedPlayer.id))
+         message = 'Player is being updated, please wait...';
       else if(this.selectedPlayer.status === 'ejected')
         message = 'Player is ejected';
       else if(this.selectedPlayer.status === 'active')
@@ -390,6 +420,8 @@ export class ManageGamesView extends MenuView
         message = 'No game selected';
       else if(!this.selectedPlayer)
         message = 'No player selected';
+      else if(this.playersUpdating.has(this.selectedPlayer.id))
+         message = 'Player is being updated, please wait...';
       else if(this.selectedPlayer.status === 'ejected')
         message = 'Player is ejected';
       else if(this.selectedPlayer.status === 'suspended')
@@ -408,13 +440,15 @@ export class ManageGamesView extends MenuView
         message = 'No game selected';
       else if(!this.selectedPlayer)
         message = 'No player selected';
+      else if(this.playersUpdating.has(this.selectedPlayer.id))
+         message = 'Player is being updated, please wait...';
       else if(this.selectedPlayer.status === 'ejected')
         message = 'Player is ejected';
 
       return { allowed: message === '', message };
    }
 
-   canEditPlayerMeta()
+   canEditPlayerMeta() // do we restrict to only AI players?
    {
       let message = '';
 
@@ -422,6 +456,8 @@ export class ManageGamesView extends MenuView
         message = 'No game selected';
       else if(!this.selectedPlayer)
         message = 'No player selected';
+      else if(this.playersUpdating.has(this.selectedPlayer.id))
+        message = 'Player is being updated, please wait...';
       else if(this.selectedPlayer.status === 'ejected')
         message = 'Player is ejected';
 
@@ -434,48 +470,40 @@ export class ManageGamesView extends MenuView
       
       if (allowed)
       {
-        const abortControl = this.requestManager.reset(`${this.constructor.name}:startGame:${this.selectedGame.id}`);
+         this.gamesUpdating.add(this.selectedGame.id);
+         this.displayStatusMessage('Starting game...', 'info');
 
-        this.displayStatusMessage('Starting game...', 'info');
-
-        eventBus.emit('system:startGameRequest', new ApiRequest('system:startGameRequest', {gameId: this.selectedGame.id}, abortControl.signal));
+         eventBus.emitEvent(new ApiRequest('system:startGameRequest', {gameId: this.selectedGame.id}, null));
       }
       else
-        this.displayStatusMessage(message, 'warning');
+         this.displayStatusMessage(message, 'warning');
+
+      this.updateGameControlButtons(); // always update the game control buttons regardless of the result
    }
 
    async pauseUnpauseGame()
    {
       const { allowed, message } = this.canPauseUnpauseGame();
-      
+
       if (allowed)
       {
-        if (this.selectedGame.status === 'paused')
-          this.updateGameStatus(this.selectedGame.id, 'running');
-      else
-      {
-          const dialog = new PromptDialog(
-          {
-            title: 'Pause Game',
-            message: 'Please provide a reason for pausing this game:',
-            placeholder: 'Enter pause reason...',
-            okText: 'Pause',
-            cancelText: 'Cancel'
-         });
-   
-         const reason = await dialog.show();
-
-         if (reason === null || reason.trim() === '')
-            return this.displayStatusMessage('Pausing was cancelled', 'info');
+         if (this.selectedGame.status === 'paused')
+            this.updateGameStatus(this.selectedGame.id, 'running');
          else
-            this.updateGameStatus(this.selectedGame.id, 'paused', reason.trim());
-        }
+         {
+            const dialog = new PromptDialog(pausePrompt);
+            const reason = await dialog.show();
+
+            if (reason === null || reason.trim() === '')
+               return this.displayStatusMessage('Pausing was cancelled', 'info');
+            else
+               this.updateGameStatus(this.selectedGame.id, 'paused', reason.trim());
+         }
       }
       else
       {
          this.displayStatusMessage(message, 'warning');
          this.updateGameControlButtons();
-         this.updatePlayerControlButtons();
       }
    }
 
@@ -485,19 +513,11 @@ export class ManageGamesView extends MenuView
       
       if (allowed)
       {
-         if (this.selectedGame.status === 'paused')
+         if (this.selectedGame.status === 'frozen')
             this.updateGameStatus(this.selectedGame.id, 'running');
          else
          {
-            const dialog = new PromptDialog(
-            {
-               title: 'Freeze Game',
-               message: 'Please provide a reason for freezing this game:',
-               placeholder: 'Enter freeze reason...',
-               okText: 'Freeze',
-               cancelText: 'Cancel'
-            });
-
+            const dialog = new PromptDialog(freezePrompt);
             const reason = await dialog.show();
 
             if (reason === null || reason.trim() === '')
@@ -508,12 +528,12 @@ export class ManageGamesView extends MenuView
       }
       else
       {
-        this.displayStatusMessage(message, 'warning');
+         this.displayStatusMessage(message, 'warning');
          this.updateGameControlButtons();
-          this.updatePlayerControlButtons();
       }
    }
 
+   // TODO add a confirmation dialog
    finishGame()
    {
       const { allowed, message } = this.canFinishGame();
@@ -522,137 +542,85 @@ export class ManageGamesView extends MenuView
       {
         if (confirm('Are you sure you want to finish this game? This action cannot be undone.'))
           this.updateGameStatus(this.selectedGame.id, 'finished');
+        else
+          return this.displayStatusMessage('Finishing game was cancelled', 'info');
       }
       else
+      {
         this.displayStatusMessage(message, 'warning');
+        this.updateGameControlButtons();
+      }
    }
 
    updateGameStatus(gameId, newStatus, statusReason = null)
    {
-      const abortControl = this.requestManager.reset(`${this.constructor.name}:updateGameStatus:${gameId}`);
-
+      this.gamesUpdating.add(gameId);
+      this.updateGameControlButtons();
       this.displayStatusMessage(`Updating game status to ${newStatus}${statusReason ? ` (${statusReason})` : ''}...`, 'info');
 
-      eventBus.emit('system:updateGameStatusRequest', new ApiRequest('system:updateGameStatusRequest', 
-      {
-         gameId: gameId, 
-         status: newStatus,
-         statusReason: statusReason
-      }, abortControl.signal));
-   }
-
-   /**
-    * Handle start game response
-    * @param {ApiResponse} event - Start game response event
-    */
-   handleStartGameResponse(event)
-   {
-      if (event.isSuccess())
-         this.displayStatusMessage('Game started successfully', 'success');
-      else if (event.isAborted())
-         this.displayStatusMessage('Start game aborted.', 'warning');
-      else
-         this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to start game', 'error');
-
-      this.renderGames();
-      this.updateGameControlButtons();
-      this.renderPlayers();
-      this.updatePlayerControlButtons();
-   }
-
-   /**
-    * Handle substatus updated event (from WebSocket or eventBus)
-    * @param {ApiEvent|Object} event - Substatus update event
-    */
-   handleSubstatusUpdated(event)
-   {
-      // Handle both ApiEvent and plain object formats
-      const eventData = event?.data || event;
-      const { gameId, status, substatus, statusReason } = eventData;
-
-      if (!gameId)
-         return this.displayStatusMessage('Invalid response for game substatus update: missing game ID', 'error');
-
-      // Update the game in our list if we have it
-      const gameIndex = this.games.findIndex(game => game.id === gameId);
-      if (gameIndex !== -1)
-      {
-         this.games[gameIndex].status = status;
-         this.games[gameIndex].substatus = substatus;
-         this.games[gameIndex].status_reason = statusReason;
-      }
-
-      this.renderGames();
-      this.updateGameControlButtons();
-      this.renderPlayers();
-      this.updatePlayerControlButtons();
-
-      // Emit ui:statusMessage with substatus text
-      if (substatus)
-      {
-         const substatusMessages = 
-         {
-            'generating_map': 'Generating map...',
-            'placing_players': 'Placing players...',
-            'creating_turn': 'Creating first turn...'
-         };
-
-         const message = substatusMessages[substatus] || `Game creation: ${substatus}`;
-
-         this.displayStatusMessage(message, 'info');
-      }
+      const request = new ApiRequest('system:updateGameStatus', {gameId: gameId, status: newStatus, statusReason: statusReason?.trim()}, null);
+      eventBus.emitEvent(request);
    }
 
    /**
     * Handle update game status response
     * @param {ApiResponse} event - Update game status response event
     */
-   handleUpdateGameStatusResponse(event)
+   handleGameUpdated(event)
    {
+      console.log('🔐 ManageGamesView: Handling game updated event', event);
       if (event.isSuccess())
       {
          const updatedGame = event.data?.game;
          const gameId = updatedGame?.id;
-         const newStatus = updatedGame?.status;
-         const substatus = updatedGame?.substatus;
-         const statusReason = updatedGame?.status_reason;
+         const gameStatus = updatedGame?.status;
+         const gameSubstatus = updatedGame?.substatus;
          
-         if (!gameId || !newStatus)
-            return this.displayStatusMessage('Invalid response: missing game ID or status', 'error');
+         if (!gameId || !gameStatus)
+            return this.displayStatusMessage('Invalid response: missing game ID or status', 'fatal');
 
          // Find and update the game in the games array
          const gameIndex = this.games.findIndex(game => game.id === gameId);
          if (gameIndex !== -1)
          {
-            this.games[gameIndex].status = newStatus;
-
-            if (substatus !== undefined)
-               this.games[gameIndex].substatus = substatus;
-
-            if (statusReason !== undefined)
-               this.games[gameIndex].status_reason = statusReason;
+            if(this.games[gameIndex].updated_at >= updatedGame.updated_at)
+               return this.displayStatusMessage('Game not updated with stale data', 'warning');
             
+            Object.assign(this.games[gameIndex], updatedGame);
+
             // Post status message based on new status
-            if (newStatus === 'creating')
+            if (gameStatus === 'creating')
                this.displayStatusMessage('Game creation started...', 'info');
-            else if (newStatus === 'error')
+            else if (gameStatus === 'error')
                this.displayStatusMessage('Game creation failed. You can try starting again.', 'error');
             else
-               this.displayStatusMessage(`Game status updated to ${newStatus}`, 'success');
+               this.displayStatusMessage(`Game updated`, 'success');
+
+            if (gameSubstatus)
+            {
+               const message = 
+               {
+                  'generating_map': 'Generating map...',
+                  'placing_players': 'Placing players...',
+                  'creating_turn': 'Creating first turn...'
+               }[gameSubstatus] || `Game creation: ${gameSubstatus}`;
+
+               this.displayStatusMessage(message, 'info');
+            }
          }
          else
-            this.displayStatusMessage('Game not found in list of loaded games, status updated on database', 'warning');
+            this.displayStatusMessage('Game not found in list of loaded games, game updated on database', 'warning');
       }
       else if (event.isAborted())
-         this.displayStatusMessage('Update game status aborted.', 'warning');
+         this.displayStatusMessage('Game update aborted.', 'warning');
       else
-         this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to update game status', 'error');
+         this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to update game', 'error');
+
+      this.gamesUpdating.delete(event.data?.game?.id);
 
       this.renderGames();
       this.updateGameControlButtons();
-      this.renderPlayers();
       this.updatePlayerControlButtons();
-   
    }
 
    async endPlayerTurn()
@@ -661,37 +629,25 @@ export class ManageGamesView extends MenuView
       
       if (allowed)
       {
-         const dialog = new PromptDialog(
-         {
-            title: 'End Player Turn',
-            message: `Please provide a reason for ending ${this.selectedPlayer.name}'s turn:`,
-            placeholder: 'Enter reason...',
-            okText: 'End',
-            cancelText: 'Cancel'
-         });
-
+         const dialog = new PromptDialog(endPlayerTurnPrompt(this.selectedPlayer.name));
          const reason = await dialog.show();
 
          if (reason === null || reason.trim() === '')
             return this.displayStatusMessage('Ending player turn was cancelled', 'info');
 
-         const abortControl = this.requestManager.reset(`${this.constructor.name}:endPlayerTurn:${this.selectedGame.id}:${this.selectedPlayer.id}`);
-
+         this.playersUpdating.add(`${this.selectedGame.id}-${this.selectedPlayer.id}`);
          this.displayStatusMessage('Ending player turn...', 'info');
 
-         eventBus.emit('system:endPlayerTurnRequest', new ApiRequest('system:endPlayerTurnRequest',
-         {
-            gameId: this.selectedGame.id,
-            playerId: this.selectedPlayer.id,
-            reason: reason.trim()
-         }, abortControl.signal));
+         eventBus.emitEvent(new ApiRequest('system:endPlayerTurnRequest', {gameId: this.selectedGame.id, playerId: this.selectedPlayer.id, reason: reason.trim()}, null));
       }
       else
         this.displayStatusMessage(message, 'warning');
+
+      this.updatePlayerControlButtons(); // always update the player control buttons regardless of the result
    }
 
    /**
-    * Handle end player turn response
+    * Handle end player turn response, ending a player turn may trigger a new turn, so we need to reload games and players
     * @param {ApiResponse} event - End player turn response event
     */
    handleEndPlayerTurnResponse(event)
@@ -727,15 +683,7 @@ export class ManageGamesView extends MenuView
       
       if (allowed)
       {
-         const dialog = new PromptDialog(
-         {
-            title: 'Suspend Player',
-            message: `Please provide a reason for suspending ${this.selectedPlayer.name}:`,
-            placeholder: 'Enter reason...',
-            okText: 'Suspend',
-            cancelText: 'Cancel'
-         });
-
+         const dialog = new PromptDialog(suspendPrompt(this.selectedPlayer.name));
          const reason = await dialog.show();
 
          if (reason === null || reason.trim() === '')
@@ -755,15 +703,7 @@ export class ManageGamesView extends MenuView
       
       if (allowed)
       {
-         const dialog = new PromptDialog(
-         {
-            title: 'Eject Player - CANNOT BE UNDONE',
-            message: `Please provide a reason for ejecting ${this.selectedPlayer.name}:`,
-            placeholder: 'Enter reason...',
-            okText: 'Eject',
-            cancelText: 'Cancel'
-         });
-
+         const dialog = new PromptDialog(ejectPrompt(this.selectedPlayer.name));
          const reason = await dialog.show();
 
          if (reason === null || reason.trim() === '')
@@ -779,12 +719,12 @@ export class ManageGamesView extends MenuView
 
    updatePlayerStatus(gameId, playerId, newStatus, statusReason = null)
    {
-      const abortControl = this.requestManager.reset(`${this.constructor.name}:updatePlayerStatus:${gameId}:${playerId}`);
-
+      this.playersUpdating.add(`${gameId}:${playerId}`);
+      this.updatePlayerControlButtons();
       this.displayStatusMessage(`Updating player status to ${newStatus}${statusReason ? ` (${statusReason})` : ''}...`, 'info');
 
       const requestData = {gameId: gameId, playerId: playerId, status: newStatus, statusReason: statusReason?.trim()};
-      eventBus.emit('system:updatePlayerStatusRequest', new ApiRequest('system:updatePlayerStatusRequest', requestData, abortControl.signal));
+      eventBus.emitEvent(new ApiRequest('system:updatePlayerStatusRequest', requestData, null));
    }
 
    /**
@@ -829,7 +769,7 @@ export class ManageGamesView extends MenuView
     * TODO add code to disable add AI player if there are no AI implementations available
     * @param {ApiResponse} event - AI list response event
     */
-   handleAIListResponse(event)
+   handleAIList(event)
    {
       console.log('🔐 ManageGamesView: Handling AI list response', event);
 
@@ -846,7 +786,7 @@ export class ManageGamesView extends MenuView
       this.updatePlayerControlButtons();   
    }
 
-   showAddAIPlayerDialog()
+   async showAddAIPlayerDialog()
    {
       const { allowed, message } = this.canAddAIPlayer();
 
@@ -858,8 +798,7 @@ export class ManageGamesView extends MenuView
             contentHTML: addAIPlayerDialogHTML,
             styles: addAIPlayerDialogCSS,
             className: 'ai-player-dialog',
-            buttonText: 'Add AI Player',
-            onClose: () => { this.handleDialogClose(); }
+            buttonText: 'Add AI Player'
          });
 
          this.aiSelect = Utils.requireChild(this.dialog.getDialog(), '#ai-select');
@@ -879,17 +818,19 @@ export class ManageGamesView extends MenuView
          this.aiAddBtn.addEventListener('click', () => this.handleAddAIPlayerClick(`${this.constructor.name}:addAIPlayer:${this.selectedGame.id}`));
          Utils.requireChild(this.dialog.getDialog(), '#player-name-input').addEventListener('input', () => this.updateAddAIPlayerButtonState());
          Utils.requireChild(this.dialog.getDialog(), '#country-name-input').addEventListener('input', () => this.updateAddAIPlayerButtonState());
-         Utils.requireChild(this.dialog.getDialog(), '.cancel-dialog-btn').addEventListener('click', () => this.dialog.close());
 
          this.statusComponent.mount(Utils.requireChild(this.dialog.getDialog(), '#ai-config-mount-point'));
 
-         this.dialog.show();
+         const saved = await this.dialog.show();
+         
+         if (!saved)
+            this.handleDialogClose();
       }
       else
          this.displayStatusMessage(message, 'warning');
    }
 
-   updateAddAIPlayerButtonState()
+   updateAddAIPlayerButtonState() // in the Add AI Player dialog
    {
       const hasPlayerName = Utils.requireChild(this.dialog.getDialog(), '#player-name-input').value.trim().length > 0;
       const hasCountryName = Utils.requireChild(this.dialog.getDialog(), '#country-name-input').value.trim().length > 0;
@@ -977,7 +918,7 @@ export class ManageGamesView extends MenuView
       }, abortControl.signal));
    }
 
-   showEditMetaDialog()
+   async showEditMetaDialog()
    {
       if (!this.selectedGame || !this.selectedPlayer) 
          return;
@@ -993,26 +934,24 @@ export class ManageGamesView extends MenuView
          title: 'Edit Player Meta',
          contentHTML: editMetaDialogHTML(metaStr),
          className: 'edit-meta-dialog',
-         buttonText: 'Save Meta',
-         onClose: () => { this.handleDialogClose(); }
+         buttonText: 'Save Meta'
       });
 
       this.statusComponent.mount(Utils.requireChild(this.dialog.getDialog(), '#meta-mount-point'));
 
-      const abortContext = `${this.constructor.name}:updatePlayerMeta:${this.selectedGame.id}:${this.selectedPlayer.id}`;
+      Utils.requireChild(this.dialog.getDialog(), '#save-dialog-btn').addEventListener('click', (e) => this.savePlayerMeta(e));
 
-      Utils.requireChild(this.dialog.getDialog(), '#save-dialog-btn').addEventListener('click', (e) => this.savePlayerMeta(e, abortContext));
-      Utils.requireChild(this.dialog.getDialog(), '.cancel-dialog-btn').addEventListener('click', () => this.dialog.close());
-
-      this.dialog.show();
+      const saved = await this.dialog.show();
+      
+      if (!saved)
+         this.handleDialogClose();
    }
 
-   savePlayerMeta(e, abortContext)
+   savePlayerMeta(e)
    {
       e.preventDefault();
 
-      const metaInput = Utils.requireChild(this.dialog.getDialog(), '#player-meta-input');
-      const metaStr = metaInput.value.trim();
+      const metaStr = Utils.requireChild(this.dialog.getDialog(), '#player-meta-input').value.trim();
 
       // Validate JSON
       let metaData;
@@ -1025,17 +964,11 @@ export class ManageGamesView extends MenuView
          return this.displayStatusMessage('Error: Meta must be valid JSON', 'error');
       }
 
-      const abortControl = this.requestManager.reset(abortContext);
-
       this.displayStatusMessage('Updating player meta...', 'info');
       this.dialog.setDisabled(true);
 
-      eventBus.emit('system:updatePlayerMetaRequest', new ApiRequest('system:updatePlayerMetaRequest',
-      {
-         gameId: this.selectedGame.id,
-         playerId: this.selectedPlayer.id,
-         meta: metaData
-      }, abortControl.signal));
+      const request = new ApiRequest('system:updatePlayerMeta', {gameId: this.selectedGame.id, playerId: this.selectedPlayer.id, meta: metaData}, null);
+      eventBus.emitEvent(request);
    }
 
    handleDialogClose()
@@ -1061,23 +994,21 @@ export class ManageGamesView extends MenuView
          if (this.selectedPlayer && event.data?.meta !== undefined)
             this.selectedPlayer.meta = event.data.meta;
          
-         if (this.dialog)
-            this.dialog.close();
-
          this.displayStatusMessage('Player meta updated successfully', 'success');
+         
+         if (this.dialog)
+            this.dialog.close(true);
       }
       else if (event.isAborted())
       {
          this.displayStatusMessage('Update player meta aborted.', 'warning');
-
+         
          if (this.dialog)
-            this.dialog.close();
+            this.dialog.close(false);
       }
       else
          this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to update player meta', 'error');
 
-      this.renderGames();
-      this.updateGameControlButtons();
       this.renderPlayers();
       this.updatePlayerControlButtons();   
    }
@@ -1094,10 +1025,10 @@ export class ManageGamesView extends MenuView
 
       if (event.isSuccess())
       {
-         this.dialog.close();
+         this.dialog.close(true);
 
          // Reload games and players or maybe update the game and reload players before re-rendering both lists
-         this.loadGames(this.currentPage);
+         this.loadGames(this.currentPage); // really just need to update the player count and re-render game controls
 
          if (this.selectedGame) // not needed if we re-render
             this.selectGame(this.selectedGame.id);
@@ -1120,7 +1051,7 @@ export class ManageGamesView extends MenuView
       const newPage = this.targetPage + delta;
       this.targetPage = Utils.clamp(newPage, 1, this.totalPages);
 
-      if (newPage === this.targetPage)
+      if (newPage === this.targetPage) // true only if the target page was changed
       {
          this.isLoadingGames = true;
          this.selectedGame = null;
@@ -1168,6 +1099,8 @@ export class ManageGamesView extends MenuView
       this.games = [];
       this.players = [];
       this.dialog = null;
+      this.gamesUpdating.clear();
+      this.playersUpdating.clear();
 
       this.aiList = [];
       this.aiSelect = null;
@@ -1180,68 +1113,112 @@ export class ManageGamesView extends MenuView
    }
 }
 
+const pausePrompt =
+{
+   title: 'Pause Game',
+   message: 'Please provide a reason for pausing this game:',
+   placeholder: 'Enter pause reason...',
+   okText: 'Pause',
+   cancelText: 'Cancel'
+};
+
+const freezePrompt =
+{
+   title: 'Freeze Game',
+   message: 'Please provide a reason for freezing this game:',
+   placeholder: 'Enter freeze reason...',
+   okText: 'Freeze',
+   cancelText: 'Cancel'
+};
+
+const ejectPrompt = (playerName) => (
+{
+   title: 'Eject Player - CANNOT BE UNDONE',
+   message: `Please provide a reason for ejecting ${playerName}:`,
+   placeholder: 'Enter reason...',
+   okText: 'Eject',
+   cancelText: 'Cancel'
+});
+
+const suspendPrompt = (playerName) => (
+{
+   title: 'Suspend Player',
+   message: `Please provide a reason for suspending ${playerName}:`,
+   placeholder: 'Enter reason...',
+   okText: 'Suspend',
+   cancelText: 'Cancel'
+});
+
+const endPlayerTurnPrompt = (playerName) => (
+{
+   title: 'End Player Turn',
+   message: `Please provide a reason for ending ${playerName}'s turn:`,
+   placeholder: 'Enter reason...',
+   okText: 'End',
+   cancelText: 'Cancel'
+});
+
 const manageGamesHTML = `
 <div class="view-header">
    <h2>Manage Games</h2>
 </div>
 <div class="view-content">
-<div class="manage-games-split-container">
-  <!-- Left Panel: Games List -->
-  <div class="manage-games-left-panel">
-<div class="manage-games-section">
-  <h3>Games</h3>
-  <div class="games-list-container">
-    <div class="games-loading">Loading games...</div>
-  </div>
-  <div class="pagination-controls">
-    <button id="prev-page-btn" disabled>Previous</button>
-    <span class="pagination-info" id="page-info">Page 1 of 1</span>
-    <button id="next-page-btn" disabled>Next</button>
-      </div>
-  </div>
-</div>
-
-  <!-- Right Panel: Management Controls -->
-  <div class="manage-games-right-panel">
-    <!-- Game Control Buttons -->
-    <div class="manage-games-section manage-games-fixed-section">
-  <h3>Game Controls</h3>
-  <div class="game-controls">
-    <button id="start-game-btn" disabled>Start</button>
-    <button id="pause-unpause-btn" disabled>Pause</button>
-    <button id="freeze-unfreeze-btn" disabled>Freeze</button>
-    <button id="finish-game-btn" disabled>Finish</button>
-    <button id="add-ai-player-btn" disabled>Add AI Player</button>
-  </div>
-</div>
-
-<!-- Player Control Buttons -->
-    <div class="manage-games-section manage-games-fixed-section">
-  <h3>Player Controls</h3>
-  <div class="player-controls">
-    <button id="end-turn-btn" disabled>End Turn</button>
-    <button id="reset-status-btn" disabled>Reset Status</button>
-    <button id="suspend-btn" disabled>Suspend</button>
-    <button id="eject-btn" disabled>Eject</button>
-    <button id="edit-meta-btn" disabled>Edit Meta</button>
-  </div>
-</div>
-
-    <!-- Players List -->
-    <div class="manage-games-section manage-games-scrollable-section">
-      <h3>Players</h3>
-      <div class="players-list-container">
-        <div class="players-placeholder">No game selected.</div>
+  <div class="manage-games-split-container">
+    <!-- Left Panel: Games List -->
+    <div class="manage-games-left-panel">
+      <div class="manage-games-section">
+        <h3>Games</h3>
+        <div class="games-list-container">
+          <div class="games-loading">Loading games...</div>
+        </div>
+        <div class="pagination-controls">
+          <button id="prev-page-btn" disabled>Previous</button>
+          <span class="pagination-info" id="page-info">Page 1 of 1</span>
+          <button id="next-page-btn" disabled>Next</button>
+        </div>
       </div>
     </div>
+
+    <!-- Right Panel: Management Controls -->
+    <div class="manage-games-right-panel">
+      <!-- Game Control Buttons -->
+      <div class="manage-games-section manage-games-fixed-section">
+        <h3>Game Controls</h3>
+        <div id="game-controls-container" class="game-controls">
+          <button id="start-game-btn" disabled>Start</button>
+          <button id="pause-unpause-btn" disabled>Pause</button>
+          <button id="freeze-unfreeze-btn" disabled>Freeze</button>
+          <button id="finish-game-btn" disabled>Finish</button>
+          <button id="add-ai-player-btn" disabled>Add AI Player</button>
+        </div>
+        <div id="game-controls-loading-container" class="games-loading" style="display: none;">Update in progress... please wait.</div>
+      </div>
+
+      <!-- Player Control Buttons -->
+      <div class="manage-games-section manage-games-fixed-section">
+        <h3>Player Controls</h3>
+        <div id="player-controls-container" class="player-controls">
+            <button id="end-turn-btn" disabled>End Turn</button>
+            <button id="reset-status-btn" disabled>Reset Status</button>
+            <button id="suspend-btn" disabled>Suspend</button>
+            <button id="eject-btn" disabled>Eject</button>
+            <button id="edit-meta-btn" disabled>Edit Meta</button>
+          </div>
+          <div id="players-controls-loading-container" class="players-loading" style="display: none;">Update in progress... please wait.</div>
+      </div>
+
+      <!-- Players List -->
+      <div class="manage-games-section manage-games-scrollable-section">
+        <h3>Players</h3>
+        <div class="players-list-container">
+          <div class="players-placeholder">No game selected.</div>
+        </div>
+        <div id="players-loading-container" class="players-loading" style="display: none;">Update in progress... please wait.</div>
+      </div>
   </div>
-</div>
 </div>
 `;
 
-/**
- * HTML for the Add AI Player dialog
- */
 const addAIPlayerDialogHTML = `
 <fieldset>
       <div class="ai-dialog-content">

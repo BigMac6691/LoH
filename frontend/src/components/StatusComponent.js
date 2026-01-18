@@ -53,6 +53,7 @@ export class StatusComponent
          case 'info':
          case 'success':
          case 'warning':
+         case 'fatal':
             message = event?.data?.message;
             break;   
          case 'error':
@@ -98,6 +99,8 @@ export class StatusComponent
             return `❌ Reject: ${msg}`;
          case 'warning':
             return `⚠️ Warning: ${msg}`;
+         case 'fatal':
+            return `💀 Fatal: ${msg}`;
          default:
             return msg;
       }

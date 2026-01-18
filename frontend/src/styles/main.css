@@ -51,6 +51,12 @@ button:hover:not(:disabled)
   transform: scale(1.05);
 }
 
+button:focus-visible
+{
+  outline: 2px solid rgba(var(--color-btn-rgb), var(--muted-alpha-off));
+  outline-offset: 2px;
+}
+
 button:disabled
 {
   opacity: var(--muted-alpha-half);
