@@ -18,6 +18,7 @@ import { Utils } from '../utils/Utils.js';
 import { ApiRequest, ApiEvent } from '../events/Events.js';
 import { Dialog } from './Dialog.js';
 import { PromptDialog } from './PromptDialog.js';
+import { webSocketManager } from '../services/WebSocketManager.js';
 
 export class ManageGamesView extends MenuView
 {
@@ -77,22 +78,22 @@ export class ManageGamesView extends MenuView
    setupEventListeners()
    {
       // Pagination
-      Utils.requireChild(this.container, '#prev-page-btn').addEventListener('click', () => this.changePage(-1));
-      Utils.requireChild(this.container, '#next-page-btn').addEventListener('click', () => this.changePage(1));
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#prev-page-btn'), 'click', this.previousPage);
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#next-page-btn'), 'click', this.nextPage);
 
       // Game control buttons
-      Utils.requireChild(this.container, '#start-game-btn').addEventListener('click', () => this.startGame());
-      Utils.requireChild(this.container, '#pause-unpause-btn').addEventListener('click', () => this.pauseUnpauseGame());
-      Utils.requireChild(this.container, '#freeze-unfreeze-btn').addEventListener('click', () => this.freezeUnfreezeGame());
-      Utils.requireChild(this.container, '#finish-game-btn').addEventListener('click', () => this.finishGame());
-      Utils.requireChild(this.container, '#add-ai-player-btn').addEventListener('click', () => this.showAddAIPlayerDialog());
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#start-game-btn'), 'click', this.startGame);
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#pause-unpause-btn'), 'click', this.pauseUnpauseGame);
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#freeze-unfreeze-btn'), 'click', this.freezeUnfreezeGame);
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#finish-game-btn'), 'click', this.finishGame);
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#add-ai-player-btn'), 'click', this.showAddAIPlayerDialog);
 
       // Player control buttons
-      Utils.requireChild(this.container, '#end-turn-btn').addEventListener('click', () => this.endPlayerTurn());
-      Utils.requireChild(this.container, '#reset-status-btn').addEventListener('click', () => this.resetPlayerStatus());
-      Utils.requireChild(this.container, '#suspend-btn').addEventListener('click', () => this.suspendPlayer());
-      Utils.requireChild(this.container, '#eject-btn').addEventListener('click', () => this.ejectPlayer());
-      Utils.requireChild(this.container, '#edit-meta-btn').addEventListener('click', () => this.showEditMetaDialog());
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#end-turn-btn'), 'click', this.endPlayerTurn);
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#reset-status-btn'), 'click', this.resetPlayerStatus);
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#suspend-btn'), 'click', this.suspendPlayer);
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#eject-btn'), 'click', this.ejectPlayer);
+      this.registerDomEventHandler(Utils.requireChild(this.container, '#edit-meta-btn'), 'click', this.showEditMetaDialog);
    }
 
    loadGames(page = 1)
@@ -125,6 +126,13 @@ export class ManageGamesView extends MenuView
          this.totalPages = event.data.pagination?.totalPages || 1;
 
          this.displayStatusMessage(`Loaded ${this.games.length} games`, 'success');
+
+         const gameIds = this.games.map((game) => game.id).filter((id) => id);
+         
+         if (gameIds.length > 0)
+            webSocketManager.subscribe('system:gameUpdated', gameIds);
+         else
+            webSocketManager.unsubscribe('system:gameUpdated');
       }
       else if (event.isAborted())
          ; // do nothing
@@ -160,7 +168,7 @@ export class ManageGamesView extends MenuView
          listContainer.innerHTML = this.games.map(game => gameCardHTML(game, this.selectedGame?.id === game.id)).join('');
 
       // Add click handlers
-      listContainer.querySelectorAll('.game-card').forEach(card => card.addEventListener('click', () => this.selectGame(card.getAttribute('data-game-id'))));
+      listContainer.querySelectorAll('.card').forEach(card => card.addEventListener('click', () => this.selectGame(card.getAttribute('data-game-id'))));
    }
 
    selectGame(gameId)
@@ -169,7 +177,8 @@ export class ManageGamesView extends MenuView
       this.selectedGame = this.games.find(game => game.id === gameId);
 
       // Update selected game in UI
-      this.container.querySelectorAll('.game-card')
+      Utils.requireChild(this.container, '.games-list-container')
+         .querySelectorAll('.card')
          .forEach(card => card.getAttribute('data-game-id') === gameId ? card.classList.add('selected') : card.classList.remove('selected'));
       this.updateGameControlButtons();
       
@@ -180,6 +189,7 @@ export class ManageGamesView extends MenuView
 
    updateGameControlButtons()
    {
+      console.log('🔐 ManageGamesView: Updating game control buttons', this.gamesUpdating, this.selectedGame);
       if(this.gamesUpdating.has(this.selectedGame?.id))
       {
          Utils.requireChild(this.container, '#game-controls-container').style.display = 'none';
@@ -312,6 +322,13 @@ export class ManageGamesView extends MenuView
          this.players = event.data.players || [];
 
          this.displayStatusMessage(`Loaded ${this.players.length} players`, 'success');
+
+         const playerIds = this.players.map((player) => player.id).filter((id) => id);
+
+         if (playerIds.length > 0)
+            webSocketManager.subscribe('system:gamePlayerUpdated', playerIds);
+         else
+            webSocketManager.unsubscribe('system:gamePlayerUpdated');
       }
       else if (event.isAborted())
          ; // do nothing
@@ -342,7 +359,7 @@ export class ManageGamesView extends MenuView
       else
          playersContainer.innerHTML = this.players.map(player => playerCardHTML(player, this.selectedPlayer?.id === player.id)).join('');
 
-      playersContainer.querySelectorAll('.player-card').forEach(card => card.addEventListener('click', () => this.selectPlayer(card.getAttribute('data-player-id'))));
+      playersContainer.querySelectorAll('.card').forEach(card => card.addEventListener('click', () => this.selectPlayer(card.getAttribute('data-player-id'))));
    }
 
    selectPlayer(playerId)
@@ -350,7 +367,9 @@ export class ManageGamesView extends MenuView
       this.selectedPlayer = this.players.find(player => player.id === playerId);
 
       // Update UI
-      this.container.querySelectorAll('.player-card').forEach(card => card.getAttribute('data-player-id') === playerId ? card.classList.add('selected') : card.classList.remove('selected'));
+      Utils.requireChild(this.container, '.players-list-container')
+         .querySelectorAll('.card')
+         .forEach(card => card.getAttribute('data-player-id') === playerId ? card.classList.add('selected') : card.classList.remove('selected'));
       this.updatePlayerControlButtons();
    }
 
@@ -473,7 +492,7 @@ export class ManageGamesView extends MenuView
          this.gamesUpdating.add(this.selectedGame.id);
          this.displayStatusMessage('Starting game...', 'info');
 
-         eventBus.emitEvent(new ApiRequest('system:startGameRequest', {gameId: this.selectedGame.id}, null));
+         eventBus.emitEvent(new ApiRequest('system:startGameRequest', {gameId: this.selectedGame.id, version: this.selectedGame.version}, null));
       }
       else
          this.displayStatusMessage(message, 'warning');
@@ -569,13 +588,15 @@ export class ManageGamesView extends MenuView
    handleGameUpdated(event)
    {
       console.log('🔐 ManageGamesView: Handling game updated event', event);
+
+      const updatedGame = event.data?.game;
+      const gameId = updatedGame?.id;
+      const gameStatus = updatedGame?.status;
+      const gameSubstatus = updatedGame?.substatus;
+      const errorMessage = event.data?.error;
+
       if (event.isSuccess())
       {
-         const updatedGame = event.data?.game;
-         const gameId = updatedGame?.id;
-         const gameStatus = updatedGame?.status;
-         const gameSubstatus = updatedGame?.substatus;
-         
          if (!gameId || !gameStatus)
             return this.displayStatusMessage('Invalid response: missing game ID or status', 'fatal');
 
@@ -600,9 +621,9 @@ export class ManageGamesView extends MenuView
             {
                const message = 
                {
-                  'generating_map': 'Generating map...',
-                  'placing_players': 'Placing players...',
-                  'creating_turn': 'Creating first turn...'
+                  'map_generated': 'Generating map...',
+                  'players_placed': 'Placing players...',
+                  'turn_created': 'Creating first turn...'
                }[gameSubstatus] || `Game creation: ${gameSubstatus}`;
 
                this.displayStatusMessage(message, 'info');
@@ -614,9 +635,9 @@ export class ManageGamesView extends MenuView
       else if (event.isAborted())
          this.displayStatusMessage('Game update aborted.', 'warning');
       else
-         this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to update game', 'error');
+         this.displayStatusMessage(errorMessage || 'Failed to update game', 'error');
 
-      this.gamesUpdating.delete(event.data?.game?.id);
+      this.gamesUpdating.delete(gameId);
 
       this.renderGames();
       this.updateGameControlButtons();
@@ -1068,6 +1089,16 @@ export class ManageGamesView extends MenuView
          console.warn('🔐 ManageGamesView: Page limit reached, request not sent.', delta, newPage, this.targetPage);
    }
 
+   nextPage()
+   {
+      this.changePage(1);
+   }
+
+   previousPage()
+   {
+      this.changePage(-1);
+   }
+
    updatePaginationControls()
    {
       Utils.requireChild(this.container, '#prev-page-btn').disabled = this.targetPage <= 1;
@@ -1089,6 +1120,7 @@ export class ManageGamesView extends MenuView
         this.dialog.close();
       
       this.unregisterEventHandlers();
+      this.unregisterDomEventHandlers();
 
       if (this.container && this.container.parentNode)
          this.container.parentNode.removeChild(this.container);
@@ -1204,7 +1236,7 @@ const manageGamesHTML = `
             <button id="eject-btn" disabled>Eject</button>
             <button id="edit-meta-btn" disabled>Edit Meta</button>
           </div>
-          <div id="players-controls-loading-container" class="players-loading" style="display: none;">Update in progress... please wait.</div>
+          <div id="player-controls-loading-container" class="players-loading" style="display: none;">Update in progress... please wait.</div>
       </div>
 
       <!-- Players List -->
@@ -1279,10 +1311,17 @@ const addAIPlayerDialogHTML = `
  * @returns {string} HTML string
  */
 const gameCardHTML = (game, isSelected) => {
+   const message = 
+   {
+      'map_generated': 'Map generated',
+      'players_placed': 'Players placed',
+      'turn_created': 'First turn created'
+   }[game.substatus] || `Game creation: ${game.substatus}`;
+
    const substatusHTML = (game.substatus) 
       ? `<div class="game-info-row">
            <span class="game-label">Substatus:</span>
-           <span class="game-value">${Utils.escapeHtml(game.substatus)}</span>
+           <span class="game-value">${Utils.escapeHtml(message)}</span>
          </div>`
       : '';
    
@@ -1294,12 +1333,12 @@ const gameCardHTML = (game, isSelected) => {
       : '';
 
    return `
-<div class="game-card ${isSelected ? 'selected' : ''}" data-game-id="${game.id}">
-  <div class="game-card-header">
+<div class="card ${isSelected ? 'selected' : ''}" data-game-id="${game.id}">
+  <div class="card-header">
     <h4 class="game-title">${Utils.escapeHtml(game.title)}</h4>
     <span class="game-status-badge status-${game.status}">${game.status}</span>
   </div>
-  <div class="game-card-body">
+  <div class="card-body">
     <div class="game-info-row">
       <span class="game-label">Description:</span>
       <span class="game-value">${Utils.escapeHtml(game.description || 'No description')}</span>
@@ -1347,12 +1386,12 @@ const playerCardHTML = (player, isSelected) =>
       : '';
 
    return `
-<div class="player-card ${isSelected ? 'selected' : ''}" data-player-id="${player.id}">
-  <div class="player-card-header">
+<div class="card ${isSelected ? 'selected' : ''}" data-player-id="${player.id}">
+  <div class="card-header">
     <h4 class="player-name">${Utils.escapeHtml(nameDisplay)}</h4>
     <span class="player-status-badge status-${player.status}">${Utils.escapeHtml(player.status)}</span>
   </div>
-  <div class="player-card-body">
+  <div class="card-body">
     <div class="player-info-row">
       <span class="player-label">Country:</span>
       <span class="player-value">${Utils.escapeHtml(player.country_name || 'N/A')}</span>

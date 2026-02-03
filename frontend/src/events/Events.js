@@ -47,11 +47,10 @@ export class ApiRequest extends ApiEvent
  */
 export class ApiResponse extends ApiEvent
 {
-    constructor(type, data = null, status = 200, error = null)
+    constructor(type, data = null, status = 200)
     {
         super(type, data);
         this.status = status;
-        this.error = error;
     }
 
     isSuccess()

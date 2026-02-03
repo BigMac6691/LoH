@@ -316,12 +316,12 @@ export class GamesAvailableList extends MenuView
 }
 
 const gameHTML = (game) => `
-  <div class="game-card">
-        <div class="game-card-header">
+  <div class="card">
+        <div class="card-header">
           <h3 class="game-title">${Utils.escapeHtml(game.title)}</h3>
           <span class="game-status-badge status-${game.status}">${game.status}</span>
         </div>
-        <div class="game-card-body">
+        <div class="card-body">
           <div class="game-info-row">
             <span class="game-label">Description:</span>
             <span class="game-value">${Utils.escapeHtml(game.description || 'No description')}</span>
@@ -339,7 +339,7 @@ const gameHTML = (game) => `
             <span class="game-value">${game.player_count || 0} / ${game.max_players || 6}</span>
           </div>
         </div>
-        <div class="game-card-footer">
+        <div class="card-footer">
           <input 
             type="text" 
             class="country-name-input" 

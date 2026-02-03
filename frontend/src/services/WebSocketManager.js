@@ -8,24 +8,22 @@
  * 
  * Responsibilities:
  * - Maintain WebSocket connection (connect, disconnect, reconnect)
- * - Decode incoming messages and forward to message listeners
+ * - Decode incoming messages and forward to the event bus
  * - Notify connection state listeners of connection changes
  * - Provide send() method for outgoing messages
  * 
  * What it does NOT do:
  * - Know what authentication is (SessionController handles that)
  * - Automatically emit authentication messages (SessionController does that)
- * - Emit game events on eventBus (message listeners handle that)
  * - Know about game lifecycle or gameId validity
  * - Manage game session lifecycle
  * - Talk to UI components
  * 
- * GameSession registers as a message listener and decides whether messages are valid.
  * SessionController registers as a connection listener and handles authentication.
  */
 import io from 'socket.io-client';
 import { eventBus } from '../eventBus.js';
-import { ApiEvent } from '../events/Events.js';
+import { ApiEvent, ApiResponse } from '../events/Events.js';
 
 export class WebSocketManager
 {
@@ -35,13 +33,6 @@ export class WebSocketManager
       this.reconnectAttempts = 0;
       this.maxReconnectAttempts = 5;
       this.reconnectDelay = 1000; // Start with 1 second
-
-      /**
-       * Registered message listeners for game-related WebSocket messages
-       * Listeners receive decoded messages with event type and data
-       * Usually only one active listener (GameSession), but supports multiple
-       */
-      this.messageListeners = new Set();
 
       /**
        * Registered connection state listeners
@@ -92,6 +83,16 @@ export class WebSocketManager
          console.warn('🔌 WebSocketManager: Not connected, cannot send message');
    }
 
+   subscribe(type, entityIds = [])
+   {
+      this.send('subscribe', { type, entityIds });
+   }
+
+   unsubscribe(type)
+   {
+      this.send('unsubscribe', { type });
+   }
+
    /**
     * Set up Socket.IO event handlers
     */
@@ -100,17 +101,17 @@ export class WebSocketManager
       if (!this.socket) 
          return;
 
-      // Game events are handled by the message listeners that were registered by the GameController
       this.socket.onAny((event, data) =>
       {
          console.log('🔌 WebSocketManager: Received event:', event, data);
 
-         if(event.startsWith('game:'))
-            this.notifyListeners(event, data);
-         else if (event.includes(':'))
-            eventBus.emit(event, new ApiEvent(event, data.data));
+         const payload = data?.data ?? data;
+         const handler = wsEventHandlers[event];
+
+         if (handler)
+            handler(payload);
          else
-            eventBus.emit("ui:statusMessage", new ApiEvent("ui:statusMessage", {message: event, type: 'info'}));
+            console.debug('🔌 WebSocketManager: No handler found for event:', event);
       });
 
       // Connection established
@@ -153,25 +154,14 @@ export class WebSocketManager
       });
    }
 
-   /**
-    * Register a listener to receive game-related WebSocket messages
-    * @param {Function} listener - Function that receives (eventType, data) for game messages
-    */
-   addMessageListener(listener)
+   addMessageListener()
    {
-      if (typeof listener !== 'function')
-         throw new Error('WebSocketManager: Listener must be a function');
-
-      this.messageListeners.add(listener);
+      console.warn('🔌 WebSocketManager: Message listeners are deprecated; use eventBus instead');
    }
 
-   /**
-    * Remove a registered message listener
-    * @param {Function} listener - The listener function to remove
-    */
-   removeMessageListener(listener)
+   removeMessageListener()
    {
-      this.messageListeners.delete(listener)
+      console.warn('🔌 WebSocketManager: Message listeners are deprecated; use eventBus instead');
    }
 
    /**
@@ -219,36 +209,7 @@ export class WebSocketManager
    }
 
    /**
-    * Notify all registered listeners of a game-related message
-    * @param {string} eventType - The event type (e.g., 'game:turnComplete')
-    * @param {Object} data - The message data
-    * @private
-    */
-   notifyListeners(eventType, data)
-   {
-      console.log(`🔌 WebSocketManager: Notifying listeners for ${eventType} with data:`, data);
-      
-      if (this.messageListeners.size === 0)
-         return console.log(`🔌 WebSocketManager: No listeners registered for ${eventType}, message dropped`);
-
-      // Forward message to all registered listeners
-      // Listeners are responsible for session validation and further routing
-      this.messageListeners.forEach(listener =>
-      {
-         try
-         {
-            listener(eventType, data);
-         }
-         catch (error)
-         {
-            console.error(`🔌 WebSocketManager: Error in message listener for ${eventType}:`, error);
-         }
-      });
-   }
-
-   /**
     * Disconnect from WebSocket server, happens after logout
-    * Clears all message listeners to prevent memory leaks
     */
    disconnect()
    {
@@ -256,11 +217,8 @@ export class WebSocketManager
       {
          this.socket.disconnect();
          this.socket = null;
-         
-         // Clear all listeners to prevent memory leaks
-         this.messageListeners.clear();
-         
-         console.log('🔌 WebSocketManager: Disconnected and cleared listeners');
+
+         console.log('🔌 WebSocketManager: Disconnected');
       }
    }
 
@@ -276,3 +234,19 @@ export class WebSocketManager
 
 // Export singleton instance
 export const webSocketManager = new WebSocketManager();
+
+const wsEventHandlers = 
+{
+   subscribed: (data) =>
+   {
+      eventBus.emitEvent(new ApiEvent('ui:statusMessage', {message: `Subscribed to event type ${data.type}`, type: 'success'}));
+   },
+   unsubscribed: (data) =>
+   {
+      eventBus.emitEvent(new ApiEvent('ui:statusMessage', {message: `Unsubscribed from event type ${data.type}`, type: 'success'}));
+   },
+   "system:gameUpdated": (data) =>
+   {
+      eventBus.emitEvent(new ApiResponse('system:gameUpdated', data));
+   }
+};

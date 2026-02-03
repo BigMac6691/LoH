@@ -258,12 +258,12 @@ export class GamesPlayingList extends MenuView
 
 const gameHTML = (game) => 
    `
-      <div class="game-card">
-        <div class="game-card-header">
+      <div class="card">
+        <div class="card-header">
           <h3 class="game-title">${Utils.escapeHtml(game.title)}</h3>
           <span class="game-status-badge status-${game.status}">${game.status}</span>
         </div>
-        <div class="game-card-body">
+        <div class="card-body">
           <div class="game-info-row">
             <span class="game-label">Description:</span>
             <span class="game-value">${Utils.escapeHtml(game.description || 'No description')}</span>
@@ -285,7 +285,7 @@ const gameHTML = (game) =>
             <span class="game-value">${Utils.escapeHtml(game.player_status || 'active')}</span>
           </div>
         </div>
-        <div class="game-card-footer">
+        <div class="card-footer">
           <button class="play-btn" data-game-id="${game.id}" ${game.status === 'lobby' || game.status === 'frozen' ? 'disabled' : ''}>
             PLAY
           </button>

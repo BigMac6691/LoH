@@ -337,22 +337,23 @@
   border-color: #ff4444;
 }
 
-.game-card {
+.card {
   background: rgba(0, 0, 0, 0.5);
   border: 2px solid var(--border-primary, #00ff88);
   border-radius: 12px;
   padding: 10px;
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
+  cursor: pointer;
 }
 
-.game-card:hover {
+.card:hover {
   border-color: var(--color-primary, #00ff88);
   box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
   transform: translateY(-2px);
 }
 
-.game-card-header {
+.card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -404,7 +405,7 @@
   color: #808080;
 }
 
-.game-card-body {
+.card-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -428,7 +429,7 @@
   flex: 1;
 }
 
-.game-card-footer {
+.card-footer {
   display: flex;
   justify-content: flex-end;
   align-items: center;
@@ -1257,10 +1258,18 @@
   margin-top: 10px;
 }
 
-.game-card.selected {
-  border-color: var(--color-secondary, #00ffff);
-  box-shadow: 0 0 25px rgba(0, 255, 255, 0.6);
-  background: rgba(0, 255, 255, 0.1);
+.card.selected {
+  background: rgba(0, 255, 255, 0.2);
+}
+
+.card-stale {
+  border-style: dashed;
+  border-color: #888;
+}
+
+.card-error {
+  border-style: solid;
+  border-color: #ff4444;
 }
 
 /* Game Status Badges - Add frozen */
@@ -1302,39 +1311,9 @@
   color: #ff4444;
 }
 
-.player-card {
-  background: rgba(0, 0, 0, 0.5);
-  border: 2px solid var(--border-primary, #00ff88);
-  border-radius: 12px;
-  padding: 15px;
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.player-card:hover {
-  border-color: var(--color-primary, #00ff88);
-  box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
-  transform: translateY(-2px);
-}
-
-.player-card.selected {
-  border-color: var(--color-secondary, #00ffff);
-  box-shadow: 0 0 25px rgba(0, 255, 255, 0.6);
-  background: rgba(0, 255, 255, 0.1);
-}
-
-.player-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(0, 255, 136, 0.3);
-}
 
 .player-name {
-  font-size: 16px;
+  font-size: 20px;
   font-weight: bold;
   color: var(--color-primary, #00ff88);
   margin: 0;
@@ -1376,22 +1355,17 @@
   color: #808080;
 }
 
-.player-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 
 .player-info-row {
   display: flex;
   gap: 15px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .player-label {
   font-weight: bold;
   color: var(--color-secondary, #00ffff);
-  min-width: 95px;
+  min-width: 100px;
 }
 
 .player-value {

@@ -1,11 +1,12 @@
 import express from 'express';
-import { startGameService } from '../services/StartGameService.js';
 import { getOpenTurn, openTurn } from '../repos/turnsRepo.js';
 import { listPlayers } from '../repos/playersRepo.js';
 import { listGames } from '../repos/gamesRepo.js';
 import { pool } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole, requireGameOwnerOrAdmin, requireGamePlayer } from '../middleware/rbac.js';
+import { SystemError } from '../SystemError.js';
+import { myLogger } from '../utils/myLogger.js';
 
 export class GameRouter
 {
@@ -845,62 +846,24 @@ export class GameRouter
    {
       try
       {
+         myLogger('info', '🎮 GameRouter: Starting game', { data: req.body });
+
          const { gameId } = req.params;
+         const { version } = req.body;
 
          if (!gameId)
             return res.status(400).json({error: 'Game ID is required'});
 
-         // Verify game exists and user has permission
-         const { rows: gameRows } = await pool.query(`SELECT * FROM game WHERE id = $1`, [gameId]);
-
-         if (gameRows.length === 0)
-            return res.status(404).json({error: 'Game not found'});
-
-         const game = gameRows[0];
-         const userRole = req.user.role;
-
-         // Check permission: sponsor can only manage their own games
-         if (userRole === 'sponsor' && game.owner_id !== req.user.id)
-            return res.status(403).json({error: 'You can only manage games you created'});
-
-         // Verify status is lobby or error
-         if (game.status !== 'lobby' && game.status !== 'error')
-            return res.status(400).json({error: `Game must be in 'lobby' or 'error' status to start. Current status: ${game.status}`});
-
-         // Verify at least two active players
-         const { rows: playerRows } = await pool.query(
-            `SELECT COUNT(*) as count FROM game_player WHERE game_id = $1 AND status = 'active'`,
-            [gameId]
-         );
-
-         const activePlayerCount = parseInt(playerRows[0].count);
-         if (activePlayerCount < 2)
-            return res.status(400).json({error: `Game must have at least 2 active players. Current: ${activePlayerCount}`});
-
-         // If status is error, clean up existing data
-         if (game.status === 'error')
+         const { startGameService } = await import('../services/StartGameService.js');
+         await startGameService.startGame(
          {
-            console.log(`🎮 GameRouter: Cleaning up failed game ${gameId} before restart`);
-            
-            // Delete in order to respect foreign key constraints
-            await pool.query(`DELETE FROM turn_event WHERE game_id = $1`, [gameId]);
-            await pool.query(`DELETE FROM orders WHERE game_id = $1`, [gameId]);
-            await pool.query(`DELETE FROM game_turn WHERE game_id = $1`, [gameId]);
-            await pool.query(`DELETE FROM ship WHERE game_id = $1`, [gameId]);
-            await pool.query(`DELETE FROM star_state WHERE game_id = $1`, [gameId]);
-            await pool.query(`DELETE FROM wormhole WHERE game_id = $1`, [gameId]);
-            await pool.query(`DELETE FROM star WHERE game_id = $1`, [gameId]);
-         }
-
-         // Update status to creating
-         const { updateGameStatus } = await import('../repos/gamesRepo.js');
-         await updateGameStatus({id: gameId, status: 'creating', substatus: null, statusReason: null});
-
-         // Start the game initialization process (async, don't await)
-         startGameService.startGame(gameId).catch(error => {
-            console.error(`🎮 GameRouter: Error in async game start for ${gameId}:`, error);
-            // Error handling is done in StartGameService
+            gameId,
+            expectedVersion: version,
+            userId: req.user.id,
+            userRole: req.user.role
          });
+
+         const { correlationId } = asyncLocalStorage.getStore();
 
          // Respond immediately with 202 Accepted
          setTimeout(() => {
@@ -909,14 +872,17 @@ export class GameRouter
                success: true,
                message: 'Game start initiated',
                gameId,
-               status: 'creating'
+               correlationId
             });
-         }, 10000);
+         }, 1000);
       }
       catch (error)
       {
          console.error('Error starting game:', error);
-         res.status(500).json({error: 'Failed to start game', details: error.message});
+         if (error?.statusCode)
+            res.status(error.statusCode).json({error: error.message, data: error.data || null});
+         else
+            res.status(500).json({error: 'Failed to start game', details: error.message});
       }
    }
 
@@ -926,64 +892,73 @@ export class GameRouter
     */
    async updateGameStatus(req, res)
    {
+      myLogger('info', '🎮 GameRouter: Updating game status', { data: req.body });         
+
+      let httpStatus = 200;
+
+      const { gameId } = req.params;
+      const { status, statusReason } = req.body;
+      const response =
+      {
+         success: false, 
+         game: null
+      }
+
       try
       {
-         const { gameId } = req.params;
-         const { status, statusReason } = req.body;
-
          if (!gameId || !status)
-            return res.status(400).json({error: 'Game ID and status are required'});
+            throw new SystemError('Game ID and status are required', 400);
 
          // Validate status
          const validStatuses = ['lobby', 'running', 'paused', 'frozen', 'finished', 'creating', 'error'];
          if (!validStatuses.includes(status))
-            return res.status(400).json({error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`});
+            throw new SystemError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
 
          // Verify game exists and user has permission
          const { rows: gameRows } = await pool.query(`SELECT * FROM game WHERE id = $1`, [gameId]);
 
          if (gameRows.length === 0)
-            return res.status(404).json({error: 'Game not found'});
+            throw new SystemError('Game not found', 404);
 
          const game = gameRows[0];
          const userRole = req.user.role;
 
          // Check permission: sponsor can only manage their own games
          if (userRole === 'sponsor' && game.owner_id !== req.user.id)
-            return res.status(403).json({error: 'You can only manage games you created'});
+            throw new SystemError('You can only manage games you created', 403);
 
          // Validate status transitions
          if (game.status === 'finished' && status !== 'finished')
-            return res.status(400).json({error: 'Cannot change status of a finished game'});
+            throw new SystemError('Cannot change status of a finished game', 400);
 
          // Update status (with optional statusReason)
          const { updateGameStatus } = await import('../repos/gamesRepo.js');
-         const updatedGame = await updateGameStatus({
-            id: gameId, 
-            status, 
-            statusReason: statusReason || null
-         });
+         await updateGameStatus({id: gameId, status, statusReason: statusReason || null});
 
          // Set started_at if transitioning to running
          if (status === 'running' && !game.started_at)
             await pool.query(`UPDATE game SET started_at = now() WHERE id = $1`, [gameId]);
-
-         // temp testing code
-         const offset = Number(statusReason);
-         const delay = 10000 + (isNaN(offset) ? 0 : offset);
-         console.log('🔐 GameRouter: Updating game status', delay, offset, statusReason);
-
-         if(offset > 0)
-            updatedGame.updated_at = updatedGame.created_at;
-
-         setTimeout(() => {
-            res.json({success: true, game: updatedGame});
-         }, +delay);
       }
       catch (error)
       {
          console.error('Error updating game status:', error);
-         res.status(500).json({error: 'Failed to update game status', details: error.message});
+         httpStatus = error.statusCode || 500;
+         response.error = error.message;
+      }
+
+      try
+      {
+         response.game = await getGameWithCounts(gameId);
+      }
+      catch (error)
+      {
+         console.error('Error getting game with counts:', error);
+      }
+      finally
+      {
+         setTimeout(() => {
+            res.status(httpStatus).json(response);
+         }, 5000);
       }
    }
 
@@ -1169,4 +1144,32 @@ export class GameRouter
    {
       return this.router;
    }
+}
+
+export async function getGameWithCounts(gameId, client = null)
+{
+   const dbClient = client || pool;
+   const { rows } = await dbClient.query(
+      `SELECT 
+         g.*,
+         COALESCE(gt.number, 0) as current_turn_number,
+         COALESCE(gpc.player_count, 0) as player_count
+      FROM game g
+      LEFT JOIN LATERAL (
+         SELECT number
+         FROM game_turn
+         WHERE game_id = g.id
+         ORDER BY number DESC
+         LIMIT 1
+      ) gt ON true
+      LEFT JOIN (
+         SELECT game_id, COUNT(*) as player_count
+         FROM game_player
+         GROUP BY game_id
+      ) gpc ON g.id = gpc.game_id
+      WHERE g.id = $1`,
+      [gameId]
+   );
+
+   return rows[0] ?? null;
 }

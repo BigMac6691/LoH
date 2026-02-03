@@ -44,8 +44,6 @@ export class StatusComponent
     */
    statusMessage(event) 
    {
-      console.log('StatusComponent: statusMessage', event);
-
       let message = 'Unknown status message';
       
       switch (event?.data?.type)

@@ -3,13 +3,21 @@
  * Tracks which clients are viewing which games and sends real-time updates
  */
 
+import { serverBus } from '../utils/ServerBus.js';
+
 export class WebSocketService
 {
    constructor()
    {
       // Map of socketId -> { userId, gameId, playerId }
       this.gameConnections = new Map();
+      this.subscriptionsByKey = new Map(); // Map<type:entityId, Set<socketId>>
+      this.clientSubscriptions = new Map(); // Map<socketId, Map<type, Set<entityId>>>
       this.io = null;
+      this.serverBus = serverBus;
+
+      this.handleGameUpdated = this.handleGameUpdated.bind(this);
+      this.serverBus.on('system:gameUpdated', this.handleGameUpdated);
    }
 
    isReady()
@@ -111,9 +119,52 @@ export class WebSocketService
             socket.emit('game:left', {success: true});
          });
 
+        // Handle subscription updates for this socket
+        socket.on('subscribe', (data) =>
+        {
+           console.log('🔌 WebSocketService: Received subscribe event:', data);
+
+           if (!socket.data.authenticated)
+              return socket.emit('error', { message: 'Not authenticated' });
+
+           try
+           {
+              const { type, entityIds } = data || {};
+              this.replaceSubscriptionForSocket(socket.id, type, entityIds);
+              socket.emit('subscribed', { success: true, type });
+           }
+           catch (error)
+           {
+              console.error('🔌 WebSocketService: Subscribe error:', error);
+              socket.emit('error', { message: 'Subscribe failed' });
+           }
+        });
+
+        socket.on('unsubscribe', (data) =>
+        {
+           console.log('🔌 WebSocketService: Received unsubscribe event:', data);
+           
+           if (!socket.data.authenticated)
+              return socket.emit('error', { message: 'Not authenticated' });
+
+           try
+           {
+              const { type } = data || {};
+              this.removeSubscriptionForSocket(socket.id, type);
+              socket.emit('unsubscribed', { success: true, type });
+           }
+           catch (error)
+           {
+              console.error('🔌 WebSocketService: Unsubscribe error:', error);
+              socket.emit('error', { message: 'Unsubscribe failed' });
+           }
+        });
+
          // Handle disconnect
          socket.on('disconnect', () =>
          {
+            this.removeSocketSubscriptions(socket.id);
+
             if (this.gameConnections.has(socket.id))
             {
                const connection = this.gameConnections.get(socket.id);
@@ -296,6 +347,130 @@ export class WebSocketService
       for (const socket of this.io.sockets.sockets.values())
          if(socket.data.authenticated)
             socket.emit(event.type, event);
+   }
+
+   replaceSubscriptionForSocket(socketId, type, entityIds = [])
+   {
+      if (!type)
+         throw new Error('WebSocketService: Subscription type is required');
+
+      this.removeSubscriptionForSocket(socketId, type);
+
+      const normalizedIds = Array.isArray(entityIds) ? entityIds : [];
+      const typeMap = this.getClientTypeMap(socketId);
+      const idSet = new Set(normalizedIds);
+
+      typeMap.set(type, idSet);
+
+      if(idSet.size === 0)
+         this.addSocketToKey(this.getSubscriptionKey(type, null), socketId);
+      else
+         for (const entityId of idSet)
+            this.addSocketToKey(this.getSubscriptionKey(type, entityId), socketId);
+   }
+
+   removeSubscriptionForSocket(socketId, type)
+   {
+      const typeMap = this.clientSubscriptions.get(socketId);
+
+      if (!typeMap || !typeMap.has(type))
+         return;
+
+      const entityIds = typeMap.get(type);
+      typeMap.delete(type);
+
+      if (typeMap.size === 0)
+         this.clientSubscriptions.delete(socketId);
+
+      if (entityIds.size === 0)
+         this.removeSocketFromKey(this.getSubscriptionKey(type, null), socketId);
+      else
+         for (const entityId of entityIds)
+            this.removeSocketFromKey(this.getSubscriptionKey(type, entityId), socketId);
+   }
+
+   removeSocketSubscriptions(socketId)
+   {
+      const typeMap = this.clientSubscriptions.get(socketId);
+
+      if (typeMap)
+      {
+         for (const [type, entityIds] of typeMap.entries())
+         {
+            if (!entityIds || entityIds.size === 0)
+               this.removeSocketFromKey(this.getSubscriptionKey(type, null), socketId);
+            else
+               for (const entityId of entityIds)
+                  this.removeSocketFromKey(this.getSubscriptionKey(type, entityId), socketId);
+         }
+      }
+
+      this.clientSubscriptions.delete(socketId);
+   }
+
+   notifySubscribers(event)
+   {
+      if (!event || !event.type)
+         throw new Error('WebSocketService: notifySubscribers requires event.type');
+
+      const subscriptionKey = this.getSubscriptionKey(event.type, event.entityId || null);
+      const targetSocketIds = this.subscriptionsByKey.get(subscriptionKey);
+
+      for (const socketId of targetSocketIds)
+      {
+         const socket = this.io.sockets.sockets.get(socketId);
+
+         if (socket && socket.data.authenticated)
+            socket.emit(event.type, event.payload);
+      }
+   }
+
+   handleGameUpdated(event)
+   {
+      if (!event?.type || !event?.entityId)
+         throw new Error('WebSocketService: system:gameUpdated requires type and entityId');
+
+      if (!event?.payload)
+         throw new Error('WebSocketService: system:gameUpdated requires payload');
+
+      this.notifySubscribers(event);
+   }
+
+   getClientTypeMap(socketId)
+   {
+      if (!this.clientSubscriptions.has(socketId))
+         this.clientSubscriptions.set(socketId, new Map());
+
+      return this.clientSubscriptions.get(socketId);
+   }
+
+   getSubscriptionKey(type, entityId)
+   {
+      if (!type)
+         throw new Error('WebSocketService: Subscription type is required');
+
+      return entityId ? `${type}:${entityId}` : `${type}:*`;
+   }
+
+   addSocketToKey(key, socketId)
+   {
+      if (!this.subscriptionsByKey.has(key))
+         this.subscriptionsByKey.set(key, new Set());
+
+      this.subscriptionsByKey.get(key).add(socketId);
+   }
+
+   removeSocketFromKey(key, socketId)
+   {
+      const socketSet = this.subscriptionsByKey.get(key);
+
+      if (!socketSet)
+         return;
+
+      socketSet.delete(socketId);
+      
+      if (socketSet.size === 0)
+         this.subscriptionsByKey.delete(key);
    }
 }
 

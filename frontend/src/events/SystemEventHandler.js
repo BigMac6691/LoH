@@ -60,7 +60,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPostUnauthenticated('/api/auth/register', {...event.data}, event.signal)
+      RB.fetchPostUnauthenticated('/api/auth/register', {...event.data}, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Registration success:', success);
@@ -89,7 +89,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPostUnauthenticated('/api/auth/recover', {email: event.data.email}, event.signal)
+      RB.fetchPostUnauthenticated('/api/auth/recover', {email: event.data.email}, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Recovery request success:', success);
@@ -118,7 +118,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPostUnauthenticated('/api/auth/reset-password', {token: event.data.token, newPassword: event.data.newPassword}, event.signal)
+      RB.fetchPostUnauthenticated('/api/auth/reset-password', {token: event.data.token, newPassword: event.data.newPassword}, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Password reset success:', success);
@@ -150,7 +150,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchGet('/api/auth/profile', event.signal)
+      RB.fetchGet('/api/auth/profile', event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Profile request success:', success);
@@ -182,7 +182,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPut('/api/auth/profile', {...event.data}, event.signal)
+      RB.fetchPut('/api/auth/profile', {...event.data}, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Update profile success:', success);
@@ -214,7 +214,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPost('/api/auth/change-password', {...event.data}, event.signal)
+      RB.fetchPost('/api/auth/change-password', {...event.data}, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Change password success:', success);
@@ -246,7 +246,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPost('/api/auth/verify-email', {...event.data}, event.signal)
+      RB.fetchPost('/api/auth/verify-email', {...event.data}, event.signal, event.transactionId)
          .then(success =>
          {
             response = event.prepareResponse('system:verifyEmailResponse', success, 200, null);
@@ -274,7 +274,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPost('/api/auth/profile/resend-verification', null, event.signal)
+      RB.fetchPost('/api/auth/profile/resend-verification', null, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Resend verification success:', success);
@@ -310,7 +310,7 @@ export class SystemEventHandler
       const { page = 1, limit = 10 } = event.data || {};
       const queryParams = `?page=${page}&limit=${limit}`;
 
-      RB.fetchGet(`/api/system-events${queryParams}`, event.signal)
+      RB.fetchGet(`/api/system-events${queryParams}`, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('System events request success:', success);
@@ -363,7 +363,7 @@ export class SystemEventHandler
 
      const queryParams = `?filter=${filter}&page=${page}&limit=${limit}`;
 
-     RB.fetchGet(`/api/games/list${queryParams}`, event.signal)
+     RB.fetchGet(`/api/games/list${queryParams}`, event.signal, event.transactionId)
         .then(success =>
         {
            console.log(`List games request success (filter=${filter}, context=${context}):`, success);
@@ -422,7 +422,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPost(`/api/games/${gameId}/join`, {countryName: countryName.trim()}, event.signal)
+      RB.fetchPost(`/api/games/${gameId}/join`, {countryName: countryName.trim()}, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Join game request success:', success);
@@ -477,7 +477,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPost('/api/games', {seed, mapSize, densityMin, densityMax, title, description, maxPlayers, status: 'lobby', params: {}}, event.signal)
+      RB.fetchPost('/api/games', {seed, mapSize, densityMin, densityMax, title, description, maxPlayers, status: 'lobby', params: {}}, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Create game request success:', success);
@@ -519,7 +519,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchGet(`/api/games/${gameId}/manage/players`, event.signal)
+      RB.fetchGet(`/api/games/${gameId}/manage/players`, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('List game players request success:', success);
@@ -549,7 +549,7 @@ export class SystemEventHandler
       if(!(event instanceof ApiRequest))
          throw new Error('SystemEventHandler: Invalid event type');
 
-      const { gameId } = event.data || {};
+      const { gameId, version } = event.data || {};
 
       if (!gameId)
       {
@@ -560,7 +560,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPost(`/api/games/${gameId}/startGame`, {}, event.signal)
+      RB.fetchPost(`/api/games/${gameId}/startGame`, {version: version}, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Start game request success:', success);
@@ -598,7 +598,7 @@ export class SystemEventHandler
     */
    handleUpdateGameStatus(event)
    {
-      console.log('🔐 SystemEventHandler: Processing update game status request');
+      console.log('🔐 SystemEventHandler: Processing update game status request', event);
 
       if(!(event instanceof ApiRequest))
          throw new Error('SystemEventHandler: Invalid event type');
@@ -625,7 +625,7 @@ export class SystemEventHandler
       if (statusReason !== null && statusReason !== undefined)
          requestBody.statusReason = statusReason;
 
-      RB.fetchPut(`/api/games/${gameId}/status`, requestBody, event.signal)
+      RB.fetchPut(`/api/games/${gameId}/status`, requestBody, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Update game status request success:', success);
@@ -633,10 +633,10 @@ export class SystemEventHandler
          })
          .catch(error =>
          {
-            console.error('Update game status request error:', error);
-            const status = event.signal?.aborted ? 499 : 400;
-            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
-            response = event.prepareResponse('system:gameUpdated', null, status, errorBody);
+            console.error('Update game status request error:', {message: error.message, status: error.status, body: error.body}, error instanceof ApiError ? 'ApiError' : 'NOT ApiError');
+            const status = event.signal?.aborted ? 499 : error.status || 400;
+            const body = error instanceof ApiError ? error.body : {message: error.message || error};
+            response = event.prepareResponse('system:gameUpdated', body, status);
          })
          .finally(() =>
          {
@@ -678,7 +678,7 @@ export class SystemEventHandler
       if (reason !== null && reason !== undefined)
          requestBody.reason = reason;
 
-      RB.fetchPost(`/api/games/${gameId}/players/${playerId}/end-turn`, requestBody, event.signal)
+      RB.fetchPost(`/api/games/${gameId}/players/${playerId}/end-turn`, requestBody, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('End player turn request success:', success);
@@ -737,7 +737,7 @@ export class SystemEventHandler
       if (statusReason !== null && statusReason !== undefined)
          requestBody.statusReason = statusReason;
 
-      RB.fetchPut(`/api/games/${gameId}/players/${playerId}/status`, requestBody, event.signal)
+      RB.fetchPut(`/api/games/${gameId}/players/${playerId}/status`, requestBody, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Update player status request success:', success);
@@ -792,7 +792,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPut(`/api/games/${gameId}/players/${playerId}/meta`, {meta}, event.signal)
+      RB.fetchPut(`/api/games/${gameId}/players/${playerId}/meta`, {meta}, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Update player meta request success:', success);
@@ -824,7 +824,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchGet('/api/ai/list', event.signal)
+      RB.fetchGet('/api/ai/list', event.signal, event.transactionId)
          .then(success =>
          {
             console.log('AI list request success:', success);
@@ -886,7 +886,7 @@ export class SystemEventHandler
 
       let response = null;
 
-      RB.fetchPost(`/api/games/${gameId}/ai-players`, {aiName, playerName, countryName, aiConfig: aiConfig || {}}, event.signal)
+      RB.fetchPost(`/api/games/${gameId}/ai-players`, {aiName, playerName, countryName, aiConfig: aiConfig || {}}, event.signal, event.transactionId)
          .then(success =>
          {
             console.log('Add AI player request success:', success);

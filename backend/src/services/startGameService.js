@@ -229,9 +229,9 @@ export class StartGameService {
   /**
    * Start a game - orchestrates the entire game initialization process
    * Steps execute sequentially:
-   * 1. Generate map (substatus: generating_map)
-   * 2. Place players (substatus: placing_players)
-   * 3. Create first turn (substatus: creating_turn)
+   * 1. Generate map (substatus: map_generated)
+   * 2. Place players (substatus: players_placed)
+   * 3. Create first turn (substatus: turn_created)
    * 4. On success: status = running, substatus = null
    * 5. On error: status = error, preserve substatus, set status_reason
    * 
@@ -247,19 +247,19 @@ export class StartGameService {
 
       // Step 1: Generate map
       console.log(`🎮 StartGameService: Starting game ${gameId} - Step 1: Generating map`);
-      currentSubstatus = 'generating_map';
+      currentSubstatus = 'map_generated';
       await this.updateStatusAndNotify(client, gameId, 'creating', currentSubstatus);
       await this.generateMap(client, gameId);
 
       // Step 2: Place players
       console.log(`🎮 StartGameService: Step 2: Placing players`);
-      currentSubstatus = 'placing_players';
+      currentSubstatus = 'players_placed';
       await this.updateStatusAndNotify(client, gameId, 'creating', currentSubstatus);
       await this.placePlayers(client, gameId);
 
       // Step 3: Create first turn
       console.log(`🎮 StartGameService: Step 3: Creating first turn`);
-      currentSubstatus = 'creating_turn';
+      currentSubstatus = 'turn_created';
       await this.updateStatusAndNotify(client, gameId, 'creating', currentSubstatus);
       await this.createFirstTurn(client, gameId);
 

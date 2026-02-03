@@ -5,6 +5,19 @@ import { openTurn } from '../repos/turnsRepo.js';
 import { upsertStarState } from '../repos/starsRepo.js';
 import { addShip } from '../repos/shipsRepo.js';
 import { webSocketService } from './WebSocketService.js';
+import { serverBus } from '../utils/ServerBus.js';
+import { randomUUID } from 'crypto';
+import { getGameWithCounts } from '../routes/GameRouter.js';
+
+class StartGameError extends Error
+{
+   constructor(statusCode, message, data = null)
+   {
+      super(message);
+      this.statusCode = statusCode;
+      this.data = data;
+   }
+}
 
 /**
  * StartGameService - Orchestrates game initialization
@@ -12,44 +25,238 @@ import { webSocketService } from './WebSocketService.js';
  */
 export class StartGameService
 {
-   /**
-    * Notify clients via WebSocket about game status/substatus updates
-    * @param {string} gameId - Game ID
-    * @param {string} status - Game status
-    * @param {string|null} substatus - Game substatus (optional)
-    * @param {string|null} statusReason - Status reason (optional)
-    */
-   async notifyStatusUpdate(gameId, status, substatus = null, statusReason = null)
+   constructor()
    {
+      this.serverBus = serverBus;
+
+      this.startMapGeneration = this.startMapGeneration.bind(this);
+      this.startPlayerPlacement = this.startPlayerPlacement.bind(this);
+      this.startFirstTurnCreation = this.startFirstTurnCreation.bind(this);
+      this.activateGame = this.activateGame.bind(this);
+
+      this.serverBus.on('game.start:generateMap', this.startMapGeneration);
+      this.serverBus.on('game.start:placePlayers', this.startPlayerPlacement);
+      this.serverBus.on('game.start:createFirstTurn', this.startFirstTurnCreation);
+      this.serverBus.on('game.start:activateGame', this.activateGame);
+   }
+
+   async startMapGeneration(context)
+   {
+      console.log('🎮 StartGameService: Starting map generation', context);
+      const { transactionId, gameId } = context;
+      const response =
+      {
+         type: 'system:gameUpdated',
+         entityId: gameId,
+         payload: { transactionId, success: false, game: null }
+      }
+
+      const client = await pool.connect();
+      const currentSubstatus = 'map_generated';
+
       try
       {
-         if (!webSocketService.isReady())
-            return console.warn('🔌 StartGameService: Cannot notify - Socket.IO not initialized');
+         await client.query('BEGIN');
+         await this.generateMap(client, gameId);
+         await updateGameStatus({ id: gameId, status: 'creating', substatus: currentSubstatus, statusReason: null }, client);
+         await client.query('COMMIT');
 
-         webSocketService.notifyListeners({ type: 'system:substatusUpdated', data: { gameId, status, substatus, statusReason } });
+         response.payload.success = true;
       }
       catch (error)
       {
-         console.error('🔌 StartGameService: Error notifying status update:', error);
-         // Don't throw - WebSocket notification failure shouldn't block game creation
+         await client.query('ROLLBACK');
+         console.error(`🎮 StartGameService: Error generating map for ${gameId}:`, error);
+
+         try
+         {
+            await updateGameStatus({ id: gameId, status: 'error', substatus: currentSubstatus, statusReason: error.message || 'Map generation failed' }, client);
+         }
+         catch (updateError)
+         {
+            console.error('🎮 StartGameService: Error updating status to error:', updateError);
+         }
+      }
+
+      try
+      {
+         response.payload.game = await getGameWithCounts(gameId, client);
+      }
+      catch (error)
+      {
+         console.error('🎮 StartGameService: Error getting game with counts:', error);
+      }
+      finally
+      {
+         setTimeout(() => {
+            this.serverBus.emit('game.start:mapGenerated', { gameId });
+            this.serverBus.emit('system:gameUpdated', response);
+         }, 5000);
+         client.release();
       }
    }
 
-   /**
-    * Update game status and notify clients
-    * @param {Object} client - Database client (transaction)
-    * @param {string} gameId - Game ID
-    * @param {string} status - New status
-    * @param {string|null} substatus - Optional substatus
-    * @param {string|null} statusReason - Optional status reason
-    */
-   async updateStatusAndNotify(client, gameId, status, substatus = null, statusReason = null)
+   async startPlayerPlacement(context)
    {
-      // Update in database
-      await updateGameStatus({ id: gameId, status, substatus, statusReason }, client);
+      console.log('🎮 StartGameService: Starting player placement', context);
+      const { transactionId, gameId } = context;
+      const response =
+      {
+         type: 'system:gameUpdated',
+         entityId: gameId,
+         payload: { transactionId, success: false, game: null }
+      }
 
-      // Notify via WebSocket
-      await this.notifyStatusUpdate(gameId, status, substatus, statusReason);
+      const client = await pool.connect();
+      const currentSubstatus = 'players_placed';
+
+      try
+      {
+         await client.query('BEGIN');
+         await this.placePlayers(client, gameId);
+         await updateGameStatus({ id: gameId, status: 'creating', substatus: currentSubstatus, statusReason: null }, client);
+         await client.query('COMMIT');
+
+         response.payload.success = true;
+      }
+      catch (error)
+      {
+         await client.query('ROLLBACK');
+         console.error(`🎮 StartGameService: Error placing players for ${gameId}:`, error);
+
+         try
+         {
+            await updateGameStatus({ id: gameId, status: 'error', substatus: currentSubstatus, statusReason: error.message || 'Player placement failed' }, client);
+         }
+         catch (updateError)
+         {
+            console.error('🎮 StartGameService: Error updating status to error:', updateError);
+         }
+      }
+
+      try
+      {
+         response.payload.game = await getGameWithCounts(gameId, client);
+      }
+      catch (error)
+      {
+         console.error('🎮 StartGameService: Error getting game with counts:', error);
+      }
+      finally
+      {
+         setTimeout(() => {
+            this.serverBus.emit('game.start:playersPlaced', { gameId });
+            this.serverBus.emit('system:gameUpdated', response);
+         }, 5000);
+         client.release();
+      }
+   }
+
+   async startFirstTurnCreation(context)
+   {
+      console.log('🎮 StartGameService: Starting first turn creation', context);
+      const { transactionId, gameId } = context;
+      const response =
+      {
+         type: 'system:gameUpdated',
+         entityId: gameId,
+         payload: { transactionId, success: false, game: null }
+      }
+
+      const client = await pool.connect();
+      const currentSubstatus = 'turn_created';
+
+      try
+      {
+         await client.query('BEGIN');
+         await this.createFirstTurn(client, gameId);
+         await updateGameStatus({ id: gameId, status: 'creating', substatus: currentSubstatus, statusReason: null }, client);
+         await client.query('COMMIT');
+
+         response.payload.success = true;
+      }
+      catch (error)
+      {
+         await client.query('ROLLBACK');
+         console.error(`🎮 StartGameService: Error creating first turn for ${gameId}:`, error);
+
+         try
+         {
+            await updateGameStatus({ id: gameId, status: 'error', substatus: currentSubstatus, statusReason: error.message || 'First turn creation failed' }, client);
+         }
+         catch (updateError)
+         {
+            console.error('🎮 StartGameService: Error updating status to error:', updateError);
+         }
+      }
+
+      try
+      {
+         response.payload.game = await getGameWithCounts(gameId, client);
+      }
+      catch (error)
+      {
+         console.error('🎮 StartGameService: Error getting game with counts:', error);
+      }
+      finally
+      {
+         setTimeout(() => {
+            this.serverBus.emit('game.start:firstTurnCreated', { gameId });
+            this.serverBus.emit('system:gameUpdated', response);
+         }, 5000);
+         client.release();
+      }
+   }
+
+   async activateGame(context)
+   {
+      console.log('🎮 StartGameService: Activating game', context);
+      const { transactionId, gameId } = context;
+      const response =
+      {
+         type: 'system:gameUpdated',
+         entityId: gameId,
+         payload: { transactionId, success: false, game: null }
+      }
+      const client = await pool.connect();
+
+      try
+      {
+         await client.query('BEGIN');
+         await updateGameStatus({ id: gameId, status: 'running', substatus: null, statusReason: null }, client);
+         await client.query('COMMIT');
+
+         response.payload.success = true;
+      }
+      catch (error1)
+      {
+         await client.query('ROLLBACK');
+         console.error(`🎮 StartGameService: Error activating game ${gameId}:`, error1);
+
+         try
+         {
+            await updateGameStatus({ id: gameId, status: 'error', substatus: null, statusReason: error1.message || 'Game activation failed' }, client);
+         }
+         catch (error2)
+         {
+            console.error('🎮 StartGameService: Error updating status to error:', error2);
+         }
+      }
+
+      try
+      {
+         response.payload.game = await getGameWithCounts(gameId, client);
+      }
+      catch (error)
+      {
+         console.error('🎮 StartGameService: Error getting game with counts:', error);
+      }
+      finally
+      {
+         this.serverBus.emit('system:gameUpdated', response);
+
+         client.release();
+      }
    }
 
    /**
@@ -182,70 +389,56 @@ export class StartGameService
    /**
     * Start a game - orchestrates the entire game initialization process
     * Steps execute sequentially:
-    * 1. Generate map (substatus: generating_map)
-    * 2. Place players (substatus: placing_players)
-    * 3. Create first turn (substatus: creating_turn)
+    * 1. Generate map (substatus: map_generated)
+    * 2. Place players (substatus: players_placed)
+    * 3. Create first turn (substatus: turn_created)
     * 4. On success: status = running, substatus = null
     * 5. On error: status = error, preserve substatus, set status_reason
     * 
     * @param {string} gameId - Game ID
     * @throws {Error} On any failure during the process
     */
-   async startGame(gameId)
+   async startGame({ gameId, expectedVersion, userId, userRole })
    {
-      const client = await pool.connect();
-      let currentSubstatus = null;
+      console.log('🎮 StartGameService: Starting game', { gameId, expectedVersion, userId, userRole });
+      if (!gameId)
+         throw new StartGameError(400, 'Game ID is required');
 
-      try
-      {
-         await client.query('BEGIN');
+      if (expectedVersion === undefined || expectedVersion === null)
+         throw new StartGameError(400, 'Game version is required');
 
-         // Step 1: Generate map
-         console.log(`🎮 StartGameService: Starting game ${gameId} - Step 1: Generating map`);
-         currentSubstatus = 'generating_map';
-         await this.updateStatusAndNotify(client, gameId, 'creating', currentSubstatus);
-         await this.generateMap(client, gameId);
+      if (!userId || !userRole)
+         throw new StartGameError(403, 'User authentication is required');
 
-         // Step 2: Place players
-         console.log(`🎮 StartGameService: Step 2: Placing players`);
-         currentSubstatus = 'placing_players';
-         await this.updateStatusAndNotify(client, gameId, 'creating', currentSubstatus);
-         await this.placePlayers(client, gameId);
+      if (!['sponsor', 'admin', 'owner'].includes(userRole))
+         throw new StartGameError(403, 'Insufficient permissions to start game');
 
-         // Step 3: Create first turn
-         console.log(`🎮 StartGameService: Step 3: Creating first turn`);
-         currentSubstatus = 'creating_turn';
-         await this.updateStatusAndNotify(client, gameId, 'creating', currentSubstatus);
-         await this.createFirstTurn(client, gameId);
+      const { rows: gameRows } = await pool.query('SELECT * FROM game WHERE id = $1', [gameId]);
+      if (gameRows.length === 0)
+         throw new StartGameError(404, 'Game not found');
 
-         // Step 4: Success - update to running
-         console.log(`🎮 StartGameService: Game ${gameId} started successfully`);
-         await this.updateStatusAndNotify(client, gameId, 'running', null, null);
+      const game = gameRows[0];
 
-         await client.query('COMMIT');
-         console.log(`🎮 StartGameService: Game ${gameId} initialization complete`);
-      }
-      catch (error)
-      {
-         await client.query('ROLLBACK');
-         console.error(`🎮 StartGameService: Error starting game ${gameId}:`, error);
+      if (userRole === 'sponsor' && game.owner_id !== userId)
+         throw new StartGameError(403, 'You can only manage games you created');
 
-         // Update to error status, preserve current substatus, set status_reason
-         try
-         {
-            await this.updateStatusAndNotify(client, gameId, 'error', currentSubstatus, error.message || 'Game initialization failed'); 
-         }
-         catch (notifyError)
-         {
-            console.error('🎮 StartGameService: Error updating status to error:', notifyError);
-         }
+      if (game.status !== 'lobby')
+         throw new StartGameError(400, `Game must be in 'lobby' status to start. Current status: ${game.status}`);
 
-         throw error; // Re-throw so caller knows it failed
-      }
-      finally
-      {
-         client.release();
-      }
+      const { rows: playerRows } = await pool.query(
+         `SELECT COUNT(*) as count FROM game_player WHERE game_id = $1 AND status = 'active'`,
+         [gameId]
+      );
+
+      const activePlayerCount = parseInt(playerRows[0].count);
+      if (activePlayerCount < 2)
+         throw new StartGameError(400, `Game must have at least 2 active players. Current: ${activePlayerCount}`);
+
+      if (Number(game.version) !== Number(expectedVersion))
+         throw new StartGameError(409, 'Game version mismatch', { game });
+
+      const { correlationId } = asyncLocalStorage.getStore();
+      this.serverBus.emit('game.start:startGame', { correlationId, gameId, userId, userRole });
    }
 }
 

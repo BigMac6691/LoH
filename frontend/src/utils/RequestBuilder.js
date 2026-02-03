@@ -26,13 +26,16 @@ export class RB
     * Get headers for POST/PUT/PATCH requests (includes Content-Type and Authorization)
     * @returns {Object} Headers object
     */
-   static getHeaders()
+   static getHeaders(txId = null)
    {
       const headers =
       {
          'Content-Type': 'application/json',
          'Authorization': `Bearer ${tokenStore.getAccessToken() || ''}`
       };
+
+      if (txId)
+         headers['X-Client-Tx-Id'] = txId;
 
       return headers;
    }
@@ -41,12 +44,15 @@ export class RB
    * Get headers for GET/DELETE requests (includes only Authorization)
    * @returns {Object} Headers object
    */
-  static getHeadersForGet()
+  static getHeadersForGet(txId = null)
   {
       const headers =
       {
          'Authorization': `Bearer ${tokenStore.getAccessToken() || ''}`,
       };
+
+     if (txId)
+        headers['X-Client-Tx-Id'] = txId;
 
      return headers;
   }
@@ -57,12 +63,12 @@ export class RB
    * @param {AbortSignal} [signal] - Optional AbortSignal for cancelling the request
    * @returns {Request} Request object configured for GET
    */
-  static getRequest(url, signal = null)
+  static getRequest(url, signal = null, txId = null)
   {
      const options = 
      {
         method: 'GET',
-        headers: this.getHeadersForGet()
+        headers: this.getHeadersForGet(txId)
      };
      
      if (signal !== null) 
@@ -77,12 +83,12 @@ export class RB
    * @param {AbortSignal} [signal] - Optional AbortSignal for cancelling the request
    * @returns {Request} Request object configured for DELETE
    */
-  static deleteRequest(url, signal = null)
+  static deleteRequest(url, signal = null, txId = null)
   {
      const options = 
      {
         method: 'DELETE',
-        headers: this.getHeadersForGet()
+        headers: this.getHeadersForGet(txId)
      };
      
      if (signal !== null) 
@@ -98,12 +104,12 @@ export class RB
    * @param {AbortSignal} [signal] - Optional AbortSignal for cancelling the request
    * @returns {Request} Request object configured for POST
    */
-  static postRequest(url, body = null, signal = null)
+  static postRequest(url, body = null, signal = null, txId = null)
   {
      const options = 
      {
         method: 'POST',
-        headers: this.getHeaders()
+        headers: this.getHeaders(txId)
      };
      
      if (body !== null) 
@@ -122,12 +128,12 @@ export class RB
    * @param {AbortSignal} [signal] - Optional AbortSignal for cancelling the request
    * @returns {Request} Request object configured for PUT
    */
-  static putRequest(url, body = null, signal = null)
+  static putRequest(url, body = null, signal = null, txId = null)
   {
      const options = 
      {
         method: 'PUT',
-        headers: this.getHeaders()
+        headers: this.getHeaders(txId)
      };
      
      if (body !== null) 
@@ -147,13 +153,16 @@ export class RB
    * @param {AbortSignal} [signal] - Optional AbortSignal for cancelling the request
    * @returns {Request} Request object configured for POST (no Authorization header)
    */
-  static postRequestUnauthenticated(url, body = null, signal = null)
+  static postRequestUnauthenticated(url, body = null, signal = null, txId = null)
   {
      const options = 
      {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
      };
+
+     if (txId)
+        options.headers['X-Client-Tx-Id'] = txId;
      
      if (body !== null) 
         options.body = typeof body === 'string' ? body : JSON.stringify(body);
@@ -216,9 +225,9 @@ export class RB
    * @returns {Promise<Object>} Parsed JSON response
    * @throws {ApiError} If the request fails
    */
-  static async fetchGet(url, signal = null)
+  static async fetchGet(url, signal = null, txId = null)
   {
-     const request = this.getRequest(url, signal);
+     const request = this.getRequest(url, signal, txId);
      const response = await fetch(request);
 
      return await this.handleResponse(response);
@@ -232,9 +241,9 @@ export class RB
    * @returns {Promise<Object>} Parsed JSON response
    * @throws {ApiError} If the request fails
    */
-  static async fetchPost(url, body = null, signal = null)
+  static async fetchPost(url, body = null, signal = null, txId = null)
   {
-     const request = this.postRequest(url, body, signal);
+     const request = this.postRequest(url, body, signal, txId);
      const response = await fetch(request);
 
      return await this.handleResponse(response);
@@ -248,9 +257,9 @@ export class RB
    * @returns {Promise<Object>} Parsed JSON response
    * @throws {ApiError} If the request fails
    */
-  static async fetchPut(url, body = null, signal = null)
+  static async fetchPut(url, body = null, signal = null, txId = null)
   {
-     const request = this.putRequest(url, body, signal);
+     const request = this.putRequest(url, body, signal, txId);
      const response = await fetch(request);
 
      return await this.handleResponse(response);
@@ -263,9 +272,9 @@ export class RB
    * @returns {Promise<Object>} Parsed JSON response
    * @throws {ApiError} If the request fails
    */
-  static async fetchDelete(url, signal = null)
+  static async fetchDelete(url, signal = null, txId = null)
   {
-     const request = this.deleteRequest(url, signal);
+     const request = this.deleteRequest(url, signal, txId);
      const response = await fetch(request);
 
      return await this.handleResponse(response);
@@ -280,9 +289,9 @@ export class RB
    * @returns {Promise<Object>} Parsed JSON response
    * @throws {ApiError} If the request fails
    */
-  static async fetchPostUnauthenticated(url, body = null, signal = null)
+  static async fetchPostUnauthenticated(url, body = null, signal = null, txId = null)
   {
-     const request = this.postRequestUnauthenticated(url, body, signal);
+     const request = this.postRequestUnauthenticated(url, body, signal, txId);
      const response = await fetch(request);
 
      return await this.handleResponse(response);

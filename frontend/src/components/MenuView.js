@@ -11,6 +11,7 @@ export class MenuView
    {
       this.statusComponent = statusComponent;
       this.eventHandlers = [];
+      this.domEventHandlers = [];
       this.requestManager = new RequestManager();
    }
 
@@ -44,7 +45,32 @@ export class MenuView
     */
    unregisterEventHandlers()
    {
-      this.eventHandlers.forEach(({ eventType, handler }) => { eventBus.off(eventType, handler); });
+      this.eventHandlers.forEach(({ eventType, handler }) => eventBus.off(eventType, handler));
       this.eventHandlers = [];
+   }
+
+   /**
+    * Register a DOM event listener and track it for cleanup
+    * @param {Element} element - DOM element to attach listener to
+    * @param {string} eventType - Event type to listen for
+    * @param {Function} handler - Unbound event handler function
+    */
+   registerDomEventHandler(element, eventType, handler)
+   {
+      if (!element || typeof element.addEventListener !== 'function')
+         throw new Error('MenuView: Invalid DOM element for event handler');
+
+      const boundHandler = handler.bind(this);
+      element.addEventListener(eventType, boundHandler);
+      this.domEventHandlers.push({ element, eventType, handler: boundHandler });
+   }
+
+   /**
+    * Unregister all tracked DOM event handlers
+    */
+   unregisterDomEventHandlers()
+   {
+      this.domEventHandlers.forEach(({ element, eventType, handler }) => element.removeEventListener(eventType, handler));
+      this.domEventHandlers = [];
    }
 }
