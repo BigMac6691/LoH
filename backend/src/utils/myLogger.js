@@ -1,6 +1,6 @@
 import { asyncLocalStorage } from './AsyncContext.js';
 
-export function myLogger(level, message, { correlationId, clientTxId, data } = {}) 
+export function myLogger(level, message, { correlationId, clientTxId, data, error } = {}) 
 {
     const store = asyncLocalStorage.getStore();
     const resolvedCorrelationId = correlationId || store?.correlationId || 'none';
@@ -9,14 +9,15 @@ export function myLogger(level, message, { correlationId, clientTxId, data } = {
   
     const payload = 
     {
-      timestamp,
       level,
+      message,
+      timestamp,
       clientTxId: resolvedClientTxId,
       correlationId: resolvedCorrelationId,
-      message,
-      ...(data && { data })
+      ...(data && { data }),
+      ...(error && { error })
     };
   
-    console[level](payload);
+    console[level]("🔐 myLogger: " + message, payload);
   }
   

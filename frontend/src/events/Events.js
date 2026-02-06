@@ -51,6 +51,7 @@ export class ApiResponse extends ApiEvent
     {
         super(type, data);
         this.status = status;
+        this.correlationId = null;
     }
 
     isSuccess()

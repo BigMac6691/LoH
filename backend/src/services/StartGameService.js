@@ -88,10 +88,8 @@ export class StartGameService
       }
       finally
       {
-         setTimeout(() => {
-            this.serverBus.emit('game.start:mapGenerated', { gameId });
-            this.serverBus.emit('system:gameUpdated', response);
-         }, 5000);
+         this.serverBus.emit('game.start:mapGenerated', { gameId });
+         this.serverBus.emit('system:gameUpdated', response);
          client.release();
       }
    }
@@ -144,10 +142,8 @@ export class StartGameService
       }
       finally
       {
-         setTimeout(() => {
-            this.serverBus.emit('game.start:playersPlaced', { gameId });
-            this.serverBus.emit('system:gameUpdated', response);
-         }, 5000);
+         this.serverBus.emit('game.start:playersPlaced', { gameId });
+         this.serverBus.emit('system:gameUpdated', response);
          client.release();
       }
    }
@@ -200,10 +196,8 @@ export class StartGameService
       }
       finally
       {
-         setTimeout(() => {
-            this.serverBus.emit('game.start:firstTurnCreated', { gameId });
-            this.serverBus.emit('system:gameUpdated', response);
-         }, 5000);
+         this.serverBus.emit('game.start:firstTurnCreated', { gameId });
+         this.serverBus.emit('system:gameUpdated', response);
          client.release();
       }
    }

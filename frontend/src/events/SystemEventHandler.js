@@ -36,6 +36,26 @@ export class SystemEventHandler
       this.eventRegister.registerEventHandler('system:addAIPlayerRequest', this.handleAddAIPlayerRequest.bind(this));
    }
 
+   normalizeResponse(success)
+   {
+      console.log('🔐 SystemEventHandler: Normalizing response', success);
+
+      if (success && typeof success === 'object' && 'data' in success && 'correlationId' in success)
+         return success;
+
+      const correlationId = success && typeof success === 'object'
+         ? (success.__correlationId || success.correlationId || null)
+         : null;
+
+      return { data: success, correlationId: correlationId };
+   }
+
+   applyCorrelationId(response, correlationId)
+   {
+      if (response)
+         response.correlationId = correlationId || null;
+   }
+
    /**
     * Handle all assets loaded event, if no user has logged in, emit system:systemReady event
     * @param {ApiResponse} event - Event object
@@ -59,12 +79,15 @@ export class SystemEventHandler
          throw new Error('SystemEventHandler: Invalid event type');
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPostUnauthenticated('/api/auth/register', {...event.data}, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Registration success:', success);
-            response = event.prepareResponse('system:registerResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Registration success:', normalized.data);
+            response = event.prepareResponse('system:registerResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -72,9 +95,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:registerResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:registerResponse', response);
          });
    }
@@ -88,12 +113,15 @@ export class SystemEventHandler
       console.log('🔐 SystemEventHandler: Processing recovery request for email:', event.data.email);
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPostUnauthenticated('/api/auth/recover', {email: event.data.email}, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Recovery request success:', success);
-            response = event.prepareResponse('system:recoverResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Recovery request success:', normalized.data);
+            response = event.prepareResponse('system:recoverResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -101,9 +129,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:recoverResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:recoverResponse', response);
          });
    }
@@ -117,12 +147,15 @@ export class SystemEventHandler
       console.log('🔐 SystemEventHandler: Processing password reset');
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPostUnauthenticated('/api/auth/reset-password', {token: event.data.token, newPassword: event.data.newPassword}, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Password reset success:', success);
-            response = event.prepareResponse('system:resetPasswordResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Password reset success:', normalized.data);
+            response = event.prepareResponse('system:resetPasswordResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -130,9 +163,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:resetPasswordResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:resetPasswordResponse', response);
          });
    }
@@ -149,12 +184,15 @@ export class SystemEventHandler
          throw new Error('SystemEventHandler: Invalid event type');
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchGet('/api/auth/profile', event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Profile request success:', success);
-            response = event.prepareResponse('system:profileResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Profile request success:', normalized.data);
+            response = event.prepareResponse('system:profileResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -162,9 +200,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:profileResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:profileResponse', response);
          });
    }
@@ -181,12 +221,15 @@ export class SystemEventHandler
          throw new Error('SystemEventHandler: Invalid event type');
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPut('/api/auth/profile', {...event.data}, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Update profile success:', success);
-            response = event.prepareResponse('system:updateProfileResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Update profile success:', normalized.data);
+            response = event.prepareResponse('system:updateProfileResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -194,9 +237,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:updateProfileResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:updateProfileResponse', response);
          });
    }
@@ -213,12 +258,15 @@ export class SystemEventHandler
          throw new Error('SystemEventHandler: Invalid event type');
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPost('/api/auth/change-password', {...event.data}, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Change password success:', success);
-            response = event.prepareResponse('system:changePasswordResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Change password success:', normalized.data);
+            response = event.prepareResponse('system:changePasswordResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -226,9 +274,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:changePasswordResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:changePasswordResponse', response);
          });
    }
@@ -245,20 +295,25 @@ export class SystemEventHandler
          throw new Error('SystemEventHandler: Invalid event type');
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPost('/api/auth/verify-email', {...event.data}, event.signal, event.transactionId)
          .then(success =>
          {
-            response = event.prepareResponse('system:verifyEmailResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            response = event.prepareResponse('system:verifyEmailResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:verifyEmailResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:verifyEmailResponse', response);
          });
    }
@@ -273,12 +328,15 @@ export class SystemEventHandler
          throw new Error('SystemEventHandler: Invalid event type');
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPost('/api/auth/profile/resend-verification', null, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Resend verification success:', success);
-            response = event.prepareResponse('system:resendVerificationResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Resend verification success:', normalized.data);
+            response = event.prepareResponse('system:resendVerificationResponse', normalized.data, 200, null);
             eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Verification token sent!', type: 'success'}));
          })
          .catch(error =>
@@ -286,10 +344,12 @@ export class SystemEventHandler
             console.error('Resend verification error:', error);
             const errorBody = error instanceof ApiError ? error.body : {message: error.message};
             response = event.prepareResponse('system:resendVerificationResponse', null, 400, errorBody);
+            correlationId = error?.correlationId || null;
             eventBus.emit('ui:statusMessage', new ApiEvent('ui:statusMessage', {message: 'Failed to send verification token!', type: 'error'}));
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:resendVerificationResponse', response);
          });
    }
@@ -306,6 +366,7 @@ export class SystemEventHandler
          throw new Error('SystemEventHandler: Invalid event type');
 
       let response = null;
+      let correlationId = null;
 
       const { page = 1, limit = 10 } = event.data || {};
       const queryParams = `?page=${page}&limit=${limit}`;
@@ -313,8 +374,10 @@ export class SystemEventHandler
       RB.fetchGet(`/api/system-events${queryParams}`, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('System events request success:', success);
-            response = event.prepareResponse('system:systemEventsResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('System events request success:', normalized.data);
+            response = event.prepareResponse('system:systemEventsResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -322,9 +385,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:systemEventsResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:systemEventsResponse', response);
          });
    }
@@ -349,6 +414,7 @@ export class SystemEventHandler
         throw new Error('SystemEventHandler: Invalid event type');
 
      let response = null;
+     let correlationId = null;
      const { filter, context, page = 1, limit = 5 } = event.data || {};
 
      if (!filter)
@@ -366,16 +432,19 @@ export class SystemEventHandler
      RB.fetchGet(`/api/games/list${queryParams}`, event.signal, event.transactionId)
         .then(success =>
         {
-           console.log(`List games request success (filter=${filter}, context=${context}):`, success);
+           const normalized = this.normalizeResponse(success);
+           correlationId = normalized.correlationId;
+           const data = normalized.data;
+           console.log(`List games request success (filter=${filter}, context=${context}):`, data);
            // Unified endpoint returns { success, games, pagination }
            // Include context in response for filtering
            const transformedResponse = 
            {
-              success: success.success,
+              success: data.success,
               filter: filter,
               context: context,
-              games: success.games || [],
-              pagination: success.pagination
+              games: data.games || [],
+              pagination: data.pagination
            };
            response = event.prepareResponse('system:gameList', transformedResponse, 200, null);
         })
@@ -386,9 +455,11 @@ export class SystemEventHandler
            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
            const errorResponse = {filter: filter, context: context};
            response = event.prepareResponse('system:gameList', errorResponse, status, errorBody);
+           correlationId = error?.correlationId || null;
         })
         .finally(() =>
         {
+           this.applyCorrelationId(response, correlationId);
            eventBus.emit('system:gameList', response);
         });
   }
@@ -421,12 +492,15 @@ export class SystemEventHandler
       }
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPost(`/api/games/${gameId}/join`, {countryName: countryName.trim()}, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Join game request success:', success);
-            response = event.prepareResponse('system:joinGameResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Join game request success:', normalized.data);
+            response = event.prepareResponse('system:joinGameResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -434,9 +508,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:joinGameResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:joinGameResponse', response);
          });
    }
@@ -476,12 +552,15 @@ export class SystemEventHandler
       }
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPost('/api/games', {seed, mapSize, densityMin, densityMax, title, description, maxPlayers, status: 'lobby', params: {}}, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Create game request success:', success);
-            response = event.prepareResponse('system:createGameResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Create game request success:', normalized.data);
+            response = event.prepareResponse('system:createGameResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -489,9 +568,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:createGameResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:createGameResponse', response);
          });
    }
@@ -518,12 +599,15 @@ export class SystemEventHandler
       }
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchGet(`/api/games/${gameId}/manage/players`, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('List game players request success:', success);
-            response = event.prepareResponse('system:gamePlayerList', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('List game players request success:', normalized.data);
+            response = event.prepareResponse('system:gamePlayerList', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -531,9 +615,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:gamePlayerList', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:gamePlayerList', response);
          });
    }
@@ -559,13 +645,16 @@ export class SystemEventHandler
       }
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPost(`/api/games/${gameId}/startGame`, {version: version}, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Start game request success:', success);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Start game request success:', normalized.data);
             // On 202 Accepted, emit updateGameStatusResponse with creating status
-            if (success.status === 'creating')
+            if (normalized.data.status === 'creating')
             {
                const statusResponse = event.prepareResponse('system:updateGameStatusResponse', {
                   success: true,
@@ -575,9 +664,10 @@ export class SystemEventHandler
                      substatus: null
                   }
                }, 202, null);
+               this.applyCorrelationId(statusResponse, correlationId);
                eventBus.emit('system:updateGameStatusResponse', statusResponse);
             }
-            response = event.prepareResponse('system:startGameResponse', success, 202, null);
+            response = event.prepareResponse('system:startGameResponse', normalized.data, 202, null);
          })
          .catch(error =>
          {
@@ -585,9 +675,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : (error.status || 400);
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:startGameResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:startGameResponse', response);
          });
    }
@@ -603,7 +695,7 @@ export class SystemEventHandler
       if(!(event instanceof ApiRequest))
          throw new Error('SystemEventHandler: Invalid event type');
 
-      const { gameId, status, statusReason } = event.data || {};
+      const { gameId, status, statusReason, version } = event.data || {};
 
       if (!gameId)
       {
@@ -619,17 +711,27 @@ export class SystemEventHandler
          return;
       }
 
-      let response = null;
+      if (!version)
+      {
+         const errorResponse = event.prepareResponse('system:updateGameStatusResponse', null, 400, {message: 'Version is required'});
+         eventBus.emit('system:updateGameStatusResponse', errorResponse);
+         return;
+      }
 
-      const requestBody = { status };
+      let response = null;
+      let correlationId = null;
+
+      const requestBody = { status, version };
       if (statusReason !== null && statusReason !== undefined)
          requestBody.statusReason = statusReason;
 
       RB.fetchPut(`/api/games/${gameId}/status`, requestBody, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Update game status request success:', success);
-            response = event.prepareResponse('system:gameUpdated', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Update game status request success:', normalized.data);
+            response = event.prepareResponse('system:gameUpdated', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -637,9 +739,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : error.status || 400;
             const body = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:gameUpdated', body, status);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emitEvent(response);
          });
    }
@@ -672,6 +776,7 @@ export class SystemEventHandler
       }
 
       let response = null;
+      let correlationId = null;
 
       // Include reason in request body if provided
       const requestBody = {};
@@ -681,8 +786,10 @@ export class SystemEventHandler
       RB.fetchPost(`/api/games/${gameId}/players/${playerId}/end-turn`, requestBody, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('End player turn request success:', success);
-            response = event.prepareResponse('system:endPlayerTurnResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('End player turn request success:', normalized.data);
+            response = event.prepareResponse('system:endPlayerTurnResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -690,9 +797,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:endPlayerTurnResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:endPlayerTurnResponse', response);
          });
    }
@@ -732,6 +841,7 @@ export class SystemEventHandler
       }
 
       let response = null;
+      let correlationId = null;
 
       const requestBody = {status};
       if (statusReason !== null && statusReason !== undefined)
@@ -740,8 +850,10 @@ export class SystemEventHandler
       RB.fetchPut(`/api/games/${gameId}/players/${playerId}/status`, requestBody, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Update player status request success:', success);
-            response = event.prepareResponse('system:updatePlayerStatusResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Update player status request success:', normalized.data);
+            response = event.prepareResponse('system:updatePlayerStatusResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -749,9 +861,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:updatePlayerStatusResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:updatePlayerStatusResponse', response);
          });
    }
@@ -791,12 +905,15 @@ export class SystemEventHandler
       }
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPut(`/api/games/${gameId}/players/${playerId}/meta`, {meta}, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Update player meta request success:', success);
-            response = event.prepareResponse('system:updatePlayerMetaResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Update player meta request success:', normalized.data);
+            response = event.prepareResponse('system:updatePlayerMetaResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -804,9 +921,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:updatePlayerMetaResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:updatePlayerMetaResponse', response);
          });
    }
@@ -823,12 +942,15 @@ export class SystemEventHandler
          throw new Error('SystemEventHandler: Invalid event type');
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchGet('/api/ai/list', event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('AI list request success:', success);
-            response = event.prepareResponse('system:aiList', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('AI list request success:', normalized.data);
+            response = event.prepareResponse('system:aiList', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -836,9 +958,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:aiList', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:aiList', response);
          });
    }
@@ -885,12 +1009,15 @@ export class SystemEventHandler
       }
 
       let response = null;
+      let correlationId = null;
 
       RB.fetchPost(`/api/games/${gameId}/ai-players`, {aiName, playerName, countryName, aiConfig: aiConfig || {}}, event.signal, event.transactionId)
          .then(success =>
          {
-            console.log('Add AI player request success:', success);
-            response = event.prepareResponse('system:addAIPlayerResponse', success, 200, null);
+            const normalized = this.normalizeResponse(success);
+            correlationId = normalized.correlationId;
+            console.log('Add AI player request success:', normalized.data);
+            response = event.prepareResponse('system:addAIPlayerResponse', normalized.data, 200, null);
          })
          .catch(error =>
          {
@@ -898,9 +1025,11 @@ export class SystemEventHandler
             const status = event.signal?.aborted ? 499 : 400;
             const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:addAIPlayerResponse', null, status, errorBody);
+            correlationId = error?.correlationId || null;
          })
          .finally(() =>
          {
+            this.applyCorrelationId(response, correlationId);
             eventBus.emit('system:addAIPlayerResponse', response);
          });
    }

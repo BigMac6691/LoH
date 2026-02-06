@@ -13,6 +13,7 @@ export class ApiError extends Error
       this.status = status;
       this.statusText = statusText;
       this.body = body; // Parsed JSON error response if available
+      this.correlationId = null;
    }
 }
 
@@ -195,6 +196,8 @@ export class RB
    */
   static async handleResponse(response)
   {
+     const correlationId = response.headers.get('X-Correlation-Id');
+
      if (!response.ok)
      {
         let errorBody = null;
@@ -211,11 +214,22 @@ export class RB
 
         const errorMessage = this.extractErrorMessage(errorBody) || `HTTP ${response.status}: ${response.statusText}`;
 
-        throw new ApiError(errorMessage, response.status, response.statusText, errorBody);
+        const error = new ApiError(errorMessage, response.status, response.statusText, errorBody);
+        error.correlationId = correlationId;
+        throw error;
      }
 
      // Parse and return JSON
-     return await response.json();
+     const data = await response.json();
+     if (data && typeof data === 'object')
+     {
+        Object.defineProperty(data, '__correlationId', {
+           value: correlationId,
+           enumerable: false
+        });
+     }
+
+     return data;
   }
 
   /**

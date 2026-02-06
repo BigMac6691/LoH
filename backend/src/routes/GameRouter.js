@@ -110,9 +110,7 @@ export class GameRouter
 
          const result = await createEmptyGame({ ownerId, seed, mapSize, densityMin, densityMax, title, description, maxPlayers, status, params });
 
-         setTimeout(() => {
-            res.json({success: true, gameId: result.game.id});
-         }, 10000);
+         res.json({success: true, gameId: result.game.id});
       }
       catch (error)
       {
@@ -130,9 +128,7 @@ export class GameRouter
       try
       {
          const games = await listGames();
-         setTimeout(() => {
-            res.json(games);
-         }, 10000);
+         res.json(games);
       }
       catch (error)
       {
@@ -278,9 +274,7 @@ export class GameRouter
          const { rows: countRows } = await pool.query(countQuery, countParams);
          const total = parseInt(countRows[0].total);
 
-         setTimeout(() => {
-            res.json({success: true, games, pagination: {page, limit, total, totalPages: Math.ceil(total / limit)}});
-         }, 10000);
+         res.json({success: true, games, pagination: {page, limit, total, totalPages: Math.ceil(total / limit)}});
       }
       catch (error)
       {
@@ -626,9 +620,7 @@ export class GameRouter
          const { addPlayer: addPlayerToGame } = await import('../repos/playersRepo.js');
          const result = await addPlayerToGame({gameId, userId: null, name: trimmedPlayerName, colorHex: availableColor, countryName: trimmedCountryName, meta, type: 'ai'});
 
-         setTimeout(() => {
-            return res.json({success: true, message: 'AI player added successfully', player:{id: result.id, name: result.name, colorHex: result.color_hex, countryName: result.country_name, aiName, aiConfig: aiConfig || {}}});
-         }, 10000);
+         return res.json({success: true, message: 'AI player added successfully', player:{id: result.id, name: result.name, colorHex: result.color_hex, countryName: result.country_name, aiName, aiConfig: aiConfig || {}}});
       }
       catch (error)
       {
@@ -662,9 +654,7 @@ export class GameRouter
          const result = await generateMapForGame({ gameId });
 
          
-         setTimeout(() => {
-            res.json({success: true, gameId: result.gameId, starsCount: result.starsCount, wormholesCount: result.wormholesCount, modelSummary: result.modelSummary});
-         }, 10000);
+         res.json({success: true, gameId: result.gameId, starsCount: result.starsCount, wormholesCount: result.wormholesCount, modelSummary: result.modelSummary});
       }
       catch (error)
       {
@@ -691,9 +681,7 @@ export class GameRouter
          // Call the service to place players
          const result = await placePlayersForGame({ gameId });
 
-         setTimeout(() => {
-            res.json({ success: true, gameId: gameId, playersPlaced: result.playersPlaced });
-         }, 10000);
+         res.json({ success: true, gameId: gameId, playersPlaced: result.playersPlaced });
 
       }
       catch (error)
@@ -749,10 +737,7 @@ export class GameRouter
 
          const turn = await openTurn({gameId, number});
 
-         setTimeout(() => {
-            res.json({success: true, turn: turn});
-         }, 10000);
-
+         res.json({success: true, turn: turn});
       }
       catch (error)
       {
@@ -827,9 +812,7 @@ export class GameRouter
          // Get all players for the game
          const players = await listPlayers(gameId);
 
-         setTimeout(() => {
-            res.json({success: true, players});
-         }, 10000);
+         res.json({success: true, players});
       }
       catch (error)
       {
@@ -866,20 +849,18 @@ export class GameRouter
          const { correlationId } = asyncLocalStorage.getStore();
 
          // Respond immediately with 202 Accepted
-         setTimeout(() => {
-            res.status(202).json(
-            {
-               success: true,
-               message: 'Game start initiated',
-               gameId,
-               correlationId
-            });
-         }, 1000);
+         res.status(202).json(
+         {
+            success: true,
+            message: 'Game start initiated',
+            gameId,
+            correlationId
+         });
       }
       catch (error)
       {
          console.error('Error starting game:', error);
-         if (error?.statusCode)
+         if (error.statusCode)
             res.status(error.statusCode).json({error: error.message, data: error.data || null});
          else
             res.status(500).json({error: 'Failed to start game', details: error.message});
@@ -892,17 +873,13 @@ export class GameRouter
     */
    async updateGameStatus(req, res)
    {
-      myLogger('info', '🎮 GameRouter: Updating game status', { data: req.body });         
+      myLogger('info', '🎮 GameRouter: Updating game status', { data: req.body });
 
       let httpStatus = 200;
 
       const { gameId } = req.params;
-      const { status, statusReason } = req.body;
-      const response =
-      {
-         success: false, 
-         game: null
-      }
+      const { status, statusReason, version } = req.body;
+      const response = {gameId, game: null}
 
       try
       {
@@ -914,13 +891,17 @@ export class GameRouter
          if (!validStatuses.includes(status))
             throw new SystemError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
 
-         // Verify game exists and user has permission
+         // Verify game exists, user has permission and version matches
          const { rows: gameRows } = await pool.query(`SELECT * FROM game WHERE id = $1`, [gameId]);
 
          if (gameRows.length === 0)
             throw new SystemError('Game not found', 404);
 
          const game = gameRows[0];
+
+         if (Number(game.version) !== Number(version))
+            throw new SystemError('Game version mismatch', 409);
+
          const userRole = req.user.role;
 
          // Check permission: sponsor can only manage their own games
@@ -941,7 +922,8 @@ export class GameRouter
       }
       catch (error)
       {
-         console.error('Error updating game status:', error);
+         myLogger('error', '🎮 GameRouter: Error updating game status', { data: req.body, error });
+
          httpStatus = error.statusCode || 500;
          response.error = error.message;
       }
@@ -949,16 +931,15 @@ export class GameRouter
       try
       {
          response.game = await getGameWithCounts(gameId);
+         // response.game = null;
       }
       catch (error)
       {
-         console.error('Error getting game with counts:', error);
+         myLogger('error', '🎮 GameRouter: Error getting game with counts', { data: req.body });
       }
       finally
       {
-         setTimeout(() => {
-            res.status(httpStatus).json(response);
-         }, 5000);
+         res.status(httpStatus).json(response);
       }
    }
 
@@ -994,9 +975,7 @@ export class GameRouter
          const turnService = new TurnService();
          const result = await turnService.endPlayerTurn(gameId, playerId, reason || null);
 
-         setTimeout(() => {
-            res.json({success: true, ...result});
-         }, 10000);
+         res.json({success: true, ...result});
       }
       catch (error)
       {
@@ -1058,9 +1037,7 @@ export class GameRouter
             [status, playerId, gameId, statusReason || null]
          );
 
-         setTimeout(() => {
-            res.json({success: true, player: updatedRows[0]});
-         }, 10000);
+         res.json({success: true, player: updatedRows[0]});
       }
       catch (error)
       {
@@ -1129,9 +1106,7 @@ export class GameRouter
             [JSON.stringify(metaData), playerId, gameId]
          );
 
-         setTimeout(() => {
-            res.json({success: true, player: updatedRows[0]});
-         }, 10000);
+         res.json({success: true, player: updatedRows[0]});
       }
       catch (error)
       {

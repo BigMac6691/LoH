@@ -27,7 +27,7 @@ import { startGameOrchestrator } from './src/services/StartGameOrchestrator.js';
 import { asyncLocalStorage } from './src/utils/AsyncContext.js';
 
 const app = express();
-app.use(cors());
+app.use(cors({ exposedHeaders: ['X-Correlation-Id'] }));
 app.use(express.json());
 app.use(morgan('dev'));
 
@@ -46,6 +46,40 @@ app.use((req, res, next) =>
 
          next();
       });
+});
+
+const uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+const devDelayRules =
+[
+   // Example: 
+   // { pattern: new RegExp(`^/api/games/list`), delayMs: 500 }
+   // To add method support later, extend rule with { method: 'GET' }
+   { pattern: new RegExp(`^/api/games/list`), delayMs: 100 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/manage/players`), delayMs: 10000 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/turn`), delayMs: 10000 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/startGame`), delayMs: 1000 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/status`), delayMs: 5000 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/players/${uuidPattern}/end-turn`), delayMs: 10000 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/players/${uuidPattern}/status`), delayMs: 10000 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/players/${uuidPattern}/meta`), delayMs: 10000 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/ai-players`), delayMs: 10000 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/generate-map`), delayMs: 10000 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/place-players`), delayMs: 10000 },
+   { pattern: new RegExp(`^/api/games$`), delayMs: 10000 }
+];
+
+app.use((req, _res, next) =>
+{
+   if (process.env.NODE_ENV === 'production')
+      return next();
+
+   const url = req.originalUrl || req.url || '';
+   const matchedRule = devDelayRules.find(rule => rule.pattern.test(url));
+
+   if (!matchedRule || !matchedRule.delayMs)
+      return next();
+
+   setTimeout(next, matchedRule.delayMs);
 });
 
 const port = process.env.PORT || 3000;

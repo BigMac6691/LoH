@@ -104,7 +104,7 @@ export class ManageGamesView extends MenuView
 
       const abortContext = `${this.constructor.name}:loadGames`;
       const abortControl = this.requestManager.reset(abortContext);
-      const request = new ApiRequest('system:listGames', {filter: 'manage', context: 'ManageGamesView', page, limit: 2}, abortControl.signal);
+      const request = new ApiRequest('system:listGames', {filter: 'manage', context: 'ManageGamesView', page, limit: 3}, abortControl.signal);
       
       this.requestManager.start(abortContext, request.transactionId);
       eventBus.emitEvent(request);
@@ -185,6 +185,18 @@ export class ManageGamesView extends MenuView
       this.selectedPlayer = null;
       this.loadPlayers(gameId);
       this.updatePlayerControlButtons();
+   }
+
+   findGameCardById(gameId)
+   {
+      if (!this.container || !gameId)
+         return null;
+
+      const listContainer = this.container.querySelector('.games-list-container');
+      if (!listContainer)
+         return null;
+
+      return listContainer.querySelector(`.card[data-game-id="${gameId}"]`);
    }
 
    updateGameControlButtons()
@@ -577,7 +589,9 @@ export class ManageGamesView extends MenuView
       this.updateGameControlButtons();
       this.displayStatusMessage(`Updating game status to ${newStatus}${statusReason ? ` (${statusReason})` : ''}...`, 'info');
 
-      const request = new ApiRequest('system:updateGameStatus', {gameId: gameId, status: newStatus, statusReason: statusReason?.trim()}, null);
+      const game = this.games.find(game => game.id === gameId);
+
+      const request = new ApiRequest('system:updateGameStatus', {gameId, version: game.version, status: newStatus, statusReason: statusReason?.trim()}, null);
       eventBus.emitEvent(request);
    }
 
@@ -590,52 +604,64 @@ export class ManageGamesView extends MenuView
       console.log('🔐 ManageGamesView: Handling game updated event', event);
 
       const updatedGame = event.data?.game;
-      const gameId = updatedGame?.id;
+      const gameId = event.data?.gameId;
       const gameStatus = updatedGame?.status;
       const gameSubstatus = updatedGame?.substatus;
-      const errorMessage = event.data?.error;
+      const errorMessage = `Failed to update game, reason: ${event.isAborted() ? 'aborted' : event.data.error}, tracking id: ${event.correlationId}`;
+
+      if (!gameId)
+         return this.displayStatusMessage(`Invalid response: missing game id, tracking id: ${event.correlationId}`, 'fatal');
+
+      if (!updatedGame) // mark as stale if game data is missing
+      {
+         if(event.isSuccess())
+            this.displayStatusMessage(`Game data missing, status updated on database, tracking id: ${event.correlationId}`, 'warning');
+         else
+            this.displayStatusMessage(errorMessage, 'error');
+
+         const gameCard = this.findGameCardById(gameId);
+         if(gameCard)
+            gameCard.classList.add('card-stale');
+
+         this.gamesUpdating.delete(gameId);
+         this.updateGameControlButtons();
+
+         return;
+      }
+
+      // Find and update the game in the games array
+      const gameIndex = this.games.findIndex(game => game.id === gameId);
+      if (gameIndex !== -1)
+         Object.assign(this.games[gameIndex], updatedGame); // use assign so that the selected game referenced object is updated
+      else
+         this.displayStatusMessage('Game not found in list of loaded games, game updated on database', 'warning');
 
       if (event.isSuccess())
       {
-         if (!gameId || !gameStatus)
-            return this.displayStatusMessage('Invalid response: missing game ID or status', 'fatal');
-
-         // Find and update the game in the games array
-         const gameIndex = this.games.findIndex(game => game.id === gameId);
-         if (gameIndex !== -1)
-         {
-            if(this.games[gameIndex].updated_at >= updatedGame.updated_at)
-               return this.displayStatusMessage('Game not updated with stale data', 'warning');
-            
-            Object.assign(this.games[gameIndex], updatedGame);
-
-            // Post status message based on new status
-            if (gameStatus === 'creating')
-               this.displayStatusMessage('Game creation started...', 'info');
-            else if (gameStatus === 'error')
-               this.displayStatusMessage('Game creation failed. You can try starting again.', 'error');
-            else
-               this.displayStatusMessage(`Game updated`, 'success');
-
-            if (gameSubstatus)
-            {
-               const message = 
-               {
-                  'map_generated': 'Generating map...',
-                  'players_placed': 'Placing players...',
-                  'turn_created': 'Creating first turn...'
-               }[gameSubstatus] || `Game creation: ${gameSubstatus}`;
-
-               this.displayStatusMessage(message, 'info');
-            }
-         }
+         // Post status message based on new status
+         if (gameStatus === 'creating')
+            this.displayStatusMessage('Game creation started...', 'info');
+         else if (gameStatus === 'error') // at the moment you can only get an error status if one of the  game creation steps failed
+            this.displayStatusMessage(`Game creation failed, reason: ${event.data.error}, tracking id: ${event.correlationId}`, 'error');
          else
-            this.displayStatusMessage('Game not found in list of loaded games, game updated on database', 'warning');
+            this.displayStatusMessage(`Game updated`, 'success');
+
+         if (gameSubstatus)
+         {
+            const message = 
+            {
+               'map_generated': 'Generating map...',
+               'players_placed': 'Placing players...',
+               'turn_created': 'Creating first turn...'
+            } [gameSubstatus] || `Game creation: ${gameSubstatus}`;
+
+            this.displayStatusMessage(message, 'info');
+         }
       }
       else if (event.isAborted())
          this.displayStatusMessage('Game update aborted.', 'warning');
       else
-         this.displayStatusMessage(errorMessage || 'Failed to update game', 'error');
+         this.displayStatusMessage(errorMessage, 'error');  // TODO refresh with current game state or mark as stale
 
       this.gamesUpdating.delete(gameId);
 
