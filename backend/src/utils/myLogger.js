@@ -18,6 +18,6 @@ export function myLogger(level, message, { correlationId, clientTxId, data, erro
       ...(error && { error })
     };
   
-    console[level]("🔐 myLogger: " + message, payload);
+    console[level]("myLogger:", payload);
   }
   

@@ -6,6 +6,7 @@ import { eventBus }from '../eventBus.js';
 import { ApiEvent, ApiRequest, ApiResponse } from './Events.js';
 import { RB, ApiError } from '../utils/RequestBuilder.js';
 import { EventRegister } from '../EventRegister.js';
+import { ClientLogger as logger } from '../utils/ClientLogger.js';
 
 export class SystemEventHandler
 {
@@ -62,8 +63,6 @@ export class SystemEventHandler
     */
    handleAllAssetsLoaded(event)
    {
-      console.log('🔐 SystemEventHandler: All assets loaded:', event, event.data);
-
       eventBus.emit('system:systemReady', new ApiEvent('system:systemReady'));
    }
 
@@ -408,21 +407,25 @@ export class SystemEventHandler
    */
   handleListGames(event)
   {
-     console.log('🔐 SystemEventHandler: Processing list games request');
-
-     if(!(event instanceof ApiRequest))
-        throw new Error('SystemEventHandler: Invalid event type');
-
      let response = null;
      let correlationId = null;
-     const { filter, context, page = 1, limit = 5 } = event.data || {};
+     const { filter, page = 1, limit = 5 } = event.data || {};
 
-     if (!filter)
-        response = event.prepareResponse('system:gameList', null, 400, {message: 'Filter is required'});
-     else if (!context)
-        response = event.prepareResponse('system:gameList', null, 400, {message: 'Context is required'});
+     if(!(event instanceof ApiRequest))
+     {
+        const trxId = event.transactionId || crypto.randomUUID();
+        
+        response = new ApiResponse('system:gameList', {error: 'Internal client error', level: 'fatal'}, 400);
+        response.transactionId = trxId;
+
+        logger.error(`SystemEventHandler: handleListGames: tracking id=${trxId}: Event must be an ApiRequest`, event);
+     }
      else if (!['playing', 'available', 'manage', 'all'].includes(filter)) // Validate filter
-        response = event.prepareResponse('system:gameList', null, 400, {message: 'Invalid filter. Must be one of: playing, available, manage, all'});
+     {
+        response = event.prepareResponse('system:gameList', {error: 'Internal client error', level: 'fatal'}, 400);
+
+        logger.error(`SystemEventHandler: handleListGames: tracking id=${event.transactionId}: Invalid filter value: ${filter}`, event);
+     }
 
      if(response !== null)
         return eventBus.emit('system:gameList', response); // void function
@@ -435,26 +438,24 @@ export class SystemEventHandler
            const normalized = this.normalizeResponse(success);
            correlationId = normalized.correlationId;
            const data = normalized.data;
-           console.log(`List games request success (filter=${filter}, context=${context}):`, data);
+           console.log(`List games request success (filter=${filter}):`, data);
            // Unified endpoint returns { success, games, pagination }
            // Include context in response for filtering
            const transformedResponse = 
            {
-              success: data.success,
               filter: filter,
-              context: context,
               games: data.games || [],
               pagination: data.pagination
            };
-           response = event.prepareResponse('system:gameList', transformedResponse, 200, null);
+           response = event.prepareResponse('system:gameList', transformedResponse, 200);
         })
         .catch(error =>
-        {
-           console.error(`List games request error (filter=${filter}, context=${context}):`, error);
+        { // TODO: need to put some serious thought into this error handling, handling my errors is easy it's handling other's errors that is the challenge
+          // general rule is log details but report safe but clear messages to the user, I own ApiError
+           console.error(`List games request error (filter=${filter}):`, error);
            const status = event.signal?.aborted ? 499 : 400;
            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
-           const errorResponse = {filter: filter, context: context};
-           response = event.prepareResponse('system:gameList', errorResponse, status, errorBody);
+           response = event.prepareResponse('system:gameList', errorBody, status);
            correlationId = error?.correlationId || null;
         })
         .finally(() =>
@@ -735,7 +736,7 @@ export class SystemEventHandler
          })
          .catch(error =>
          {
-            console.error('Update game status request error:', {message: error.message, status: error.status, body: error.body}, error instanceof ApiError ? 'ApiError' : 'NOT ApiError');
+            console.error('Update game status request error:', {message: error.message, status: error.status, body: error.body}, error, error instanceof ApiError ? 'ApiError' : 'NOT ApiError');
             const status = event.signal?.aborted ? 499 : error.status || 400;
             const body = error instanceof ApiError ? error.body : {message: error.message || error};
             response = event.prepareResponse('system:gameUpdated', body, status);

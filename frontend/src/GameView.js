@@ -196,8 +196,6 @@ export class GameView extends MenuView
 
    handleAssetLoaded(event)
    {
-      console.log('🎮 GameView: Asset loaded event received:', event);
-
       if (event.data.type === 'font')
       {
          this.mapGenerator.font = event.data.asset;

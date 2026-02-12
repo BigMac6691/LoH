@@ -30,8 +30,6 @@ export class AssetManager
 
    handleLoadAsset(event)
    {
-      console.log('🔐 AssetManager: Loading assets:', event);
-
       if(!(event instanceof ApiRequest))
          throw new Error('AssetManager: Invalid event type');
 

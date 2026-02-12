@@ -3,6 +3,7 @@
  * Includes response status, statusText, and parsed error body
  */
 import { tokenStore } from '../services/TokenStore.js';
+import { ClientLogger as logger } from '../utils/ClientLogger.js';
 
 export class ApiError extends Error
 {
@@ -204,6 +205,7 @@ export class RB
         try
         {
            const contentType = response.headers.get('content-type');
+
            if (contentType && contentType.includes('application/json'))
               errorBody = await response.json();
         }
@@ -213,21 +215,19 @@ export class RB
         }
 
         const errorMessage = this.extractErrorMessage(errorBody) || `HTTP ${response.status}: ${response.statusText}`;
-
         const error = new ApiError(errorMessage, response.status, response.statusText, errorBody);
         error.correlationId = correlationId;
+
+        console.error('RequestBuilder: error:', response);
+        logger.error(`RequestBuilder: correlationId=${correlationId}:`, error);
+
         throw error;
      }
 
      // Parse and return JSON
      const data = await response.json();
      if (data && typeof data === 'object')
-     {
-        Object.defineProperty(data, '__correlationId', {
-           value: correlationId,
-           enumerable: false
-        });
-     }
+        Object.defineProperty(data, '__correlationId', {value: correlationId, enumerable: false});
 
      return data;
   }

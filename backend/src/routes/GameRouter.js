@@ -873,7 +873,7 @@ export class GameRouter
     */
    async updateGameStatus(req, res)
    {
-      myLogger('info', '🎮 GameRouter: Updating game status', { data: req.body });
+      myLogger('info', 'GameRouter: Updating game status', { data: req.body });
 
       let httpStatus = 200;
 
@@ -884,33 +884,35 @@ export class GameRouter
       try
       {
          if (!gameId || !status)
-            throw new SystemError('Game ID and status are required', 400);
+            throw SystemError.withUnsafeMessage('Missing required parameters', 400);
 
          // Validate status
          const validStatuses = ['lobby', 'running', 'paused', 'frozen', 'finished', 'creating', 'error'];
          if (!validStatuses.includes(status))
-            throw new SystemError(`Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
+            throw SystemError.withUnsafeMessage('Invalid status', 400);
 
          // Verify game exists, user has permission and version matches
+         // const { rows: gameRows } = await pool.query(`SELECT * FROM game WHERE id = $1`, [gameId.slice(0, -1) + 'f']); // used to test game not found
+         // const { rows: gameRows } = await pool.query(`SELECT * FROM game WHERE id = $1`, [gameId + 'f']); // creates error not thrown by me
          const { rows: gameRows } = await pool.query(`SELECT * FROM game WHERE id = $1`, [gameId]);
 
          if (gameRows.length === 0)
-            throw new SystemError('Game not found', 404);
+            throw SystemError.withSafeMessage('Game not found', 404);
 
          const game = gameRows[0];
 
          if (Number(game.version) !== Number(version))
-            throw new SystemError('Game version mismatch', 409);
+            throw SystemError.withSafeMessage('Game version mismatch', 409);
 
          const userRole = req.user.role;
 
          // Check permission: sponsor can only manage their own games
          if (userRole === 'sponsor' && game.owner_id !== req.user.id)
-            throw new SystemError('You can only manage games you created', 403);
+            throw SystemError.withSafeMessage('You can only manage games you created', 403);
 
          // Validate status transitions
          if (game.status === 'finished' && status !== 'finished')
-            throw new SystemError('Cannot change status of a finished game', 400);
+            throw SystemError.withSafeMessage('Cannot change status of a finished game', 400);
 
          // Update status (with optional statusReason)
          const { updateGameStatus } = await import('../repos/gamesRepo.js');
@@ -922,20 +924,20 @@ export class GameRouter
       }
       catch (error)
       {
-         myLogger('error', '🎮 GameRouter: Error updating game status', { data: req.body, error });
+         myLogger('error', 'GameRouter: Error updating game status', { data: {gameId, ...req.body}, error});
 
          httpStatus = error.statusCode || 500;
-         response.error = error.message;
+         response.error = error.shortMessage || "Internal server error";
       }
 
       try
       {
-         response.game = await getGameWithCounts(gameId);
-         // response.game = null;
+         // response.game = await getGameWithCounts(gameId);
+         response.game = null; // use to test stale game logic on client and concurrency issues (requires two requests)
       }
       catch (error)
       {
-         myLogger('error', '🎮 GameRouter: Error getting game with counts', { data: req.body });
+         myLogger('error', 'GameRouter: Error getting game with counts', { data: {gameId, ...req.body}, error });
       }
       finally
       {

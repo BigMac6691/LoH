@@ -15,10 +15,11 @@ import { AIConfigFormBuilder } from './AIConfigFormBuilder.js';
 import { eventBus } from '../eventBus.js';
 import { MenuView } from './MenuView.js';
 import { Utils } from '../utils/Utils.js';
-import { ApiRequest, ApiEvent } from '../events/Events.js';
+import { ApiRequest, ApiResponse, ApiEvent } from '../events/Events.js';
 import { Dialog } from './Dialog.js';
 import { PromptDialog } from './PromptDialog.js';
 import { webSocketManager } from '../services/WebSocketManager.js';
+import { ClientLogger as logger } from '../utils/ClientLogger.js';
 
 export class ManageGamesView extends MenuView
 {
@@ -104,8 +105,9 @@ export class ManageGamesView extends MenuView
 
       const abortContext = `${this.constructor.name}:loadGames`;
       const abortControl = this.requestManager.reset(abortContext);
-      const request = new ApiRequest('system:listGames', {filter: 'manage', context: 'ManageGamesView', page, limit: 3}, abortControl.signal);
+      const request = new ApiRequest('system:listGames', {filter: 'manage', page, limit: 3}, abortControl.signal);
       
+      this.requestManager.addPending(request.transactionId);
       this.requestManager.start(abortContext, request.transactionId);
       eventBus.emitEvent(request);
    }
@@ -116,7 +118,15 @@ export class ManageGamesView extends MenuView
     */
    handleGameList(event)
    {
-      if (event.data?.context !== 'ManageGamesView') // Only process responses for this component
+      if(!(event instanceof ApiResponse))
+      {
+         const trxId = event.transactionId || crypto.randomUUID();
+         logger.error(`ManageGamesView: handleGameList: tracking id=${trxId}: Event must be an ApiResponse`, event);
+
+         return this.displayStatusMessage(`Failed to load games, internal client error. Tracking ID: ${trxId}`, 'fatal');
+      }
+
+      if (!this.requestManager.removePending(event.transactionId)) // Only process responses for this component
          return;
 
       if (event.isSuccess() && event.data)
@@ -137,7 +147,7 @@ export class ManageGamesView extends MenuView
       else if (event.isAborted())
          ; // do nothing
       else
-         this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to load games', 'error');
+         this.displayStatusMessage(`Failed to load games, ${event.data?.error}. Tracking ID: ${event.transactionId}`, event.data.level || 'error');
 
       const abortContext = `${this.constructor.name}:loadGames`;
       
@@ -199,9 +209,14 @@ export class ManageGamesView extends MenuView
       return listContainer.querySelector(`.card[data-game-id="${gameId}"]`);
    }
 
-   updateGameControlButtons()
+   updateGameControlButtons(staleGame = false)
    {
       console.log('🔐 ManageGamesView: Updating game control buttons', this.gamesUpdating, this.selectedGame);
+      if(staleGame)
+         Utils.requireChild(this.container, '#game-controls-section').classList.add('card-stale');
+      else
+         Utils.requireChild(this.container, '#game-controls-section').classList.remove('card-stale');
+
       if(this.gamesUpdating.has(this.selectedGame?.id))
       {
          Utils.requireChild(this.container, '#game-controls-container').style.display = 'none';
@@ -385,8 +400,13 @@ export class ManageGamesView extends MenuView
       this.updatePlayerControlButtons();
    }
 
-   updatePlayerControlButtons()
+   updatePlayerControlButtons(staleGame = false)
    {
+      if(staleGame)
+         Utils.requireChild(this.container, '#player-controls-section').classList.add('card-stale');
+      else
+         Utils.requireChild(this.container, '#player-controls-section').classList.remove('card-stale');
+
       if(this.playersUpdating.has(this.selectedPlayer?.id))
       {
          Utils.requireChild(this.container, '#player-controls-container').style.display = 'none';
@@ -624,7 +644,8 @@ export class ManageGamesView extends MenuView
             gameCard.classList.add('card-stale');
 
          this.gamesUpdating.delete(gameId);
-         this.updateGameControlButtons();
+         this.updateGameControlButtons(true);
+         this.updatePlayerControlButtons(true);
 
          return;
       }
@@ -1240,7 +1261,7 @@ const manageGamesHTML = `
     <!-- Right Panel: Management Controls -->
     <div class="manage-games-right-panel">
       <!-- Game Control Buttons -->
-      <div class="manage-games-section manage-games-fixed-section">
+      <div id="game-controls-section" class="manage-games-section manage-games-fixed-section">
         <h3>Game Controls</h3>
         <div id="game-controls-container" class="game-controls">
           <button id="start-game-btn" disabled>Start</button>
@@ -1253,7 +1274,7 @@ const manageGamesHTML = `
       </div>
 
       <!-- Player Control Buttons -->
-      <div class="manage-games-section manage-games-fixed-section">
+      <div id="player-controls-section" class="manage-games-section manage-games-fixed-section">
         <h3>Player Controls</h3>
         <div id="player-controls-container" class="player-controls">
             <button id="end-turn-btn" disabled>End Turn</button>

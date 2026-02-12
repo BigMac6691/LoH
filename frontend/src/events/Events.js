@@ -29,9 +29,9 @@ export class ApiRequest extends ApiEvent
         this.signal = signal;
     }
 
-    prepareResponse(type, data = null, status = 200, error = null)
+    prepareResponse(type, data = null, status = 200)
     {
-        const responseEvent = new ApiResponse(type, data, status, error);
+        const responseEvent = new ApiResponse(type, data, status);
         responseEvent.transactionId = this.transactionId;
         
         return responseEvent;

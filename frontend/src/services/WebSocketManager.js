@@ -174,7 +174,6 @@ export class WebSocketManager
          throw new Error('WebSocketManager: Connection listener must be a function');
 
       this.connectionListeners.add(listener);
-      console.log(`🔌 WebSocketManager: Added connection listener (${this.connectionListeners.size} total)`);
    }
 
    /**

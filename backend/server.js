@@ -51,8 +51,6 @@ app.use((req, res, next) =>
 const uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const devDelayRules =
 [
-   // Example: 
-   // { pattern: new RegExp(`^/api/games/list`), delayMs: 500 }
    // To add method support later, extend rule with { method: 'GET' }
    { pattern: new RegExp(`^/api/games/list`), delayMs: 100 },
    { pattern: new RegExp(`^/api/games/${uuidPattern}/manage/players`), delayMs: 10000 },

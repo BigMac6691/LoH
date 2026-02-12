@@ -54,12 +54,12 @@ export class UIController
 
    handleAssetLoaded(event)
    {
-      console.log('🔐 UIController: Asset loaded:', event, event.data);
+      // console.log('🔐 UIController: Asset loaded:', event, event.data);
    }
 
    handleAssetLoading(event)
    {
-      console.log('🔐 UIController: Asset loading:', event, event.data);
+      // console.log('🔐 UIController: Asset loading:', event, event.data);
    }
 
    registerScreen(key, screen)

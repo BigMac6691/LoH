@@ -2,6 +2,7 @@ export class RequestManager
 {
   abortContexts = new Map();
   lastRequestIds = new Map();
+  pendingRequestIds = new Set();
 
   getAbortController(context)
   {
@@ -48,5 +49,26 @@ export class RequestManager
   complete(context)
   {
     this.lastRequestIds.delete(context);
+  }
+
+  // Following methods are used to track pending requests
+  addPending(transactionId)
+  {
+     this.pendingRequestIds.add(transactionId);
+  }
+
+  isPending(transactionId)
+  {
+     return this.pendingRequestIds.has(transactionId);
+  }
+
+  removePending(transactionId)
+  {
+     return this.pendingRequestIds.delete(transactionId);
+  }
+
+  clearPending()
+  {
+     this.pendingRequestIds.clear();
   }
 }

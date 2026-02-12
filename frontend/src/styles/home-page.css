@@ -348,7 +348,6 @@
 }
 
 .card:hover {
-  border-color: var(--color-primary, #00ff88);
   box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
   transform: translateY(-2px);
 }
@@ -1265,6 +1264,37 @@
 .card-stale {
   border-style: dashed;
   border-color: #888;
+}
+
+.card-stale .game-title {
+  position: relative;
+}
+
+.card-stale .game-title::before {
+  content: "⚠";
+  margin-right: 6px;
+}
+
+.card-stale .game-title::after {
+  content: "Stale data, please refresh";
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: #111;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.card-stale .game-title:hover::after {
+  opacity: 1;
 }
 
 .card-error {
