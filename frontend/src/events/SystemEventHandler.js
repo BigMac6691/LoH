@@ -30,8 +30,8 @@ export class SystemEventHandler
       this.eventRegister.registerEventHandler('system:listGamePlayers', this.handleListGamePlayers.bind(this));
       this.eventRegister.registerEventHandler('system:startGameRequest', this.handleStartGameRequest.bind(this));
       this.eventRegister.registerEventHandler('system:updateGameStatus', this.handleUpdateGameStatus.bind(this));
-      this.eventRegister.registerEventHandler('system:endPlayerTurnRequest', this.handleEndPlayerTurnRequest.bind(this));
-      this.eventRegister.registerEventHandler('system:updatePlayerStatusRequest', this.handleUpdatePlayerStatusRequest.bind(this));
+      this.eventRegister.registerEventHandler('system:endPlayerTurn', this.handleEndPlayerTurn.bind(this));
+      this.eventRegister.registerEventHandler('system:updatePlayerStatus', this.handleUpdatePlayerStatus.bind(this));
       this.eventRegister.registerEventHandler('system:updatePlayerMetaRequest', this.handleUpdatePlayerMetaRequest.bind(this));
       this.eventRegister.registerEventHandler('system:listAI', this.handleListAI.bind(this));
       this.eventRegister.registerEventHandler('system:addAIPlayerRequest', this.handleAddAIPlayerRequest.bind(this));
@@ -753,7 +753,7 @@ export class SystemEventHandler
     * Handle end player turn request event
     * @param {ApiRequest} event - End player turn request event
     */
-   handleEndPlayerTurnRequest(event)
+   handleEndPlayerTurn(event)
    {
       console.log('🔐 SystemEventHandler: Processing end player turn request');
 
@@ -811,7 +811,7 @@ export class SystemEventHandler
     * Handle update player status request event
     * @param {ApiRequest} event - Update player status request event
     */
-   handleUpdatePlayerStatusRequest(event)
+   handleUpdatePlayerStatus(event)
    {
       console.log('🔐 SystemEventHandler: Processing update player status request');
 

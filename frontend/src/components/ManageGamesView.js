@@ -50,18 +50,23 @@ export class ManageGamesView extends MenuView
       this.aiFormBuilder = new AIConfigFormBuilder();
 
       // Register event handlers
+      this.registerEventHandler('system:aiList', this.handleAIList.bind(this));
       this.registerEventHandler('system:gameList', this.handleGameList.bind(this));
       this.registerEventHandler('system:gamePlayerList', this.handleGamePlayersList.bind(this));
       this.registerEventHandler('system:gameUpdated', this.handleGameUpdated.bind(this));
+      this.registerEventHandler('system:playerUpdated', this.handlePlayerUpdated.bind(this));
+
       this.registerEventHandler('system:endPlayerTurnResponse', this.handleEndPlayerTurnResponse.bind(this));
       this.registerEventHandler('system:updatePlayerStatusResponse', this.handleUpdatePlayerStatusResponse.bind(this));
       this.registerEventHandler('system:updatePlayerMetaResponse', this.handleUpdatePlayerMetaResponse.bind(this));
-      this.registerEventHandler('system:aiList', this.handleAIList.bind(this));
+
       this.registerEventHandler('system:addAIPlayerResponse', this.handleAddAIPlayerResponse.bind(this));
 
       const abortControl = this.requestManager.reset(`${this.constructor.name}:aiList`);
+      const request = new ApiRequest('system:listAI', null, abortControl.signal);
 
-      eventBus.emit('system:listAI', new ApiRequest('system:listAI', null, abortControl.signal));
+      this.requestManager.addPending(request.transactionId);
+      eventBus.emitEvent(request);
    }
 
    create()
@@ -100,13 +105,12 @@ export class ManageGamesView extends MenuView
    loadGames(page = 1)
    {
       const message = `Loading page ${this.targetPage} of ${this.totalPages}...`;
-      Utils.requireChild(this.container, '.games-list-container').innerHTML = `<div class="games-loading">${message}</div>`;
-      this.displayStatusMessage(message, 'info');
-
       const abortContext = `${this.constructor.name}:loadGames`;
       const abortControl = this.requestManager.reset(abortContext);
       const request = new ApiRequest('system:listGames', {filter: 'manage', page, limit: 3}, abortControl.signal);
       
+      Utils.requireChild(this.container, '.games-list-container').innerHTML = `<div class="games-loading">${message}</div>`;
+      this.displayStatusMessage(message, 'info');
       this.requestManager.addPending(request.transactionId);
       this.requestManager.start(abortContext, request.transactionId);
       eventBus.emitEvent(request);
@@ -165,7 +169,7 @@ export class ManageGamesView extends MenuView
          this.requestManager.complete(abortContext);
       }
       else
-         console.warn('🔐 ManageGamesView: Request ID mismatch', abortContext, event.transactionId, this.requestManager.getLastTransactionId(abortContext));
+         logger.warn('🔐 ManageGamesView: Request ID mismatch', {abortContext, transactionId: event.transactionId, lastTransactionId: this.requestManager.getLastTransactionId(abortContext)});
    }
 
    renderGames()
@@ -183,7 +187,6 @@ export class ManageGamesView extends MenuView
 
    selectGame(gameId)
    {
-      console.log('🔐 ManageGamesView: Selecting game', gameId);
       this.selectedGame = this.games.find(game => game.id === gameId);
 
       // Update selected game in UI
@@ -197,22 +200,12 @@ export class ManageGamesView extends MenuView
       this.updatePlayerControlButtons();
    }
 
-   findGameCardById(gameId)
+   updateGameControlButtons()
    {
-      if (!this.container || !gameId)
-         return null;
+      const gameCard = this.container.querySelector(`.card[data-game-id="${this.selectedGame?.id}"]`);
+      const isStale = gameCard ? gameCard.classList.contains('card-stale') : false;
 
-      const listContainer = this.container.querySelector('.games-list-container');
-      if (!listContainer)
-         return null;
-
-      return listContainer.querySelector(`.card[data-game-id="${gameId}"]`);
-   }
-
-   updateGameControlButtons(staleGame = false)
-   {
-      console.log('🔐 ManageGamesView: Updating game control buttons', this.gamesUpdating, this.selectedGame);
-      if(staleGame)
+      if(isStale)
          Utils.requireChild(this.container, '#game-controls-section').classList.add('card-stale');
       else
          Utils.requireChild(this.container, '#game-controls-section').classList.remove('card-stale');
@@ -329,21 +322,28 @@ export class ManageGamesView extends MenuView
    {
       const abortContext = `${this.constructor.name}:loadPlayers:${gameId}`;
       const abortControl = this.requestManager.reset(abortContext);      
+      const request = new ApiRequest('system:listGamePlayers', {gameId}, abortControl.signal);
 
       Utils.requireChild(this.container, '.players-list-container').innerHTML = '<div class="players-loading">Loading players...</div>';
       this.displayStatusMessage('Loading players...', 'info');
-
-      const request = new ApiRequest('system:listGamePlayers', {gameId}, abortControl.signal);
+      this.requestManager.addPending(request.transactionId);
       this.requestManager.start(abortContext, request.transactionId);
       eventBus.emitEvent(request);
    }
 
-   /**
-    * Handle list game players response
-    * @param {ApiResponse} event - List game players response event
-    */
    handleGamePlayersList(event)
    {
+      if(!(event instanceof ApiResponse))
+      {
+         const trxId = event.transactionId || crypto.randomUUID();
+         logger.error(`ManageGamesView: handleGamePlayersList: tracking id=${trxId}: Event must be an ApiResponse`, event);
+
+         return this.displayStatusMessage(`Failed to load players, internal client error. Tracking ID: ${trxId}`, 'fatal');
+      }
+
+      if (!this.requestManager.removePending(event.transactionId)) // Only process responses for this component
+         return;
+
       if (event.isSuccess() && event.data)
       {
          this.players = event.data.players || [];
@@ -360,7 +360,7 @@ export class ManageGamesView extends MenuView
       else if (event.isAborted())
          ; // do nothing
       else
-         this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to load players', 'error');
+         this.displayStatusMessage(`Failed to load players, ${event.data?.error}. Tracking ID: ${event.transactionId}`, event.data.level || 'error');
 
       const abortContext = `${this.constructor.name}:loadPlayers:${this.selectedGame?.id}`;
       
@@ -372,7 +372,7 @@ export class ManageGamesView extends MenuView
          this.requestManager.complete(abortContext);
       }
       else
-         console.warn('🔐 ManageGamesView: Request ID mismatch', abortContext, event.transactionId, this.requestManager.getLastTransactionId(abortContext));
+         logger.warn('🔐 ManageGamesView: Request ID mismatch', {abortContext, transactionId: event.transactionId, lastTransactionId: this.requestManager.getLastTransactionId(abortContext)});
    }
 
    renderPlayers()
@@ -400,9 +400,12 @@ export class ManageGamesView extends MenuView
       this.updatePlayerControlButtons();
    }
 
-   updatePlayerControlButtons(staleGame = false)
+   updatePlayerControlButtons()
    {
-      if(staleGame)
+      const gameCard = this.container.querySelector(`.card[data-game-id="${this.selectedGame?.id}"]`);
+      const isStale = gameCard ? gameCard.classList.contains('card-stale') : false;
+
+      if(isStale)
          Utils.requireChild(this.container, '#player-controls-section').classList.add('card-stale');
       else
          Utils.requireChild(this.container, '#player-controls-section').classList.remove('card-stale');
@@ -515,6 +518,12 @@ export class ManageGamesView extends MenuView
       return { allowed: message === '', message };
    }
 
+   /**
+    * This has to be separate from a plain status change.  Starting a game changes to the status to running but you can also change the status to running
+    * from paused or frozen.  
+    * TODO consider adding logic on the server to accept a regular status change to running from lobby to mean start the game.
+    * @returns {void}
+    */
    startGame()
    {
       const { allowed, message } = this.canStartGame();
@@ -524,7 +533,9 @@ export class ManageGamesView extends MenuView
          this.gamesUpdating.add(this.selectedGame.id);
          this.displayStatusMessage('Starting game...', 'info');
 
-         eventBus.emitEvent(new ApiRequest('system:startGameRequest', {gameId: this.selectedGame.id, version: this.selectedGame.version}, null));
+         const request = new ApiRequest('system:startGameRequest', {gameId: this.selectedGame.id, version: this.selectedGame.version}, null);
+
+         eventBus.emitEvent(request);
       }
       else
          this.displayStatusMessage(message, 'warning');
@@ -610,19 +621,26 @@ export class ManageGamesView extends MenuView
       this.displayStatusMessage(`Updating game status to ${newStatus}${statusReason ? ` (${statusReason})` : ''}...`, 'info');
 
       const game = this.games.find(game => game.id === gameId);
-
       const request = new ApiRequest('system:updateGameStatus', {gameId, version: game.version, status: newStatus, statusReason: statusReason?.trim()}, null);
+
       eventBus.emitEvent(request);
    }
 
    /**
     * Handle update game status response
+    * If the game data is missing, the game is marked as stale and the game and player control sections are updated before returning, no other action is taken
     * @param {ApiResponse} event - Update game status response event
     */
    handleGameUpdated(event)
    {
-      console.log('🔐 ManageGamesView: Handling game updated event', event);
+      if(!(event instanceof ApiResponse))
+      {
+         const trxId = event.transactionId || crypto.randomUUID();
+         logger.error(`ManageGamesView: handleGameUpdated: tracking id=${trxId}: Event must be an ApiResponse`, event);
 
+         return this.displayStatusMessage(`Failed to update game, internal client error. Tracking ID: ${trxId}`, 'fatal');
+      }
+      
       const updatedGame = event.data?.game;
       const gameId = event.data?.gameId;
       const gameStatus = updatedGame?.status;
@@ -630,28 +648,30 @@ export class ManageGamesView extends MenuView
       const errorMessage = `Failed to update game, reason: ${event.isAborted() ? 'aborted' : event.data.error}, tracking id: ${event.correlationId}`;
 
       if (!gameId)
-         return this.displayStatusMessage(`Invalid response: missing game id, tracking id: ${event.correlationId}`, 'fatal');
+         return this.displayStatusMessage(`Invalid response: missing required fields, tracking id: ${event.correlationId}`, 'fatal');
 
       if (!updatedGame) // mark as stale if game data is missing
       {
          if(event.isSuccess())
-            this.displayStatusMessage(`Game data missing, status updated on database, tracking id: ${event.correlationId}`, 'warning');
+            this.displayStatusMessage(`Game data missing, game was updated on database, tracking id: ${event.correlationId}`, 'warning');
          else
             this.displayStatusMessage(errorMessage, 'error');
 
-         const gameCard = this.findGameCardById(gameId);
+         const gameCard = this.container.querySelector(`.card[data-game-id="${gameId}"]`);
+
          if(gameCard)
             gameCard.classList.add('card-stale');
 
          this.gamesUpdating.delete(gameId);
-         this.updateGameControlButtons(true);
-         this.updatePlayerControlButtons(true);
+         this.updateGameControlButtons();
+         this.updatePlayerControlButtons();
 
          return;
       }
 
       // Find and update the game in the games array
       const gameIndex = this.games.findIndex(game => game.id === gameId);
+
       if (gameIndex !== -1)
          Object.assign(this.games[gameIndex], updatedGame); // use assign so that the selected game referenced object is updated
       else
@@ -662,27 +682,18 @@ export class ManageGamesView extends MenuView
          // Post status message based on new status
          if (gameStatus === 'creating')
             this.displayStatusMessage('Game creation started...', 'info');
-         else if (gameStatus === 'error') // at the moment you can only get an error status if one of the  game creation steps failed
+         else if (gameStatus === 'error') // at the moment you can only get an error status if one of the game creation steps failed
             this.displayStatusMessage(`Game creation failed, reason: ${event.data.error}, tracking id: ${event.correlationId}`, 'error');
          else
             this.displayStatusMessage(`Game updated`, 'success');
 
          if (gameSubstatus)
-         {
-            const message = 
-            {
-               'map_generated': 'Generating map...',
-               'players_placed': 'Placing players...',
-               'turn_created': 'Creating first turn...'
-            } [gameSubstatus] || `Game creation: ${gameSubstatus}`;
-
-            this.displayStatusMessage(message, 'info');
-         }
+            this.displayStatusMessage(gameSubstatusMessages[gameSubstatus] || `Game creation: ${gameSubstatus}`, 'info');
       }
       else if (event.isAborted())
          this.displayStatusMessage('Game update aborted.', 'warning');
       else
-         this.displayStatusMessage(errorMessage, 'error');  // TODO refresh with current game state or mark as stale
+         this.displayStatusMessage(errorMessage, 'error');
 
       this.gamesUpdating.delete(gameId);
 
@@ -690,6 +701,20 @@ export class ManageGamesView extends MenuView
       this.updateGameControlButtons();
       this.updatePlayerControlButtons();
    }
+
+   handlePlayerUpdated(event)
+   {
+      if(!(event instanceof ApiResponse))
+      {
+         const trxId = event.transactionId || crypto.randomUUID();
+         logger.error(`ManageGamesView: handlePlayerUpdated: tracking id=${trxId}: Event must be an ApiResponse`, event);
+
+         return this.displayStatusMessage(`Failed to update player, internal client error. Tracking ID: ${trxId}`, 'fatal');
+      }
+
+      console.log('🔐 ManageGamesView: Handling player updated event', event);
+   }
+
 
    async endPlayerTurn()
    {
@@ -706,7 +731,10 @@ export class ManageGamesView extends MenuView
          this.playersUpdating.add(`${this.selectedGame.id}-${this.selectedPlayer.id}`);
          this.displayStatusMessage('Ending player turn...', 'info');
 
-         eventBus.emitEvent(new ApiRequest('system:endPlayerTurnRequest', {gameId: this.selectedGame.id, playerId: this.selectedPlayer.id, reason: reason.trim()}, null));
+         const data = {gameId: this.selectedGame.id, playerId: this.selectedPlayer.id, version: this.selectedPlayer.version, reason: reason.trim()};
+         const request = new ApiRequest('system:endPlayerTurn', data, null);
+
+         eventBus.emitEvent(request);
       }
       else
         this.displayStatusMessage(message, 'warning');
@@ -792,7 +820,10 @@ export class ManageGamesView extends MenuView
       this.displayStatusMessage(`Updating player status to ${newStatus}${statusReason ? ` (${statusReason})` : ''}...`, 'info');
 
       const requestData = {gameId: gameId, playerId: playerId, status: newStatus, statusReason: statusReason?.trim()};
-      eventBus.emitEvent(new ApiRequest('system:updatePlayerStatusRequest', requestData, null));
+      const request = new ApiRequest('system:updatePlayerStatus', requestData, null);
+
+      this.requestManager.addPending(request.transactionId);
+      eventBus.emitEvent(request);
    }
 
    /**
@@ -839,12 +870,21 @@ export class ManageGamesView extends MenuView
     */
    handleAIList(event)
    {
-      console.log('🔐 ManageGamesView: Handling AI list response', event);
+      if(!(event instanceof ApiResponse))
+      {
+         const trxId = event.transactionId || crypto.randomUUID();
+         logger.error(`ManageGamesView: handleAIList: tracking id=${trxId}: Event must be an ApiResponse`, event);
+
+         return this.displayStatusMessage(`Failed to load available AIs, internal client error. Tracking ID: ${trxId}`, 'fatal');
+      }
+      
+      if (!this.requestManager.removePending(event.transactionId)) // Only process responses for this component
+         return;
 
       if (!event.isSuccess() || !event.data)
-         return this.displayStatusMessage(event.error?.message || event.data?.message || 'Failed to load available AIs', 'error'); // void function call
+         return this.displayStatusMessage(`Failed to load available AIs, reason: ${event.data?.error}. Tracking ID: ${event.transactionId}`, event.data.level || 'error'); // void function call
 
-      this.aiList = event.data.success && event.data.ais ? event.data.ais : [];
+      this.aiList = event.data.ais || [];
 
       if (this.aiList.length === 0)
          this.displayStatusMessage('No AI implementations are available.', 'warning');
@@ -907,9 +947,10 @@ export class ManageGamesView extends MenuView
       this.aiAddBtn.disabled = !(hasPlayerName && hasCountryName && hasAI);
    }
 
-   handleAISelection(e)
+   handleAISelection(e) // in the Add AI Player dialog
    {
       const aiName = e.target.value;
+
       if (!aiName)
       {
          this.aiDescription.style.display = 'none';
@@ -921,6 +962,7 @@ export class ManageGamesView extends MenuView
       }
 
       this.selectedAI = this.aiList.find(ai => ai.name === aiName);
+
       if (!this.selectedAI)
          return this.context.displayStatusMessage('Unable to find AI in list of registered AIs', 'error');
 
@@ -966,6 +1008,7 @@ export class ManageGamesView extends MenuView
       if (this.currentAIConfigForm)
       {
          const errors = this.currentAIConfigForm.validate();
+
          if (errors.length > 0)
             return this.displayStatusMessage(errors.join(', '), 'error');
       }
@@ -1087,7 +1130,16 @@ export class ManageGamesView extends MenuView
     */
    handleAddAIPlayerResponse(event)
    {
-      console.log('🔐 ManageGamesView: Handling add AI player response', event);
+      // if(!(event instanceof ApiResponse))
+      // {
+      //    const trxId = event.transactionId || crypto.randomUUID();
+      //    logger.error(`ManageGamesView: handleAddAIPlayerResponse: tracking id=${trxId}: Event must be an ApiResponse`, event);
+
+      //    return this.displayStatusMessage(`Failed to add AI player, internal client error. Tracking ID: ${trxId}`, 'fatal');
+      // }
+      
+      // if (!this.requestManager.removePending(event.transactionId)) // Only process responses for this component
+      //    return;
 
       this.dialog.setDisabled(false);
 
@@ -1133,7 +1185,7 @@ export class ManageGamesView extends MenuView
          this.loadGames(newPage);
       }
       else
-         console.warn('🔐 ManageGamesView: Page limit reached, request not sent.', delta, newPage, this.targetPage);
+         logger.warn('🔐 ManageGamesView: Page limit reached, request not sent.', {delta, newPage, targetPage: this.targetPage});
    }
 
    nextPage()
@@ -1178,8 +1230,10 @@ export class ManageGamesView extends MenuView
       this.games = [];
       this.players = [];
       this.dialog = null;
+
       this.gamesUpdating.clear();
       this.playersUpdating.clear();
+      this.requestManager.dispose();
 
       this.aiList = [];
       this.aiSelect = null;
@@ -1191,6 +1245,14 @@ export class ManageGamesView extends MenuView
       this.aiFormBuilder = null;
    }
 }
+
+const gameSubstatusMessages = 
+{
+   'map_generated': 'Generating map...',
+   'players_placed': 'Placing players...',
+   'turn_created': 'Creating first turn...'
+}
+
 
 const pausePrompt =
 {
@@ -1358,12 +1420,7 @@ const addAIPlayerDialogHTML = `
  * @returns {string} HTML string
  */
 const gameCardHTML = (game, isSelected) => {
-   const message = 
-   {
-      'map_generated': 'Map generated',
-      'players_placed': 'Players placed',
-      'turn_created': 'First turn created'
-   }[game.substatus] || `Game creation: ${game.substatus}`;
+   const message = gameSubstatusMessages[game.substatus] || `Game creation: ${game.substatus}`;
 
    const substatusHTML = (game.substatus) 
       ? `<div class="game-info-row">

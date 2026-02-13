@@ -851,7 +851,6 @@ export class GameRouter
          // Respond immediately with 202 Accepted
          res.status(202).json(
          {
-            success: true,
             message: 'Game start initiated',
             gameId,
             correlationId
@@ -932,8 +931,8 @@ export class GameRouter
 
       try
       {
-         // response.game = await getGameWithCounts(gameId);
-         response.game = null; // use to test stale game logic on client and concurrency issues (requires two requests)
+         response.game = await getGameWithCounts(gameId);
+         // response.game = null; // use to test stale game logic on client and concurrency issues (requires two requests)
       }
       catch (error)
       {

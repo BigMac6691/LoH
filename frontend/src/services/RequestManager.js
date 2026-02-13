@@ -71,4 +71,11 @@ export class RequestManager
   {
      this.pendingRequestIds.clear();
   }
+
+  dispose()
+  {
+    this.abortContexts.clear();
+    this.lastRequestIds.clear();
+    this.pendingRequestIds.clear();
+  }
 }
