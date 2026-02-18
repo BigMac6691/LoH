@@ -59,12 +59,13 @@ export async function getGame(id, client = null) {
  * @param {string} params.status - New status
  * @param {string} [params.substatus] - Optional substatus
  * @param {string} [params.statusReason] - Optional status reason
+ * @param {boolean} [params.setStartedAt] - Set started_at to now if currently null
  * @param {Object} [client] - Optional database client for transactions
  * @returns {Promise<Object|null>} The updated game row or null
  */
-export async function updateGameStatus({ id, status, substatus = null, statusReason = null }, client = null) 
+export async function updateGameStatus({ id, status, substatus = null, statusReason = null, setStartedAt = false }, client = null) 
 {
-  console.log('🧪 updateGameStatus: Updating game status', { id, status, substatus, statusReason });
+  console.log('🧪 updateGameStatus: Updating game status', { id, status, substatus, statusReason, setStartedAt });
   const dbClient = client || pool;
   
   // Build dynamic update query
@@ -89,6 +90,9 @@ export async function updateGameStatus({ id, status, substatus = null, statusRea
   }
   else
     updates.push('status_reason = NULL');
+
+  if (setStartedAt)
+    updates.push('started_at = COALESCE(started_at, now())');
   
   const { rows } = await dbClient.query(`UPDATE game SET ${updates.join(', ')} WHERE id=$1 RETURNING *`, params);
   

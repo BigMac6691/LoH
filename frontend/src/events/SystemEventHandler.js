@@ -28,7 +28,6 @@ export class SystemEventHandler
       this.eventRegister.registerEventHandler('system:joinGameRequest', this.handleJoinGameRequest.bind(this));
       this.eventRegister.registerEventHandler('system:createGameRequest', this.handleCreateGameRequest.bind(this));
       this.eventRegister.registerEventHandler('system:listGamePlayers', this.handleListGamePlayers.bind(this));
-      this.eventRegister.registerEventHandler('system:startGameRequest', this.handleStartGameRequest.bind(this));
       this.eventRegister.registerEventHandler('system:updateGameStatus', this.handleUpdateGameStatus.bind(this));
       this.eventRegister.registerEventHandler('system:endPlayerTurn', this.handleEndPlayerTurn.bind(this));
       this.eventRegister.registerEventHandler('system:updatePlayerStatus', this.handleUpdatePlayerStatus.bind(this));
@@ -626,66 +625,6 @@ export class SystemEventHandler
    }
 
    /**
-    * Handle start game request event
-    * @param {ApiRequest} event - Start game request event
-    */
-   handleStartGameRequest(event)
-   {
-      console.log('🔐 SystemEventHandler: Processing start game request');
-
-      if(!(event instanceof ApiRequest))
-         throw new Error('SystemEventHandler: Invalid event type');
-
-      const { gameId, version } = event.data || {};
-
-      if (!gameId)
-      {
-         const errorResponse = event.prepareResponse('system:startGameResponse', null, 400, {message: 'Game ID is required'});
-         eventBus.emit('system:startGameResponse', errorResponse);
-         return;
-      }
-
-      let response = null;
-      let correlationId = null;
-
-      RB.fetchPost(`/api/games/${gameId}/startGame`, {version: version}, event.signal, event.transactionId)
-         .then(success =>
-         {
-            const normalized = this.normalizeResponse(success);
-            correlationId = normalized.correlationId;
-            console.log('Start game request success:', normalized.data);
-            // On 202 Accepted, emit updateGameStatusResponse with creating status
-            if (normalized.data.status === 'creating')
-            {
-               const statusResponse = event.prepareResponse('system:updateGameStatusResponse', {
-                  success: true,
-                  game: {
-                     id: gameId,
-                     status: 'creating',
-                     substatus: null
-                  }
-               }, 202, null);
-               this.applyCorrelationId(statusResponse, correlationId);
-               eventBus.emit('system:updateGameStatusResponse', statusResponse);
-            }
-            response = event.prepareResponse('system:startGameResponse', normalized.data, 202, null);
-         })
-         .catch(error =>
-         {
-            console.error('Start game request error:', error);
-            const status = event.signal?.aborted ? 499 : (error.status || 400);
-            const errorBody = error instanceof ApiError ? error.body : {message: error.message || error};
-            response = event.prepareResponse('system:startGameResponse', null, status, errorBody);
-            correlationId = error?.correlationId || null;
-         })
-         .finally(() =>
-         {
-            this.applyCorrelationId(response, correlationId);
-            eventBus.emit('system:startGameResponse', response);
-         });
-   }
-
-   /**
     * Handle update game status request event
     * @param {ApiRequest} event - Update game status request event
     */
@@ -729,22 +668,24 @@ export class SystemEventHandler
       RB.fetchPut(`/api/games/${gameId}/status`, requestBody, event.signal, event.transactionId)
          .then(success =>
          {
+            console.log('🔐 SystemEventHandler: Update game status success', success);
             const normalized = this.normalizeResponse(success);
+            const status = success.status || 200;
             correlationId = normalized.correlationId;
             console.log('Update game status request success:', normalized.data);
-            response = event.prepareResponse('system:gameUpdated', normalized.data, 200, null);
+            response = event.prepareResponse('system:gameUpdated', normalized.data, status, null);
          })
          .catch(error =>
          {
             console.error('Update game status request error:', {message: error.message, status: error.status, body: error.body}, error, error instanceof ApiError ? 'ApiError' : 'NOT ApiError');
             const status = event.signal?.aborted ? 499 : error.status || 400;
             const body = error instanceof ApiError ? error.body : {message: error.message || error};
-            response = event.prepareResponse('system:gameUpdated', body, status);
             correlationId = error?.correlationId || null;
+            response = event.prepareResponse('system:gameUpdated', body, status);
          })
          .finally(() =>
          {
-            this.applyCorrelationId(response, correlationId);
+            response.correlationId = correlationId;
             eventBus.emitEvent(response);
          });
    }

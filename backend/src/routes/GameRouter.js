@@ -7,6 +7,8 @@ import { authenticate } from '../middleware/auth.js';
 import { requireRole, requireGameOwnerOrAdmin, requireGamePlayer } from '../middleware/rbac.js';
 import { SystemError } from '../SystemError.js';
 import { myLogger } from '../utils/myLogger.js';
+import { asyncLocalStorage } from '../utils/AsyncContext.js';
+import { gameService } from '../services/GameService.js';
 
 export class GameRouter
 {
@@ -913,13 +915,19 @@ export class GameRouter
          if (game.status === 'finished' && status !== 'finished')
             throw SystemError.withSafeMessage('Cannot change status of a finished game', 400);
 
-         // Update status (with optional statusReason)
-         const { updateGameStatus } = await import('../repos/gamesRepo.js');
-         await updateGameStatus({id: gameId, status, statusReason: statusReason || null});
+         const { correlationId } = asyncLocalStorage.getStore();
+         const result = await gameService.updateStatus({
+            game,
+            gameId,
+            status,
+            statusReason,
+            correlationId,
+            userId: req.user.id,
+            userRole: req.user.role
+         });
 
-         // Set started_at if transitioning to running
-         if (status === 'running' && !game.started_at)
-            await pool.query(`UPDATE game SET started_at = now() WHERE id = $1`, [gameId]);
+         httpStatus = result.httpStatus;
+         Object.assign(response, result.response);
       }
       catch (error)
       {
@@ -931,7 +939,8 @@ export class GameRouter
 
       try
       {
-         response.game = await getGameWithCounts(gameId);
+         if(httpStatus !== 202)
+            response.game = await getGameWithCounts(gameId);
          // response.game = null; // use to test stale game logic on client and concurrency issues (requires two requests)
       }
       catch (error)

@@ -25,10 +25,12 @@ export class StartGameOrchestrator
       try
       {
          const { gameId } = context;
+
          if (!gameId)
             throw new Error('StartGameOrchestrator: gameId is required');
 
          const { rows } = await pool.query('SELECT substatus FROM game WHERE id = $1', [gameId]);
+
          if (rows.length === 0)
             throw new Error(`StartGameOrchestrator: Game ${gameId} not found`);
 
@@ -42,6 +44,7 @@ export class StartGameOrchestrator
          };
 
          const nextEvent = nextEventBySubstatus[substatus];
+
          if (!nextEvent)
             throw new Error(`StartGameOrchestrator: No next step for substatus ${substatus}`);
 

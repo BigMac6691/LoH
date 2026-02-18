@@ -6,18 +6,10 @@ import { upsertStarState } from '../repos/starsRepo.js';
 import { addShip } from '../repos/shipsRepo.js';
 import { webSocketService } from './WebSocketService.js';
 import { serverBus } from '../utils/ServerBus.js';
-import { randomUUID } from 'crypto';
+import { myLogger } from '../utils/myLogger.js';
 import { getGameWithCounts } from '../routes/GameRouter.js';
-
-class StartGameError extends Error
-{
-   constructor(statusCode, message, data = null)
-   {
-      super(message);
-      this.statusCode = statusCode;
-      this.data = data;
-   }
-}
+import { SystemError } from '../SystemError.js';
+import { asyncLocalStorage } from '../utils/AsyncContext.js';
 
 /**
  * StartGameService - Orchestrates game initialization
@@ -42,13 +34,14 @@ export class StartGameService
 
    async startMapGeneration(context)
    {
-      console.log('🎮 StartGameService: Starting map generation', context);
+      myLogger('info', 'StartGameService: Starting map generation', { data: context });
+
       const { transactionId, gameId } = context;
       const response =
       {
          type: 'system:gameUpdated',
          entityId: gameId,
-         payload: { transactionId, success: false, game: null }
+         payload: { transactionId, game: null }
       }
 
       const client = await pool.connect();
@@ -60,8 +53,6 @@ export class StartGameService
          await this.generateMap(client, gameId);
          await updateGameStatus({ id: gameId, status: 'creating', substatus: currentSubstatus, statusReason: null }, client);
          await client.query('COMMIT');
-
-         response.payload.success = true;
       }
       catch (error)
       {
@@ -96,7 +87,7 @@ export class StartGameService
 
    async startPlayerPlacement(context)
    {
-      console.log('🎮 StartGameService: Starting player placement', context);
+      myLogger('info', 'StartGameService: Starting player placement', { data: context });
       const { transactionId, gameId } = context;
       const response =
       {
@@ -114,8 +105,6 @@ export class StartGameService
          await this.placePlayers(client, gameId);
          await updateGameStatus({ id: gameId, status: 'creating', substatus: currentSubstatus, statusReason: null }, client);
          await client.query('COMMIT');
-
-         response.payload.success = true;
       }
       catch (error)
       {
@@ -150,7 +139,7 @@ export class StartGameService
 
    async startFirstTurnCreation(context)
    {
-      console.log('🎮 StartGameService: Starting first turn creation', context);
+      myLogger('info', 'StartGameService: Starting first turn creation', { data: context });
       const { transactionId, gameId } = context;
       const response =
       {
@@ -168,8 +157,6 @@ export class StartGameService
          await this.createFirstTurn(client, gameId);
          await updateGameStatus({ id: gameId, status: 'creating', substatus: currentSubstatus, statusReason: null }, client);
          await client.query('COMMIT');
-
-         response.payload.success = true;
       }
       catch (error)
       {
@@ -204,23 +191,21 @@ export class StartGameService
 
    async activateGame(context)
    {
-      console.log('🎮 StartGameService: Activating game', context);
+      myLogger('info', 'StartGameService: Activating game', { data: context });
       const { transactionId, gameId } = context;
       const response =
       {
          type: 'system:gameUpdated',
          entityId: gameId,
-         payload: { transactionId, success: false, game: null }
+         payload: { transactionId, game: null }
       }
       const client = await pool.connect();
 
       try
       {
          await client.query('BEGIN');
-         await updateGameStatus({ id: gameId, status: 'running', substatus: null, statusReason: null }, client);
+         await updateGameStatus({ id: gameId, status: 'running', substatus: null, statusReason: null, setStartedAt: true }, client);
          await client.query('COMMIT');
-
-         response.payload.success = true;
       }
       catch (error1)
       {
@@ -313,7 +298,7 @@ export class StartGameService
     */
    async placePlayers(client, gameId)
    {
-      console.log(`🎮 StartGameService: Placing players for game: ${gameId}`);
+      myLogger('info', 'StartGameService: Placing players for game', { data: { gameId } });
 
       const { rows: players } = await client.query('SELECT * FROM game_player WHERE game_id = $1', [gameId]);
 
@@ -333,7 +318,7 @@ export class StartGameService
          let attempts = 0;
          const maxAttempts = 100;
 
-         console.log(`🎮 StartGameService: Placing player ${player.id} on game ${gameId}`);
+         myLogger('info', 'StartGameService: Placing player on game', { data: { playerId: player.id, gameId } });
 
          while (!placed && attempts < maxAttempts)
          {
@@ -351,7 +336,7 @@ export class StartGameService
                for (let shipIndex = 0; shipIndex < 3; shipIndex++)
                   await addShip({ gameId, ownerPlayer: player.id, locationStarId: randomStar.star_id, hp: 3, power: 3, details: {} }, client);
 
-               console.log(`🎮 StartGameService: Placed player ${player.id} on star ${randomStar.star_id} with 3 ships`);
+               myLogger('info', 'StartGameService: Placed player on star with ships', { data: { playerId: player.id, gameId, starId: randomStar.star_id, shipsCreated: 3 } });
                playersPlaced++;
                placed = true;
             }
@@ -363,7 +348,7 @@ export class StartGameService
             throw new Error(`Could not find unowned star for player ${player.id} after ${maxAttempts} attempts`);
       }
 
-      console.log(`🎮 StartGameService: Successfully placed ${playersPlaced} players`);
+      myLogger('info', 'StartGameService: Successfully placed players', { data: { gameId, playersPlaced } });
       return { playersPlaced };
    }
 
@@ -374,9 +359,9 @@ export class StartGameService
     */
    async createFirstTurn(client, gameId)
    {
-      console.log(`🎮 StartGameService: Creating first turn for game: ${gameId}`);
+      myLogger('info', 'StartGameService: Creating first turn for game', { data: { gameId } });
       const turn = await openTurn({ gameId, number: 1 }, client);
-      console.log(`🎮 StartGameService: Created turn ${turn.number} (ID: ${turn.id})`);
+      myLogger('info', 'StartGameService: Created first turn', { data: { gameId, turnNumber: turn.number, turnId: turn.id } });
       return turn;
    }
 
@@ -392,47 +377,18 @@ export class StartGameService
     * @param {string} gameId - Game ID
     * @throws {Error} On any failure during the process
     */
-   async startGame({ gameId, expectedVersion, userId, userRole })
+   async startGame({ gameId, userId, userRole })
    {
-      console.log('🎮 StartGameService: Starting game', { gameId, expectedVersion, userId, userRole });
-      if (!gameId)
-         throw new StartGameError(400, 'Game ID is required');
+      myLogger('info', 'StartGameService: Starting game', { data: { gameId, userId, userRole } });
 
-      if (expectedVersion === undefined || expectedVersion === null)
-         throw new StartGameError(400, 'Game version is required');
-
-      if (!userId || !userRole)
-         throw new StartGameError(403, 'User authentication is required');
-
-      if (!['sponsor', 'admin', 'owner'].includes(userRole))
-         throw new StartGameError(403, 'Insufficient permissions to start game');
-
-      const { rows: gameRows } = await pool.query('SELECT * FROM game WHERE id = $1', [gameId]);
-      if (gameRows.length === 0)
-         throw new StartGameError(404, 'Game not found');
-
-      const game = gameRows[0];
-
-      if (userRole === 'sponsor' && game.owner_id !== userId)
-         throw new StartGameError(403, 'You can only manage games you created');
-
-      if (game.status !== 'lobby')
-         throw new StartGameError(400, `Game must be in 'lobby' status to start. Current status: ${game.status}`);
-
-      const { rows: playerRows } = await pool.query(
-         `SELECT COUNT(*) as count FROM game_player WHERE game_id = $1 AND status = 'active'`,
-         [gameId]
-      );
-
+      const { rows: playerRows } = await pool.query(`SELECT COUNT(*) as count FROM game_player WHERE game_id = $1 AND status = 'active'`, [gameId]);
       const activePlayerCount = parseInt(playerRows[0].count);
-      if (activePlayerCount < 2)
-         throw new StartGameError(400, `Game must have at least 2 active players. Current: ${activePlayerCount}`);
-
-      if (Number(game.version) !== Number(expectedVersion))
-         throw new StartGameError(409, 'Game version mismatch', { game });
-
       const { correlationId } = asyncLocalStorage.getStore();
-      this.serverBus.emit('game.start:startGame', { correlationId, gameId, userId, userRole });
+
+      if (activePlayerCount < 2)
+         throw SystemError.withSafeMessage(`Game must have at least 2 active players. Current: ${activePlayerCount}`, 400);
+
+      this.serverBus.emit('game.start:startGame', { correlationId, gameId, userId, userRole }); // does not wait for the event to be processed, returns immediately
    }
 }
 

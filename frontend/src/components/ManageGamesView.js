@@ -530,12 +530,7 @@ export class ManageGamesView extends MenuView
       
       if (allowed)
       {
-         this.gamesUpdating.add(this.selectedGame.id);
-         this.displayStatusMessage('Starting game...', 'info');
-
-         const request = new ApiRequest('system:startGameRequest', {gameId: this.selectedGame.id, version: this.selectedGame.version}, null);
-
-         eventBus.emitEvent(request);
+         this.updateGameStatus(this.selectedGame.id, 'running');
       }
       else
          this.displayStatusMessage(message, 'warning');
@@ -608,10 +603,9 @@ export class ManageGamesView extends MenuView
           return this.displayStatusMessage('Finishing game was cancelled', 'info');
       }
       else
-      {
         this.displayStatusMessage(message, 'warning');
-        this.updateGameControlButtons();
-      }
+
+      this.updateGameControlButtons();
    }
 
    updateGameStatus(gameId, newStatus, statusReason = null)
@@ -633,6 +627,7 @@ export class ManageGamesView extends MenuView
     */
    handleGameUpdated(event)
    {
+      console.log('🔐 ManageGamesView: Handling game updated event', event);
       if(!(event instanceof ApiResponse))
       {
          const trxId = event.transactionId || crypto.randomUUID();
@@ -640,7 +635,7 @@ export class ManageGamesView extends MenuView
 
          return this.displayStatusMessage(`Failed to update game, internal client error. Tracking ID: ${trxId}`, 'fatal');
       }
-      
+
       const updatedGame = event.data?.game;
       const gameId = event.data?.gameId;
       const gameStatus = updatedGame?.status;
@@ -650,7 +645,7 @@ export class ManageGamesView extends MenuView
       if (!gameId)
          return this.displayStatusMessage(`Invalid response: missing required fields, tracking id: ${event.correlationId}`, 'fatal');
 
-      if (!updatedGame) // mark as stale if game data is missing
+      if (!updatedGame && event.status !== 202) // mark as stale if game data is missing
       {
          if(event.isSuccess())
             this.displayStatusMessage(`Game data missing, game was updated on database, tracking id: ${event.correlationId}`, 'warning');
@@ -669,13 +664,15 @@ export class ManageGamesView extends MenuView
          return;
       }
 
-      // Find and update the game in the games array
-      const gameIndex = this.games.findIndex(game => game.id === gameId);
+      if(event.status !== 202)
+      {
+         const gameIndex = this.games.findIndex(game => game.id === gameId);
 
-      if (gameIndex !== -1)
-         Object.assign(this.games[gameIndex], updatedGame); // use assign so that the selected game referenced object is updated
-      else
-         this.displayStatusMessage('Game not found in list of loaded games, game updated on database', 'warning');
+         if (gameIndex !== -1)
+            Object.assign(this.games[gameIndex], updatedGame); // use assign so that the selected game referenced object is updated
+         else
+            this.displayStatusMessage('Game not found in list of loaded games, game updated on database', 'warning');
+      }
 
       if (event.isSuccess())
       {
@@ -684,6 +681,8 @@ export class ManageGamesView extends MenuView
             this.displayStatusMessage('Game creation started...', 'info');
          else if (gameStatus === 'error') // at the moment you can only get an error status if one of the game creation steps failed
             this.displayStatusMessage(`Game creation failed, reason: ${event.data.error}, tracking id: ${event.correlationId}`, 'error');
+         else if(event.status === 202)
+            this.displayStatusMessage(event.data.message, 'success');
          else
             this.displayStatusMessage(`Game updated`, 'success');
 

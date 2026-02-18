@@ -56,7 +56,7 @@ const devDelayRules =
    { pattern: new RegExp(`^/api/games/${uuidPattern}/manage/players`), delayMs: 10000 },
    { pattern: new RegExp(`^/api/games/${uuidPattern}/turn`), delayMs: 10000 },
    { pattern: new RegExp(`^/api/games/${uuidPattern}/startGame`), delayMs: 1000 },
-   { pattern: new RegExp(`^/api/games/${uuidPattern}/status`), delayMs: 5000 },
+   { pattern: new RegExp(`^/api/games/${uuidPattern}/status`), delayMs: 1000 },
    { pattern: new RegExp(`^/api/games/${uuidPattern}/players/${uuidPattern}/end-turn`), delayMs: 10000 },
    { pattern: new RegExp(`^/api/games/${uuidPattern}/players/${uuidPattern}/status`), delayMs: 10000 },
    { pattern: new RegExp(`^/api/games/${uuidPattern}/players/${uuidPattern}/meta`), delayMs: 10000 },
